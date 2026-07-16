@@ -30,6 +30,15 @@ def test_requests_with_equal_values_are_equal() -> None:
     assert GuidanceRequest(**values) == GuidanceRequest(**values)
 
 
+def test_field_assignment_is_rejected() -> None:
+    request = GuidanceRequest(**valid_request())
+
+    with pytest.raises(ValidationError) as exc_info:
+        request.n_core = 1.6
+
+    assert exc_info.value.errors()[0]["type"] == "frozen_instance"
+
+
 def test_reversed_refractive_index_order_is_rejected() -> None:
     values = valid_request()
     values["n_core"], values["n_cladding"] = values["n_cladding"], values["n_core"]

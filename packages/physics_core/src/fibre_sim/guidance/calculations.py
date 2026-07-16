@@ -12,14 +12,18 @@ def critical_angle_deg(request: GuidanceRequest) -> float:
 
 
 def numerical_aperture(request: GuidanceRequest) -> float:
-    return sqrt((request.n_core - request.n_cladding) * (request.n_core + request.n_cladding))
+    core_index = request.n_core
+    cladding_ratio = request.n_cladding / core_index
+    return core_index * sqrt(
+        ((core_index - request.n_cladding) / core_index) * (1.0 + cladding_ratio)
+    )
 
 
 def air_acceptance_angle_deg(request: GuidanceRequest) -> float:
     numerical_aperture_value = numerical_aperture(request)
     if numerical_aperture_value > 1:
         raise AirAcceptanceAngleError(
-            "Air acceptance angle is undefined when numerical aperture exceeds 1."
+            "Inverse-sine air acceptance-angle model requires numerical aperture <= 1."
         )
     return degrees(asin(numerical_aperture_value))
 

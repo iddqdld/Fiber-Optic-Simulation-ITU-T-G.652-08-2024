@@ -52,7 +52,7 @@ def test_relative_index_difference_uses_the_project_convention() -> None:
     assert relative_index_difference(request) == pytest.approx(0.01, rel=1e-12, abs=1e-12)
 
 
-def test_telecom_index_pair_matches_reference_values() -> None:
+def test_educational_weak_guidance_fixture_matches_reference_values() -> None:
     request = make_request(1.450, 1.444)
 
     assert critical_angle_deg(request) == pytest.approx(84.78590277783555, rel=1e-12, abs=1e-12)
@@ -63,6 +63,15 @@ def test_telecom_index_pair_matches_reference_values() -> None:
     assert relative_index_difference(request) == pytest.approx(
         0.004137931034482762, rel=1e-12, abs=1e-12
     )
+
+
+def test_numerical_aperture_handles_huge_finite_indices() -> None:
+    request = make_request(1.0e308, 9.0e307)
+
+    result = numerical_aperture(request)
+
+    assert math.isfinite(result)
+    assert result == pytest.approx(1.0e308 * math.sqrt(0.19), rel=1e-12, abs=0.0)
 
 
 def test_repeated_calculations_are_deterministic() -> None:
@@ -135,7 +144,7 @@ def test_guidance_calculations_are_independent_of_radius_and_wavelength() -> Non
 
 def test_air_acceptance_angle_rejects_numerical_aperture_above_one() -> None:
     request = make_request(2.0, 1.0)
-    message = "Air acceptance angle is undefined when numerical aperture exceeds 1."
+    message = "Inverse-sine air acceptance-angle model requires numerical aperture <= 1."
 
     assert numerical_aperture(request) > 1.0
     with pytest.raises(AirAcceptanceAngleError) as exc_info:
