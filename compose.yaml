@@ -1,0 +1,22 @@
+name: optical-fibre-simulator
+
+services:
+  api:
+    profiles: ["core"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    init: true
+  web:
+    profiles: ["core"]
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
