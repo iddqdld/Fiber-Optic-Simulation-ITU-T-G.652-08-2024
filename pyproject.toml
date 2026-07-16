@@ -16,3 +16,35 @@ fibre-sim = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/physics_core"]
+
+[dependency-groups]
+dev = [
+    "mypy==2.3.0",
+    "pytest==9.1.1",
+    "ruff==0.15.22",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps/api", "packages/physics_core/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["packages/physics_core/src"]
+explicit_package_bases = true
+files = [
+    "apps/api/app",
+    "apps/api/tests",
+    "packages/physics_core/src",
+    "packages/physics_core/tests",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["apps/api/tests", "packages/physics_core/tests"]
+addopts = "-q -p no:cacheprovider"

@@ -22,3 +22,20 @@ services:
     depends_on:
       api:
         condition: service_healthy
+  api-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: test
+    init: true
+    environment:
+      MYPY_CACHE_DIR: /tmp/mypy-cache
+      RUFF_CACHE_DIR: /tmp/ruff-cache
+  web-test:
+    profiles: ["test"]
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    init: true
+    command: ["npm", "test"]
