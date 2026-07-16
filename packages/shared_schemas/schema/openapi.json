@@ -1,0 +1,1251 @@
+{
+  "components": {
+    "schemas": {
+      "Bend": {
+        "additionalProperties": false,
+        "properties": {
+          "angle_deg": {
+            "title": "Angle Deg",
+            "type": "number"
+          },
+          "radius_um": {
+            "title": "Radius Um",
+            "type": "number"
+          }
+        },
+        "required": [
+          "radius_um",
+          "angle_deg"
+        ],
+        "title": "Bend",
+        "type": "object"
+      },
+      "CableSection": {
+        "additionalProperties": false,
+        "properties": {
+          "bends": {
+            "items": {
+              "$ref": "#/components/schemas/Bend"
+            },
+            "title": "Bends",
+            "type": "array"
+          },
+          "fibre_definition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FibreDefinition"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "fibre_definition_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fibre Definition Id"
+          },
+          "length_km": {
+            "title": "Length Km",
+            "type": "number"
+          },
+          "section_attenuation_override_db_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Section Attenuation Override Db Km"
+          },
+          "section_dispersion_override_ps_nm_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Section Dispersion Override Ps Nm Km"
+          },
+          "temperature_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Temperature C"
+          }
+        },
+        "required": [
+          "length_km"
+        ],
+        "title": "CableSection",
+        "type": "object"
+      },
+      "Connector": {
+        "additionalProperties": false,
+        "properties": {
+          "component_type": {
+            "const": "connector",
+            "default": "connector",
+            "title": "Component Type",
+            "type": "string"
+          },
+          "location_km": {
+            "title": "Location Km",
+            "type": "number"
+          },
+          "loss_db": {
+            "title": "Loss Db",
+            "type": "number"
+          },
+          "return_loss_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Return Loss Db"
+          }
+        },
+        "required": [
+          "location_km",
+          "loss_db"
+        ],
+        "title": "Connector",
+        "type": "object"
+      },
+      "DistanceSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "distance_km": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Distance Km",
+            "type": "array"
+          },
+          "power_dbm": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Power Dbm",
+            "type": "array"
+          }
+        },
+        "title": "DistanceSeries",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Field"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "trace_id": {
+            "title": "Trace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "trace_id"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "FibreDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation_model_id": {
+            "title": "Attenuation Model Id",
+            "type": "string"
+          },
+          "cladding_diameter_um": {
+            "title": "Cladding Diameter Um",
+            "type": "number"
+          },
+          "core_radius_um": {
+            "title": "Core Radius Um",
+            "type": "number"
+          },
+          "cutoff_wavelength_nm": {
+            "title": "Cutoff Wavelength Nm",
+            "type": "number"
+          },
+          "dispersion_model_id": {
+            "title": "Dispersion Model Id",
+            "type": "string"
+          },
+          "effective_area_um2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Effective Area Um2"
+          },
+          "index_profile": {
+            "$ref": "#/components/schemas/IndexProfile"
+          },
+          "metadata": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Metadata",
+            "type": "object"
+          },
+          "mode_field_diameter_model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "n_cladding_model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "n_core_model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pmd_coefficient_ps_sqrt_km": {
+            "title": "Pmd Coefficient Ps Sqrt Km",
+            "type": "number"
+          },
+          "standard_category": {
+            "$ref": "#/components/schemas/FibreStandard"
+          }
+        },
+        "required": [
+          "name",
+          "standard_category",
+          "core_radius_um",
+          "cladding_diameter_um",
+          "n_core_model",
+          "n_cladding_model",
+          "index_profile",
+          "mode_field_diameter_model",
+          "cutoff_wavelength_nm",
+          "attenuation_model_id",
+          "dispersion_model_id",
+          "pmd_coefficient_ps_sqrt_km"
+        ],
+        "title": "FibreDefinition",
+        "type": "object"
+      },
+      "FibreStandard": {
+        "enum": [
+          "G652D",
+          "G652B",
+          "CUSTOM"
+        ],
+        "title": "FibreStandard",
+        "type": "string"
+      },
+      "FieldCrossSection": {
+        "additionalProperties": false,
+        "properties": {
+          "normalized_intensity": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Normalized Intensity",
+            "type": "array"
+          },
+          "x_um": {
+            "items": {
+              "type": "number"
+            },
+            "title": "X Um",
+            "type": "array"
+          },
+          "y_um": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Y Um",
+            "type": "array"
+          }
+        },
+        "title": "FieldCrossSection",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "IndexProfile": {
+        "enum": [
+          "STEP",
+          "GRADED",
+          "CUSTOM"
+        ],
+        "title": "IndexProfile",
+        "type": "string"
+      },
+      "LinkComponent": {
+        "discriminator": {
+          "mapping": {
+            "connector": "#/components/schemas/Connector",
+            "splice": "#/components/schemas/Splice"
+          },
+          "propertyName": "component_type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/Splice"
+          },
+          {
+            "$ref": "#/components/schemas/Connector"
+          }
+        ]
+      },
+      "ModelManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "model_name": {
+            "title": "Model Name",
+            "type": "string"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ModelProvenance"
+          },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Schema Version"
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Units",
+            "type": "object"
+          },
+          "valid_input_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValidInputRange"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ModelWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model_name",
+          "model_version",
+          "provenance"
+        ],
+        "title": "ModelManifest",
+        "type": "object"
+      },
+      "ModelProvenance": {
+        "enum": [
+          "calculated",
+          "approximated",
+          "user-supplied",
+          "standards-limit"
+        ],
+        "title": "ModelProvenance",
+        "type": "string"
+      },
+      "ModelReference": {
+        "additionalProperties": false,
+        "properties": {
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model Version"
+          }
+        },
+        "required": [
+          "model_id"
+        ],
+        "title": "ModelReference",
+        "type": "object"
+      },
+      "ModelWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Field"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/WarningSeverity",
+            "default": "WARNING"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ModelWarning",
+        "type": "object"
+      },
+      "PulseSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "power_dbm": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Power Dbm",
+            "type": "array"
+          },
+          "time_ps": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Time Ps",
+            "type": "array"
+          }
+        },
+        "title": "PulseSeries",
+        "type": "object"
+      },
+      "SectionResult": {
+        "additionalProperties": false,
+        "properties": {
+          "input_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Power Dbm"
+          },
+          "length_km": {
+            "title": "Length Km",
+            "type": "number"
+          },
+          "loss_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Loss Db"
+          },
+          "output_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Power Dbm"
+          },
+          "section_index": {
+            "title": "Section Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "section_index",
+          "length_km"
+        ],
+        "title": "SectionResult",
+        "type": "object"
+      },
+      "SimulationConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "comparison_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Comparison Label"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/LinkComponent"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "random_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Random Seed"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/CableSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "solver_options": {
+            "$ref": "#/components/schemas/SolverOptions"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceDefinition"
+          }
+        },
+        "required": [
+          "source",
+          "sections"
+        ],
+        "title": "SimulationConfig",
+        "type": "object"
+      },
+      "SimulationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "distance_series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DistanceSeries"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "field_cross_section": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldCrossSection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "model_manifest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelManifest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "per_section_results": {
+            "items": {
+              "$ref": "#/components/schemas/SectionResult"
+            },
+            "title": "Per Section Results",
+            "type": "array"
+          },
+          "pulse_series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PulseSeries"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "standards_checks": {
+            "items": {
+              "$ref": "#/components/schemas/StandardsCheckMetadata"
+            },
+            "title": "Standards Checks",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SimulationStatus",
+            "default": "PENDING"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimulationSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ModelWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wavelength_series": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WavelengthSeries"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "SimulationResult",
+        "type": "object"
+      },
+      "SimulationStatus": {
+        "enum": [
+          "PENDING",
+          "COMPLETE",
+          "FAILED"
+        ],
+        "title": "SimulationStatus",
+        "type": "string"
+      },
+      "SimulationSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "input_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Power Dbm"
+          },
+          "output_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Output Power Dbm"
+          },
+          "peak_power_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Peak Power Dbm"
+          },
+          "total_length_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Length Km"
+          },
+          "total_loss_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total Loss Db"
+          }
+        },
+        "title": "SimulationSummary",
+        "type": "object"
+      },
+      "SolverOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "distance_step_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Distance Step Km"
+          },
+          "max_iterations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Iterations"
+          },
+          "time_step_ps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Time Step Ps"
+          },
+          "tolerance_dimensionless": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tolerance Dimensionless"
+          },
+          "wavelength_step_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wavelength Step Nm"
+          }
+        },
+        "title": "SolverOptions",
+        "type": "object"
+      },
+      "SourceDefinition": {
+        "additionalProperties": false,
+        "properties": {
+          "beam_waist_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Beam Waist Um"
+          },
+          "input_power_dbm": {
+            "title": "Input Power Dbm",
+            "type": "number"
+          },
+          "launch_angle_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Launch Angle Deg"
+          },
+          "launch_offset_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Launch Offset Um"
+          },
+          "polarization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Polarization"
+          },
+          "pulse_fwhm_ps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Pulse Fwhm Ps"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "spectral_width_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Spectral Width Nm"
+          },
+          "wavelength_nm": {
+            "title": "Wavelength Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wavelength_nm",
+          "input_power_dbm",
+          "source_type"
+        ],
+        "title": "SourceDefinition",
+        "type": "object"
+      },
+      "SourceType": {
+        "enum": [
+          "CW",
+          "GAUSSIAN_PULSE"
+        ],
+        "title": "SourceType",
+        "type": "string"
+      },
+      "Splice": {
+        "additionalProperties": false,
+        "properties": {
+          "component_type": {
+            "const": "splice",
+            "default": "splice",
+            "title": "Component Type",
+            "type": "string"
+          },
+          "location_km": {
+            "title": "Location Km",
+            "type": "number"
+          },
+          "loss_db": {
+            "title": "Loss Db",
+            "type": "number"
+          }
+        },
+        "required": [
+          "location_km",
+          "loss_db"
+        ],
+        "title": "Splice",
+        "type": "object"
+      },
+      "StandardsCheckItem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "passed"
+        ],
+        "title": "StandardsCheckItem",
+        "type": "object"
+      },
+      "StandardsCheckMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/StandardsCheckItem"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "standard_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FibreStandard"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "status": {
+            "$ref": "#/components/schemas/StandardsCheckStatus",
+            "default": "NOT_CHECKED"
+          }
+        },
+        "title": "StandardsCheckMetadata",
+        "type": "object"
+      },
+      "StandardsCheckStatus": {
+        "enum": [
+          "PASS",
+          "FAIL",
+          "NOT_CHECKED"
+        ],
+        "title": "StandardsCheckStatus",
+        "type": "string"
+      },
+      "ValidInputRange": {
+        "additionalProperties": false,
+        "properties": {
+          "input_power_max_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Power Max Dbm"
+          },
+          "input_power_min_dbm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Input Power Min Dbm"
+          },
+          "length_max_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Length Max Km"
+          },
+          "length_min_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Length Min Km"
+          },
+          "temperature_max_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Temperature Max C"
+          },
+          "temperature_min_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Temperature Min C"
+          },
+          "wavelength_max_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wavelength Max Nm"
+          },
+          "wavelength_min_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Wavelength Min Nm"
+          }
+        },
+        "title": "ValidInputRange",
+        "type": "object"
+      },
+      "WarningSeverity": {
+        "enum": [
+          "INFO",
+          "WARNING",
+          "ERROR"
+        ],
+        "title": "WarningSeverity",
+        "type": "string"
+      },
+      "WavelengthSeries": {
+        "additionalProperties": false,
+        "properties": {
+          "power_dbm": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Power Dbm",
+            "type": "array"
+          },
+          "wavelength_nm": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Wavelength Nm",
+            "type": "array"
+          }
+        },
+        "title": "WavelengthSeries",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Optical Fibre Simulator API",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "get_health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Health"
+      }
+    }
+  }
+}

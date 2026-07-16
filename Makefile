@@ -1,12 +1,15 @@
 COMPOSE ?= docker compose
 
-.PHONY: dev quality-images test lint format build down
+.PHONY: dev quality-images contracts test lint format build down
 
 dev:
 	$(COMPOSE) --profile core up --build
 
 quality-images:
 	$(COMPOSE) --profile test build
+
+contracts:
+	./scripts/generate_openapi_types.sh
 
 test: quality-images
 	$(COMPOSE) --profile test run --rm api-test
