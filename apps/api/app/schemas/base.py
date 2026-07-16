@@ -19,6 +19,8 @@ PHYSICAL_UNIT_SUFFIXES: tuple[str, ...] = (
 DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
     "random_seed",
     "max_iterations",
+    "n_cladding",
+    "n_core",
     "section_index",
     "normalized_intensity",
 }

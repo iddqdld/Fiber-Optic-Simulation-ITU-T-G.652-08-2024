@@ -17,6 +17,8 @@ from apps.api.app.schemas import (
 from apps.api.app.schemas.base import DIMENSIONLESS_NUMERIC_FIELDS, PHYSICAL_UNIT_SUFFIXES
 from pydantic import TypeAdapter, ValidationError
 
+from fibre_sim.guidance import GuidanceRequest
+
 
 def fibre() -> FibreDefinition:
     return FibreDefinition(
@@ -135,6 +137,27 @@ def test_result_contract_has_typed_explicit_series_without_generic_metrics() -> 
     }.issubset(fields)
     assert "value" not in fields
     assert "metrics" not in fields
+
+
+def test_guidance_request_requires_exact_fields_and_rejects_extras() -> None:
+    payload = {
+        "n_core": 1.45,
+        "n_cladding": 1.44,
+        "core_radius_um": 4.1,
+        "wavelength_nm": 1550.0,
+    }
+
+    assert set(GuidanceRequest.model_fields) == set(payload)
+    assert GuidanceRequest.model_validate(payload).model_dump() == payload
+
+    with pytest.raises(ValidationError):
+        GuidanceRequest.model_validate({**payload, "unexpected": "value"})
+
+    for field_name in payload:
+        incomplete_payload = payload.copy()
+        del incomplete_payload[field_name]
+        with pytest.raises(ValidationError):
+            GuidanceRequest.model_validate(incomplete_payload)
 
 
 def contains_numeric_annotation(annotation: Any) -> bool:

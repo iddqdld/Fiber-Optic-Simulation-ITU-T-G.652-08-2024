@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from fibre_sim.guidance import GuidanceRequest
+
 from .schemas import (
     ApplicationError,
     CableSection,
@@ -67,6 +69,7 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     ErrorResponse,
     FieldCrossSection,
     FibreDefinition,
+    GuidanceRequest,
     HealthResponse,
     ModelManifest,
     ModelReference,

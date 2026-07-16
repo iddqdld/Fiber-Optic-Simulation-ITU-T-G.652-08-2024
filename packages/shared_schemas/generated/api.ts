@@ -152,6 +152,17 @@ export interface components {
             /** Y Um */
             y_um?: number[];
         };
+        /** GuidanceRequest */
+        GuidanceRequest: {
+            /** Core Radius Um */
+            core_radius_um: number;
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Wavelength Nm */
+            wavelength_nm: number;
+        };
         /** HealthResponse */
         HealthResponse: {
             /**

@@ -335,6 +335,39 @@
         "title": "FieldCrossSection",
         "type": "object"
       },
+      "GuidanceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "core_radius_um": {
+            "exclusiveMinimum": 0,
+            "title": "Core Radius Um",
+            "type": "number"
+          },
+          "n_cladding": {
+            "exclusiveMinimum": 0,
+            "title": "N Cladding",
+            "type": "number"
+          },
+          "n_core": {
+            "exclusiveMinimum": 0,
+            "title": "N Core",
+            "type": "number"
+          },
+          "wavelength_nm": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "n_core",
+          "n_cladding",
+          "core_radius_um",
+          "wavelength_nm"
+        ],
+        "title": "GuidanceRequest",
+        "type": "object"
+      },
       "HealthResponse": {
         "additionalProperties": false,
         "properties": {
