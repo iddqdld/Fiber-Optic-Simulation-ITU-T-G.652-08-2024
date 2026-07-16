@@ -14,6 +14,7 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
         "ErrorResponse",
         "FieldCrossSection",
         "FibreDefinition",
+        "GuidanceRequest",
         "HealthResponse",
         "LinkComponent",
         "ModelManifest",
@@ -34,6 +35,22 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
     }
     assert "$defs" not in schemas["SimulationResult"]
     assert "value" not in schemas["SimulationResult"]["properties"]
+
+
+def test_guidance_request_schema_has_exact_required_positive_fields() -> None:
+    guidance_schema = main.app.openapi()["components"]["schemas"]["GuidanceRequest"]
+
+    assert set(guidance_schema["properties"]) == {
+        "n_core",
+        "n_cladding",
+        "core_radius_um",
+        "wavelength_nm",
+    }
+    assert guidance_schema["additionalProperties"] is False
+    assert set(guidance_schema["required"]) == set(guidance_schema["properties"])
+
+    for field_name in ("core_radius_um", "wavelength_nm"):
+        assert guidance_schema["properties"][field_name]["exclusiveMinimum"] == 0
 
 
 def test_contract_schema_merge_preserves_fastapi_generated_schemas(

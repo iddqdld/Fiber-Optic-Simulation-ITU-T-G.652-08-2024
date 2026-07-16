@@ -105,6 +105,12 @@ wheels = [
 name = "fibre-sim"
 version = "0.0.0"
 source = { editable = "packages/physics_core" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = "==2.13.4" }]
 
 [[package]]
 name = "h11"
