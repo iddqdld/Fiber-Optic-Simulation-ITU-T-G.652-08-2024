@@ -1,4 +1,4 @@
-# Step 11 guidance: normalized frequency
+# Steps 10-12 guidance
 
 Step 11 adds the normalized frequency, or V-number, calculation for a valid
 `GuidanceRequest`. It builds on the scalar refractive-index guidance quantities
@@ -71,12 +71,34 @@ V. The equation and the educational reference values used by this step are
 documented in section 2.3 of the [authorized local fundamentals note](../../../notes/Fondamentaux%20fibre%20optique%20et%20propagation%20de%20la%20lumi%C3%A8re.md).
 That reference is educational and is not a G.652.D value or cable cut-off.
 
-The value `V = 2.405` is retained as a numerical reference boundary only in
-this step. Classification at that value and the theoretical ideal step-index
-V cut-off are not implemented. A future ideal V cut-off would be a modal
-threshold for an idealized circular step-index fibre; it must not be confused
-with the ITU-T G.652.D cable cut-off, which is a distinct specification-level
-quantity.
+## Step 12 mode-regime classification
+
+Step 12 classifies a valid `GuidanceRequest` using its ideal-model V-number.
+`ModeRegime` is a typed `StrEnum` with the stable string values
+`"single_mode"` and `"multimode"`. `classify_mode_regime(request)` applies the
+following exact branch semantics:
+
+- `V < LP11_CUTOFF_V` returns `ModeRegime.SINGLE_MODE` (`"single_mode"`).
+- `V >= LP11_CUTOFF_V` returns `ModeRegime.MULTIMODE` (`"multimode"`).
+
+`LP11_CUTOFF_V` is the rounded value `2.405`. In the ideal circular step-index
+weak-guidance model, this is the first positive zero of the Bessel function
+`J0` and the LP11 cutoff threshold. The equality case therefore follows the multimode
+branch by definition.
+This interpretation follows the authorized local [fundamentals note](../../../notes/Fondamentaux%20fibre%20optique%20et%20propagation%20de%20la%20lumi%C3%A8re.md)
+and [core theory note](../../../notes/Optical%20Fibre%20Simulator%20-%20Core%20Theory.md).
+
+`SINGLE_MODE` means that only the fundamental LP01 mode is guided in this ideal
+model. `MULTIMODE` means that higher-order modes can be guided; it does not
+claim that launch conditions excite those modes. LP01 remains present on both
+sides of the threshold.
+
+This is an ideal-model regime classification, not a G.652.D conformance check.
+The ITU-T G.652.D measured cable cut-off is a distinct specification quantity
+whose result depends on fibre, cable, length, bends, and measurement
+conditions. It must not be replaced by, or inferred from, the ideal `V = 2.405`
+boundary. Step 12 does not provide a mode count or a theoretical
+cutoff-wavelength output; both remain excluded.
 
 ## G.652.D boundary
 
