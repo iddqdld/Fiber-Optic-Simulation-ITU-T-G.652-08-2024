@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.11.8 AS uv
 
-FROM python:3.12.13-slim-bookworm
+FROM python:3.12.13-slim-bookworm AS base
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 
@@ -19,11 +19,25 @@ COPY pyproject.toml uv.lock .python-version ./
 COPY packages/physics_core/pyproject.toml packages/physics_core/pyproject.toml
 COPY packages/physics_core/src packages/physics_core/src
 
+ENV PATH="/app/.venv/bin:$PATH"
+
+FROM base AS test
+
+RUN uv sync --frozen --no-editable
+
+COPY apps/api/app apps/api/app
+COPY apps/api/tests apps/api/tests
+COPY packages/physics_core/tests packages/physics_core/tests
+
+USER app
+
+CMD ["uv", "run", "--frozen", "--no-sync", "pytest"]
+
+FROM base AS runtime
+
 RUN uv sync --frozen --no-dev --no-editable
 
 COPY apps/api/app apps/api/app
-
-ENV PATH="/app/.venv/bin:$PATH"
 
 USER app
 
