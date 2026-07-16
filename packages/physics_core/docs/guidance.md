@@ -1,9 +1,10 @@
-# Step 10 guidance calculations
+# Steps 10 and 10A guidance calculations
 
 Step 10 covers the scalar refractive-index guidance calculations for a valid
 `GuidanceRequest`. The calculations use the core index `n_core` and cladding
 index `n_cladding`; core radius and wavelength are request fields but are not
-inputs to these four results.
+inputs to these four results. Step 10A makes validated requests immutable,
+hardens numerical-aperture evaluation, and declares the G.652.D boundary.
 
 The critical angle is
 
@@ -26,8 +27,11 @@ The air acceptance angle assumes an external medium with refractive index
 \theta_{air} = \operatorname{degrees}(\arcsin(\mathrm{NA})).
 \]
 
-If `NA > 1`, the air acceptance angle is undefined and the calculation raises
-`AirAcceptanceAngleError` with the message `Air acceptance angle is undefined when numerical aperture exceeds 1.`
+The inverse-sine air acceptance-angle model requires `NA <= 1`. For `NA > 1`,
+the calculation raises `AirAcceptanceAngleError` with the message
+`Inverse-sine air acceptance-angle model requires numerical aperture <= 1.`
+This is a domain restriction of this model, not a claim that the physical
+acceptance angle is universally undefined.
 
 The project convention for relative index difference is the exact expression
 
@@ -43,6 +47,19 @@ is a weak-guidance approximation and is not the Step 10 project convention.
 
 This scope excludes the normalized frequency `V`, mode solving, propagation or
 other result models, and API or UI behavior.
+
+## G.652.D boundary
+
+ITU-T G.652.D specifies mode field diameter (MFD), cladding and transmission,
+dispersion, cable cut-off, mechanical, and other fibre/cable limits. It does
+not provide canonical values for core radius, `n_core`, `n_cladding`, `NA`, or
+a step-index profile. MFD must not be mapped to core diameter, and cable
+cut-off is not the ideal step-index `V` cut-off.
+
+Any indices supplied to this module are model assumptions associated with the
+chosen wavelength. This module calculates idealized scalar guidance quantities;
+it is not a G.652.D conformance check. See the project’s [local ITU-T G.652
+note](../../../notes/ITU-g652.md) for the source transcription and scope.
 
 References:
 

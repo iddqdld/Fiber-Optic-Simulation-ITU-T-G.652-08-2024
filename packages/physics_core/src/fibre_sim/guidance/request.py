@@ -5,7 +5,7 @@ from pydantic_core import PydanticCustomError
 
 
 class GuidanceRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     n_core: float = Field(gt=0, allow_inf_nan=False)
     n_cladding: float = Field(gt=0, allow_inf_nan=False)
