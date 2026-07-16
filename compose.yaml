@@ -12,8 +12,8 @@ services:
   web:
     profiles: ["core"]
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
     environment:
       API_PROXY_TARGET: http://api:8000
     ports:
@@ -35,7 +35,7 @@ services:
   web-test:
     profiles: ["test"]
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
     init: true
     command: ["npm", "test"]
