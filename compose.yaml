@@ -14,6 +14,8 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+    environment:
+      API_PROXY_TARGET: http://api:8000
     ports:
       - "${WEB_PORT:-5173}:5173"
     init: true
