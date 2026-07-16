@@ -4,6 +4,7 @@ from .calculations import (
     critical_angle_deg,
     numerical_aperture,
     relative_index_difference,
+    v_number,
 )
 from .request import GuidanceRequest
 
@@ -14,4 +15,5 @@ __all__ = [
     "critical_angle_deg",
     "numerical_aperture",
     "relative_index_difference",
+    "v_number",
 ]

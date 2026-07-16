@@ -1,4 +1,4 @@
-from math import asin, degrees, sqrt
+from math import asin, degrees, pi, sqrt
 
 from .request import GuidanceRequest
 
@@ -17,6 +17,12 @@ def numerical_aperture(request: GuidanceRequest) -> float:
     return core_index * sqrt(
         ((core_index - request.n_cladding) / core_index) * (1.0 + cladding_ratio)
     )
+
+
+def v_number(request: GuidanceRequest) -> float:
+    core_radius_m = request.core_radius_um * 1e-6
+    wavelength_m = request.wavelength_nm * 1e-9
+    return (2.0 * pi * core_radius_m / wavelength_m) * numerical_aperture(request)
 
 
 def air_acceptance_angle_deg(request: GuidanceRequest) -> float:
