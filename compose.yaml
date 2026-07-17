@@ -30,6 +30,7 @@ services:
       target: test
     init: true
     environment:
+      COVERAGE_FILE: /tmp/.coverage
       MYPY_CACHE_DIR: /tmp/mypy-cache
       RUFF_CACHE_DIR: /tmp/ruff-cache
   web-test:
