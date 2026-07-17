@@ -5,9 +5,11 @@ from pydantic import ValidationError
 
 import fibre_sim.dispersion as dispersion
 from fibre_sim.dispersion import (
+    ChromaticPulseBroadeningCalculationError,
     ChromaticPulseBroadeningManifest,
     ChromaticPulseBroadeningRequest,
     ChromaticPulseBroadeningResult,
+    calculate_chromatic_pulse_broadening,
 )
 
 
@@ -20,25 +22,23 @@ def valid_request_values() -> dict[str, object]:
     }
 
 
-def test_public_broadening_exports_are_importable_and_precede_group_delay_exports() -> None:
+def test_public_broadening_exports_are_importable() -> None:
     broadening_exports = [
-        "ChromaticPulseBroadeningRequest",
+        "ChromaticPulseBroadeningCalculationError",
         "ChromaticPulseBroadeningManifest",
+        "ChromaticPulseBroadeningRequest",
         "ChromaticPulseBroadeningResult",
+        "calculate_chromatic_pulse_broadening",
     ]
 
-    assert set(dispersion.__all__[:3]) == set(broadening_exports)
     assert set(broadening_exports).issubset(dispersion.__all__)
-    assert all(
-        dispersion.__all__.index(name) < dispersion.__all__.index("GroupDelayCalculationError")
-        for name in broadening_exports
-    )
     assert [getattr(dispersion, name) for name in broadening_exports] == [
-        ChromaticPulseBroadeningRequest,
+        ChromaticPulseBroadeningCalculationError,
         ChromaticPulseBroadeningManifest,
+        ChromaticPulseBroadeningRequest,
         ChromaticPulseBroadeningResult,
+        calculate_chromatic_pulse_broadening,
     ]
-    assert not hasattr(dispersion, "calculate_chromatic_pulse_broadening")
 
 
 def test_request_has_exact_required_fields_and_accepts_normal_values() -> None:

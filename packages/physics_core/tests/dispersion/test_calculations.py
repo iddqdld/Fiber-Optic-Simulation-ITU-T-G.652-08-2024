@@ -6,6 +6,7 @@ import pytest
 import fibre_sim.dispersion as dispersion
 from fibre_sim.dispersion import (
     VACUUM_SPEED_M_PER_S,
+    ChromaticPulseBroadeningCalculationError,
     ChromaticPulseBroadeningManifest,
     ChromaticPulseBroadeningRequest,
     ChromaticPulseBroadeningResult,
@@ -13,6 +14,7 @@ from fibre_sim.dispersion import (
     GroupDelayManifest,
     GroupDelayRequest,
     GroupDelayResult,
+    calculate_chromatic_pulse_broadening,
     calculate_group_delay,
 )
 
@@ -33,6 +35,7 @@ def assert_positive_zero(value: float) -> None:
 
 def test_public_exports_are_exact_and_point_to_calculation_api() -> None:
     expected_exports = [
+        "ChromaticPulseBroadeningCalculationError",
         "ChromaticPulseBroadeningManifest",
         "ChromaticPulseBroadeningRequest",
         "ChromaticPulseBroadeningResult",
@@ -41,11 +44,13 @@ def test_public_exports_are_exact_and_point_to_calculation_api() -> None:
         "GroupDelayRequest",
         "GroupDelayResult",
         "VACUUM_SPEED_M_PER_S",
+        "calculate_chromatic_pulse_broadening",
         "calculate_group_delay",
     ]
 
     assert dispersion.__all__ == expected_exports
     assert [getattr(dispersion, name) for name in expected_exports] == [
+        ChromaticPulseBroadeningCalculationError,
         ChromaticPulseBroadeningManifest,
         ChromaticPulseBroadeningRequest,
         ChromaticPulseBroadeningResult,
@@ -54,6 +59,7 @@ def test_public_exports_are_exact_and_point_to_calculation_api() -> None:
         GroupDelayRequest,
         GroupDelayResult,
         VACUUM_SPEED_M_PER_S,
+        calculate_chromatic_pulse_broadening,
         calculate_group_delay,
     ]
 

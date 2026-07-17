@@ -38,20 +38,24 @@ does not provide frontend timing behavior.
 # First-order chromatic pulse broadening
 
 The package exposes frozen, extra-forbid request, manifest, and result
-contracts for first-order chromatic pulse broadening. The contracts are
-available now; the broadening calculation is not implemented yet.
+contracts for first-order chromatic pulse broadening, and calculates the
+broadening with `calculate_chromatic_pulse_broadening`.
 
-The future calculation will use signed accumulated dispersion
+The calculation uses signed accumulated dispersion
 `D_acc = D * L` in ps/nm, dispersion broadening magnitude
-`DeltaT = abs(D) * L * Delta-lambda_FWHM` in ps, and
-`T_out = sqrt(T_in^2 + DeltaT^2)`. Both the source spectral width and pulse
-widths use FWHM. They must not be mixed with RMS widths without conversion.
+`DeltaT = abs(D_acc) * Delta-lambda_FWHM` in ps, and
+`T_out = hypot(T_in, DeltaT)`. `math.hypot` provides numerically stable
+quadrature for the output pulse width. Both the source spectral width and
+pulse widths use FWHM. They must not be mixed with RMS widths without
+conversion.
 
-In the future calculation, zero length, zero supplied dispersion, or zero
-source spectral width produces zero chromatic broadening and leaves the input
-pulse width unchanged. The sign of `D` is retained in accumulated dispersion
-for dispersion and arrival/chirp interpretation, while pulse-width broadening
-uses its magnitude.
+Zero length, zero supplied dispersion, or zero source spectral width produces
+zero chromatic broadening and leaves the input pulse width unchanged. The sign
+of `D` is retained in accumulated dispersion for dispersion and arrival/chirp
+interpretation, while pulse-width broadening uses its magnitude. Any
+non-finite accumulated dispersion, broadening, or output width raises the
+typed `ChromaticPulseBroadeningCalculationError` with the stable message
+`Chromatic pulse broadening calculation produced a non-finite result.`
 
 The coefficient `D` is supplied as constant over the fibre section at the
 operating wavelength; it is not derived from wavelength. This scope excludes

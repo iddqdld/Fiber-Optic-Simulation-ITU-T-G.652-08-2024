@@ -6,6 +6,7 @@ from pydantic import ValidationError
 import fibre_sim.dispersion as dispersion
 from fibre_sim.dispersion import (
     VACUUM_SPEED_M_PER_S,
+    ChromaticPulseBroadeningCalculationError,
     ChromaticPulseBroadeningManifest,
     ChromaticPulseBroadeningRequest,
     ChromaticPulseBroadeningResult,
@@ -13,6 +14,7 @@ from fibre_sim.dispersion import (
     GroupDelayManifest,
     GroupDelayRequest,
     GroupDelayResult,
+    calculate_chromatic_pulse_broadening,
     calculate_group_delay,
 )
 
@@ -26,6 +28,7 @@ def valid_request_values() -> dict[str, object]:
 
 def test_public_exports_and_constant_are_exact() -> None:
     expected_exports = [
+        "ChromaticPulseBroadeningCalculationError",
         "ChromaticPulseBroadeningManifest",
         "ChromaticPulseBroadeningRequest",
         "ChromaticPulseBroadeningResult",
@@ -34,11 +37,13 @@ def test_public_exports_and_constant_are_exact() -> None:
         "GroupDelayRequest",
         "GroupDelayResult",
         "VACUUM_SPEED_M_PER_S",
+        "calculate_chromatic_pulse_broadening",
         "calculate_group_delay",
     ]
 
     assert dispersion.__all__ == expected_exports
     assert [getattr(dispersion, name) for name in expected_exports] == [
+        ChromaticPulseBroadeningCalculationError,
         ChromaticPulseBroadeningManifest,
         ChromaticPulseBroadeningRequest,
         ChromaticPulseBroadeningResult,
@@ -47,6 +52,7 @@ def test_public_exports_and_constant_are_exact() -> None:
         GroupDelayRequest,
         GroupDelayResult,
         VACUUM_SPEED_M_PER_S,
+        calculate_chromatic_pulse_broadening,
         calculate_group_delay,
     ]
     assert VACUUM_SPEED_M_PER_S == 299_792_458.0
