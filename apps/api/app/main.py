@@ -10,7 +10,13 @@ from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from fibre_sim.guidance import GuidanceRequest
+from fibre_sim.guidance import (
+    GuidanceModelManifest,
+    GuidanceRequest,
+    GuidanceResult,
+    GuidanceWarning,
+    calculate_guidance,
+)
 
 from .schemas import (
     ApplicationError,
@@ -61,6 +67,16 @@ def get_health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.post(
+    "/api/v1/guidance/calculate",
+    operation_id="calculate_guidance",
+    response_model=GuidanceResult,
+    responses={422: {"model": ErrorResponse, "description": "Request validation failed"}},
+)
+async def post_guidance_calculate(request: GuidanceRequest) -> GuidanceResult:
+    return calculate_guidance(request)
+
+
 CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     CableSection,
     Connector,
@@ -69,7 +85,10 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     ErrorResponse,
     FieldCrossSection,
     FibreDefinition,
+    GuidanceModelManifest,
     GuidanceRequest,
+    GuidanceResult,
+    GuidanceWarning,
     HealthResponse,
     ModelManifest,
     ModelReference,

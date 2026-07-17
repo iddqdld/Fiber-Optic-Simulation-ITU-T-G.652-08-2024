@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/guidance/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Guidance Calculate */
+        post: operations["calculate_guidance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -152,6 +169,50 @@ export interface components {
             /** Y Um */
             y_um?: number[];
         };
+        /** GuidanceModelManifest */
+        GuidanceModelManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "ideal circular step-index profile",
+             *       "scalar weak-guidance mode interpretation",
+             *       "homogeneous, isotropic, linear media",
+             *       "n_external=1 for air angle"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "asymptotic mode count only at V >= 10.0 project threshold",
+             *       "V=2.405 ideal cutoff distinct from measured cable cutoff",
+             *       "not a G.652.D conformance model"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Mode Count Min V Dimensionless
+             * @default 10
+             */
+            mode_count_min_v_dimensionless: number;
+            /**
+             * Mode Regime Cutoff V Dimensionless
+             * @default 2.405
+             */
+            mode_regime_cutoff_v_dimensionless: number;
+            /**
+             * Model Id
+             * @default ideal_circular_step_index_guidance
+             * @constant
+             */
+            model_id: "ideal_circular_step_index_guidance";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+        };
         /** GuidanceRequest */
         GuidanceRequest: {
             /** Core Radius Um */
@@ -163,6 +224,47 @@ export interface components {
             /** Wavelength Nm */
             wavelength_nm: number;
         };
+        /** GuidanceResult */
+        GuidanceResult: {
+            /**
+             * Air Acceptance Angle Deg
+             * @default null
+             */
+            air_acceptance_angle_deg: number | null;
+            /**
+             * Approximate Mode Count
+             * @default null
+             */
+            approximate_mode_count: number | null;
+            /** Critical Angle Deg */
+            critical_angle_deg: number;
+            mode_regime: components["schemas"]["ModeRegime"];
+            model_manifest: components["schemas"]["GuidanceModelManifest"];
+            /** Numerical Aperture Dimensionless */
+            numerical_aperture_dimensionless: number;
+            /** Relative Index Difference Dimensionless */
+            relative_index_difference_dimensionless: number;
+            /** V Number Dimensionless */
+            v_number_dimensionless: number;
+            /** Warnings */
+            warnings: components["schemas"]["GuidanceWarning"][];
+        };
+        /** GuidanceWarning */
+        GuidanceWarning: {
+            code: components["schemas"]["GuidanceWarningCode"];
+            /** Message */
+            message: string;
+            /**
+             * Output Field
+             * @enum {string}
+             */
+            output_field: "air_acceptance_angle_deg" | "approximate_mode_count";
+        };
+        /**
+         * GuidanceWarningCode
+         * @enum {string}
+         */
+        GuidanceWarningCode: "air_acceptance_angle_unavailable" | "mode_count_unavailable";
         /** HealthResponse */
         HealthResponse: {
             /**
@@ -177,6 +279,11 @@ export interface components {
          */
         IndexProfile: "STEP" | "GRADED" | "CUSTOM";
         LinkComponent: components["schemas"]["Splice"] | components["schemas"]["Connector"];
+        /**
+         * ModeRegime
+         * @enum {string}
+         */
+        ModeRegime: "single_mode" | "multimode";
         /** ModelManifest */
         ModelManifest: {
             /** Assumptions */
@@ -508,6 +615,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    calculate_guidance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuidanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuidanceResult"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_health_api_v1_health_get: {
         parameters: {
             query?: never;

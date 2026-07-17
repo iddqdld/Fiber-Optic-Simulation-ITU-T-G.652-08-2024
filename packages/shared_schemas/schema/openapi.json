@@ -335,6 +335,60 @@
         "title": "FieldCrossSection",
         "type": "object"
       },
+      "GuidanceModelManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "ideal circular step-index profile",
+              "scalar weak-guidance mode interpretation",
+              "homogeneous, isotropic, linear media",
+              "n_external=1 for air angle"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "asymptotic mode count only at V >= 10.0 project threshold",
+              "V=2.405 ideal cutoff distinct from measured cable cutoff",
+              "not a G.652.D conformance model"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "mode_count_min_v_dimensionless": {
+            "default": 10.0,
+            "title": "Mode Count Min V Dimensionless",
+            "type": "number"
+          },
+          "mode_regime_cutoff_v_dimensionless": {
+            "default": 2.405,
+            "title": "Mode Regime Cutoff V Dimensionless",
+            "type": "number"
+          },
+          "model_id": {
+            "const": "ideal_circular_step_index_guidance",
+            "default": "ideal_circular_step_index_guidance",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          }
+        },
+        "title": "GuidanceModelManifest",
+        "type": "object"
+      },
       "GuidanceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -367,6 +421,110 @@
         ],
         "title": "GuidanceRequest",
         "type": "object"
+      },
+      "GuidanceResult": {
+        "additionalProperties": false,
+        "properties": {
+          "air_acceptance_angle_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Air Acceptance Angle Deg"
+          },
+          "approximate_mode_count": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approximate Mode Count"
+          },
+          "critical_angle_deg": {
+            "title": "Critical Angle Deg",
+            "type": "number"
+          },
+          "mode_regime": {
+            "$ref": "#/components/schemas/ModeRegime"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/GuidanceModelManifest"
+          },
+          "numerical_aperture_dimensionless": {
+            "title": "Numerical Aperture Dimensionless",
+            "type": "number"
+          },
+          "relative_index_difference_dimensionless": {
+            "title": "Relative Index Difference Dimensionless",
+            "type": "number"
+          },
+          "v_number_dimensionless": {
+            "title": "V Number Dimensionless",
+            "type": "number"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/GuidanceWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "critical_angle_deg",
+          "numerical_aperture_dimensionless",
+          "relative_index_difference_dimensionless",
+          "v_number_dimensionless",
+          "mode_regime",
+          "warnings",
+          "model_manifest"
+        ],
+        "title": "GuidanceResult",
+        "type": "object"
+      },
+      "GuidanceWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/GuidanceWarningCode"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "output_field": {
+            "enum": [
+              "air_acceptance_angle_deg",
+              "approximate_mode_count"
+            ],
+            "title": "Output Field",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "output_field"
+        ],
+        "title": "GuidanceWarning",
+        "type": "object"
+      },
+      "GuidanceWarningCode": {
+        "enum": [
+          "air_acceptance_angle_unavailable",
+          "mode_count_unavailable"
+        ],
+        "title": "GuidanceWarningCode",
+        "type": "string"
       },
       "HealthResponse": {
         "additionalProperties": false,
@@ -408,6 +566,14 @@
             "$ref": "#/components/schemas/Connector"
           }
         ]
+      },
+      "ModeRegime": {
+        "enum": [
+          "single_mode",
+          "multimode"
+        ],
+        "title": "ModeRegime",
+        "type": "string"
       },
       "ModelManifest": {
         "additionalProperties": false,
@@ -1262,6 +1428,44 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/guidance/calculate": {
+      "post": {
+        "operationId": "calculate_guidance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuidanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuidanceResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Post Guidance Calculate"
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "get_health_api_v1_health_get",
