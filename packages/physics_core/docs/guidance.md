@@ -1,10 +1,10 @@
-# Steps 10-14 guidance
+# Steps 10-15 guidance
 
-Steps 10-14 provide one pure, typed guidance calculation for a valid
+Steps 10-15 provide one pure, typed guidance calculation for a valid
 `GuidanceRequest`. Step 10 supplies scalar refractive-index quantities; Step 11
 adds normalized frequency; Step 12 classifies the ideal-model mode regime; Step
 13 adds the large-V mode-count estimate; and Step 14 aggregates those results,
-validity warnings, and a model manifest. Step 14 adds no endpoint, OpenAPI
+validity warnings, and a model manifest. Steps 14-15 add no endpoint, OpenAPI
 schema, or UI.
 
 ## Step 10 scalar guidance quantities
@@ -163,6 +163,39 @@ measured G.652.D cable cut-off.
 The warning and manifest collections serialize as deterministic JSON arrays.
 The aggregate result is a calculation contract only; this step does not add an
 API endpoint, OpenAPI exposure, or frontend/UI integration.
+
+## Step 15 deterministic aggregate boundary coverage
+
+Step 15 adds deterministic public-contract vectors for exact `NA = 1`, the
+immediately below/at/above `V = 2.405` regime boundary, and the immediately
+below/at/above `V = 10.0` mode-count validity boundary. The vectors use adjacent
+floating-point values where needed so strict and inclusive branches are tested
+without broad random or property-based coverage. They also cover invalid
+request construction, propagation of unrelated submodel errors, and the
+closed Pydantic JSON schema: required fields, finite numeric outputs, exact
+warning enum values, and number-or-null nullable outputs.
+
+The whole `fibre_sim` package is measured with `pytest-cov 7.1.0` branch
+coverage, and the quality gate is an enforced minimum of 90%. At Step 15 the
+full package measures 111/111 statements and 8/8 branches, or 100%, with no
+missing lines. The focused boundary command is:
+
+```text
+uv run --frozen pytest packages/physics_core/tests/guidance/test_boundaries.py
+```
+
+The full gate command is:
+
+```text
+uv run --frozen pytest --cov=fibre_sim --cov-branch --cov-report=term-missing --cov-fail-under=90
+```
+
+Here `--frozen` uses the committed uv lock without resolving or changing
+dependencies; the first command runs only the deterministic boundary module,
+while the second runs the full configured suite, measures all `fibre_sim`
+modules with branch coverage, and fails below the threshold. This step changes
+tests, documentation, and quality tooling only; it makes no calculation, API,
+OpenAPI, or UI change.
 
 ## G.652.D boundary
 

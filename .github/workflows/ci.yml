@@ -21,7 +21,7 @@ jobs:
       - run: uv run --frozen ruff check .
       - run: uv run --frozen ruff format --check .
       - run: uv run --frozen mypy
-      - run: uv run --frozen pytest
+      - run: uv run --frozen pytest --cov=fibre_sim --cov-branch --cov-report=term-missing --cov-fail-under=90
 
   frontend:
     runs-on: ubuntu-latest

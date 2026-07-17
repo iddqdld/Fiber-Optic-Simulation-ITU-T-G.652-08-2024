@@ -31,7 +31,7 @@ COPY packages/physics_core/tests packages/physics_core/tests
 
 USER app
 
-CMD ["uv", "run", "--frozen", "--no-sync", "pytest"]
+CMD ["uv", "run", "--frozen", "--no-sync", "pytest", "--cov=fibre_sim", "--cov-branch", "--cov-report=term-missing", "--cov-fail-under=90"]
 
 FROM base AS runtime
 
