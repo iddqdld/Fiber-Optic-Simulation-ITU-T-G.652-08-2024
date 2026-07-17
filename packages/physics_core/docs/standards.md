@@ -1,23 +1,31 @@
 # G.652.D chromatic-dispersion envelope
 
-This package provides contracts for a G.652.D chromatic-dispersion envelope.
-It is a standards-boundary model: the manifest records the standard metadata,
-coefficients, equations, assumptions, and limitations, while the result
-contract carries signed minimum and maximum dispersion bounds. This Step 27
-slice does not provide a calculation function; calculation is deferred until
-Step 28 in the [development plan](../../../notes/Optical-Fibre-Simulator-Development-Plan.md).
-
-The source is ITU-T G.652 (08/2024), clause 6.10 and Table 2, as represented by
-the authorized [local ITU note](../../../notes/ITU-g652.md). Wavelengths are in
-nm. Dispersion is in ps/(nm·km), and zero-dispersion slope is in
-ps/(nm²·km). The envelope domain is inclusive:
+The `fibre_sim.standards` package evaluates the published ITU-T G.652.D
+chromatic-dispersion coefficient envelope with
+`calculate_g652d_dispersion_envelope`. The request domain is inclusive and
+bounded:
 
 `1260 nm <= wavelength <= 1625 nm`
 
-## Boundary equations
+Wavelength is in nm. The returned signed minimum and maximum dispersion
+values are in ps/(nm·km). Zero-dispersion slope is in ps/(nm²·km). Each
+calculation returns the request wavelength unchanged, the selected fit region,
+and a fresh `G652DDispersionEnvelopeManifest`.
 
-Let \(D(\lambda)\) be the signed chromatic-dispersion coefficient, with
-\(\lambda\) in nm. The zero-dispersion wavelengths and slopes are:
+The source is ITU-T G.652 (08/2024), clause 6.10 and Table 2, as represented by
+the authorized [local ITU note](../../../notes/ITU-g652.md).
+
+## Published boundary equations
+
+Let D(lambda) be the signed chromatic-dispersion coefficient. Define the
+published three-term Sellmeier boundary form:
+
+\[
+B(\lambda;\lambda_0,S_0) =
+\frac{\lambda S_0}{4}\left[1-\left(\frac{\lambda_0}{\lambda}\right)^4\right].
+\]
+
+The constants are:
 
 \[
 \lambda_{0\min}=1300\ \mathrm{nm},\qquad
@@ -29,68 +37,49 @@ S_{0\min}=0.073\ \mathrm{ps/(nm^2\,km)},\qquad
 S_{0\max}=0.092\ \mathrm{ps/(nm^2\,km)}.
 \]
 
-For the 1260-1460 nm region, the published three-term Sellmeier boundary
-forms are:
+The evaluator owns every branch boundary as follows:
 
-\[
-\frac{\lambda S_{0\max}}{4}
-\left[1-\left(\frac{\lambda_{0\max}}{\lambda}\right)^4\right]
-\le D(\lambda) \le
-\frac{\lambda S_{0\min}}{4}
-\left[1-\left(\frac{\lambda_{0\min}}{\lambda}\right)^4\right],
-\qquad \lambda\le\lambda_{0\min}
-\tag{6-2a}
-\]
+| Wavelength interval | Equation | Minimum | Maximum |
+| --- | --- | --- | --- |
+| `1260 <= wavelength < 1300` | 6-2a | `B(wavelength; lambda0max, S0max)` | `B(wavelength; lambda0min, S0min)` |
+| `1300 <= wavelength < 1324` | 6-2b | `B(wavelength; lambda0max, S0max)` | `B(wavelength; lambda0min, S0max)` |
+| `1324 <= wavelength < 1460` | 6-2c | `B(wavelength; lambda0max, S0min)` | `B(wavelength; lambda0min, S0max)` |
+| `1460 <= wavelength <= 1625` | 6-3 | `8.625 + 0.052 * (wavelength - 1460)` | `12.472 + 0.068 * (wavelength - 1460)` |
 
-\[
-\frac{\lambda S_{0\max}}{4}
-\left[1-\left(\frac{\lambda_{0\max}}{\lambda}\right)^4\right]
-\le D(\lambda) \le
-\frac{\lambda S_{0\max}}{4}
-\left[1-\left(\frac{\lambda_{0\min}}{\lambda}\right)^4\right],
-\qquad \lambda_{0\min}\le\lambda\le\lambda_{0\max}
-\tag{6-2b}
-\]
+Thus, equation 6-2a is half-open at 1300 nm, 6-2b is half-open at 1324
+nm, 6-2c is half-open at 1460 nm, and equation 6-3 owns 1460 nm. The fit
+region is `three_term_sellmeier` for all wavelengths below 1460 nm and
+`linear` from 1460 nm onward.
 
-\[
-\frac{\lambda S_{0\min}}{4}
-\left[1-\left(\frac{\lambda_{0\max}}{\lambda}\right)^4\right]
-\le D(\lambda) \le
-\frac{\lambda S_{0\max}}{4}
-\left[1-\left(\frac{\lambda_{0\min}}{\lambda}\right)^4\right],
-\qquad \lambda_{0\max}\le\lambda
-\tag{6-2c}
-\]
+## Analytical examples
 
-For the 1460-1625 nm region, the published linear boundary form is:
+The following values show the signed envelope returned by the evaluator;
+displayed decimals are for readability.
 
-\[
-8.625+0.052(\lambda-1460)
-\le D(\lambda) \le
-12.472+0.068(\lambda-1460)
-\tag{6-3}
-\]
+| Wavelength (nm) | Equation | Minimum (ps/(nm·km)) | Maximum (ps/(nm·km)) |
+| ---: | --- | ---: | ---: |
+| 1260 | 6-2a | -6.351993436 | -3.062013781 |
+| 1300 | 6-2b | -2.269900638 | 0 |
+| 1324 | 6-2c | 0 | 2.148685972 |
+| 1460 | 6-3 | 8.625 | 12.472 |
+| 1550 | 6-3 | 13.305 | 18.592 |
+| 1625 | 6-3 | 17.205 | 23.692 |
 
-The lower linear intercept and slope are 8.625 ps/(nm·km) and
-0.052 ps/(nm²·km). The upper linear intercept and slope are 12.472
-ps/(nm·km) and 0.068 ps/(nm²·km). The bounds are signed; they are not
-absolute-dispersion magnitudes.
+At the shared transition, evaluating 6-2c analytically at 1460 nm gives
+approximately `8.624939619` and `12.472214222`. The chosen 6-3 branch gives
+exactly `8.625` and `12.472` because its published coefficients are rounded.
+This tiny transition mismatch is the defined consequence of the branch
+ownership and rounded linear coefficients; it is not hidden or treated as a
+numerical error.
 
-The published regions share the 1460 nm boundary. This package assigns that
-boundary to the `linear` fit region, so the three-term Sellmeier region is
-used below 1460 nm and the linear region is used from 1460 nm through 1625
-nm, deterministically.
+The bounds are signed values, not absolute-dispersion magnitudes. Negative,
+zero, and positive results are all valid where produced by the published
+equations.
 
 ## Scope and limitations
 
-The request contract validates only a finite wavelength in the inclusive
-1260-1625 nm domain. The result contract validates finite signed bounds and
-rejects only a minimum bound greater than its maximum bound. It does not
-cross-validate equations, fit region, wavelength, manifest coefficients, or
-equality at the bounds.
-
-The envelope bounds are not a nominal or measured product dispersion curve.
-Envelope evaluation alone is not complete G.652.D conformance. This contract
-slice excludes longitudinal variation, statistical link design,
-multi-section accumulation, pulse broadening, and group delay. No numerical
-calculation is implemented until Step 28.
+This implementation evaluates the envelope only. It is not a nominal or
+measurement model and is not complete G.652.D conformance. It does not cover
+statistical link design, multi-section accumulation, pulse broadening, group
+delay, an API, or a frontend. Longitudinal variation and other system-level
+effects are outside this slice.
