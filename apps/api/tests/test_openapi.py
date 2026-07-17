@@ -89,3 +89,105 @@ def test_health_response_model_is_exposed_without_changing_health_payload() -> N
         ]["schema"]["$ref"]
         == "#/components/schemas/HealthResponse"
     )
+
+
+def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
+    paths = main.app.openapi()["paths"]
+
+    assert set(paths) == {"/api/v1/health", "/api/v1/guidance/calculate"}
+    guidance_path = paths["/api/v1/guidance/calculate"]
+    assert set(guidance_path) == {"post"}
+
+    operation = guidance_path["post"]
+    assert operation["operationId"] == "calculate_guidance"
+    assert (
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/GuidanceRequest"
+    )
+    assert set(operation["responses"]) == {"200", "422"}
+    assert (
+        operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/GuidanceResult"
+    )
+    assert (
+        operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+
+def test_guidance_result_components_have_exact_nested_contracts() -> None:
+    schemas = main.app.openapi()["components"]["schemas"]
+
+    result = schemas["GuidanceResult"]
+    assert result["additionalProperties"] is False
+    assert set(result["properties"]) == {
+        "critical_angle_deg",
+        "numerical_aperture_dimensionless",
+        "air_acceptance_angle_deg",
+        "relative_index_difference_dimensionless",
+        "v_number_dimensionless",
+        "mode_regime",
+        "approximate_mode_count",
+        "warnings",
+        "model_manifest",
+    }
+    assert set(result["required"]) == {
+        "critical_angle_deg",
+        "numerical_aperture_dimensionless",
+        "relative_index_difference_dimensionless",
+        "v_number_dimensionless",
+        "mode_regime",
+        "warnings",
+        "model_manifest",
+    }
+    assert result["properties"]["air_acceptance_angle_deg"]["anyOf"] == [
+        {"type": "number"},
+        {"type": "null"},
+    ]
+    assert result["properties"]["approximate_mode_count"]["anyOf"] == [
+        {"type": "number"},
+        {"type": "null"},
+    ]
+    assert result["properties"]["warnings"]["items"] == {
+        "$ref": "#/components/schemas/GuidanceWarning"
+    }
+    assert result["properties"]["model_manifest"] == {
+        "$ref": "#/components/schemas/GuidanceModelManifest"
+    }
+
+    warning = schemas["GuidanceWarning"]
+    assert warning["additionalProperties"] is False
+    assert set(warning["properties"]) == {"code", "message", "output_field"}
+    assert set(warning["required"]) == {"code", "message", "output_field"}
+    assert warning["properties"]["code"] == {"$ref": "#/components/schemas/GuidanceWarningCode"}
+    assert warning["properties"]["output_field"]["enum"] == [
+        "air_acceptance_angle_deg",
+        "approximate_mode_count",
+    ]
+
+    manifest = schemas["GuidanceModelManifest"]
+    assert manifest["additionalProperties"] is False
+    assert set(manifest["properties"]) == {
+        "model_id",
+        "model_version",
+        "mode_regime_cutoff_v_dimensionless",
+        "mode_count_min_v_dimensionless",
+        "assumptions",
+        "limitations",
+    }
+    assert set(manifest.get("required", ())) == set()
+    assert manifest["properties"]["model_id"]["const"] == "ideal_circular_step_index_guidance"
+    assert manifest["properties"]["model_version"]["const"] == "1.0.0"
+    for field in ("assumptions", "limitations"):
+        assert manifest["properties"][field] == {
+            "items": {"type": "string"},
+            "title": field.replace("_", " ").title(),
+            "type": "array",
+            "default": manifest["properties"][field]["default"],
+        }
+
+    assert schemas["GuidanceWarningCode"]["enum"] == [
+        "air_acceptance_angle_unavailable",
+        "mode_count_unavailable",
+    ]
+    assert schemas["ModeRegime"]["enum"] == ["single_mode", "multimode"]

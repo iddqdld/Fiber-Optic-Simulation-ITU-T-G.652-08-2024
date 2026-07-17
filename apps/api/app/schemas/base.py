@@ -23,6 +23,7 @@ DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
     "n_core",
     "section_index",
     "normalized_intensity",
+    "approximate_mode_count",
 }
 
 
