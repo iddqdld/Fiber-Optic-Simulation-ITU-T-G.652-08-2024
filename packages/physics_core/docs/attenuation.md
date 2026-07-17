@@ -1,16 +1,8 @@
 # Constant attenuation
 
-The attenuation request, manifest, and result contracts currently provide
-validation only. They do not yet expose the attenuation calculation.
-
-`length_km` is a fibre-section length in kilometres (km). The supplied
-`attenuation_db_per_km` is a constant coefficient in decibels per kilometre
-(dB/km). `section_loss_db` is a loss in decibels (dB). `input_power_dbm` and
-`output_power_dbm` are logarithmic optical-power levels in decibels referenced
-to one milliwatt (dBm). Zero length and zero coefficient are valid; loss
-remains non-negative, and passive output power cannot exceed input power.
-
-The later constant-section calculation is:
+`calculate_constant_attenuation` evaluates the constant-section model and
+returns the existing `ConstantAttenuationResult` with a new
+`ConstantAttenuationManifest`:
 
 \[
 A = \alpha L,
@@ -18,7 +10,19 @@ A = \alpha L,
 P_{out,\,dBm}=P_{in,\,dBm}-A.
 \]
 
-With \(\alpha\) in dB/km and \(L\) in km, \(A\) is in dB.
+With \(\alpha\) in dB/km and \(L\) in km, \(A\) is in dB. If the computed section
+loss compares equal to zero, it is returned as positive `0.0`, including for
+zero length, zero coefficient, negative-zero inputs, and underflow. If either
+computed output is non-finite for finite-but-extreme request values, the
+function raises the public `ConstantAttenuationCalculationError` with exact
+message `Constant attenuation calculation produced a non-finite result.`
+
+`length_km` is a fibre-section length in kilometres (km). The supplied
+`attenuation_db_per_km` is a constant coefficient in decibels per kilometre
+(dB/km). `section_loss_db` is a loss in decibels (dB). `input_power_dbm` and
+`output_power_dbm` are logarithmic optical-power levels in decibels referenced
+to one milliwatt (dBm). Zero length and zero coefficient are valid; loss
+remains non-negative, and passive output power cannot exceed input power.
 
 Losses in dB are additive. dBm is a logarithmic power level, so dBm powers
 must not be added directly when combining optical powers; convert to linear
