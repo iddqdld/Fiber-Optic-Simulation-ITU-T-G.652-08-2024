@@ -1,4 +1,4 @@
-# Steps 10-12 guidance
+# Steps 10-13 guidance
 
 Step 11 adds the normalized frequency, or V-number, calculation for a valid
 `GuidanceRequest`. It builds on the scalar refractive-index guidance quantities
@@ -97,8 +97,25 @@ This is an ideal-model regime classification, not a G.652.D conformance check.
 The ITU-T G.652.D measured cable cut-off is a distinct specification quantity
 whose result depends on fibre, cable, length, bends, and measurement
 conditions. It must not be replaced by, or inferred from, the ideal `V = 2.405`
-boundary. Step 12 does not provide a mode count or a theoretical
-cutoff-wavelength output; both remain excluded.
+boundary. Step 12 does not provide a theoretical cutoff-wavelength output;
+that remains excluded.
+
+## Step 13 asymptotic mode count
+
+For the ideal circular step-index model at large normalized frequency, the
+project's asymptotic mode-count estimate uses
+
+\[
+M \approx \frac{V^2}{2}.
+\]
+
+This is an asymptotic estimate, not exact modal solving and not a G.652.D
+conformance result. The project accepts this estimate only for `V >= 10.0`.
+That is a conservative project policy for using the large-`V` approximation,
+not a universal physical cutoff; values below it raise
+`ModeCountValidityError`. The result remains a floating-point, unrounded
+value, so non-integer estimates are preserved. The `V^2/2` expression is the
+selected project counting convention for this estimate.
 
 ## G.652.D boundary
 
