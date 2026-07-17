@@ -6,6 +6,9 @@ from pydantic import ValidationError
 import fibre_sim.dispersion as dispersion
 from fibre_sim.dispersion import (
     VACUUM_SPEED_M_PER_S,
+    ChromaticPulseBroadeningManifest,
+    ChromaticPulseBroadeningRequest,
+    ChromaticPulseBroadeningResult,
     GroupDelayCalculationError,
     GroupDelayManifest,
     GroupDelayRequest,
@@ -23,6 +26,9 @@ def valid_request_values() -> dict[str, object]:
 
 def test_public_exports_and_constant_are_exact() -> None:
     expected_exports = [
+        "ChromaticPulseBroadeningManifest",
+        "ChromaticPulseBroadeningRequest",
+        "ChromaticPulseBroadeningResult",
         "GroupDelayCalculationError",
         "GroupDelayManifest",
         "GroupDelayRequest",
@@ -33,6 +39,9 @@ def test_public_exports_and_constant_are_exact() -> None:
 
     assert dispersion.__all__ == expected_exports
     assert [getattr(dispersion, name) for name in expected_exports] == [
+        ChromaticPulseBroadeningManifest,
+        ChromaticPulseBroadeningRequest,
+        ChromaticPulseBroadeningResult,
         GroupDelayCalculationError,
         GroupDelayManifest,
         GroupDelayRequest,
