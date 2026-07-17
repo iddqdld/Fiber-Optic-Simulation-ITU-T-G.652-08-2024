@@ -35,6 +35,29 @@ group-delay fit or conformance check. A real 1 km fibre-section delay is on the
 order of microseconds, so an animation will require scaled time; this package
 does not provide frontend timing behavior.
 
+# First-order chromatic pulse broadening
+
+The package exposes frozen, extra-forbid request, manifest, and result
+contracts for first-order chromatic pulse broadening. The contracts are
+available now; the broadening calculation is not implemented yet.
+
+The future calculation will use signed accumulated dispersion
+`D_acc = D * L` in ps/nm, dispersion broadening magnitude
+`DeltaT = abs(D) * L * Delta-lambda_FWHM` in ps, and
+`T_out = sqrt(T_in^2 + DeltaT^2)`. Both the source spectral width and pulse
+widths use FWHM. They must not be mixed with RMS widths without conversion.
+
+In the future calculation, zero length, zero supplied dispersion, or zero
+source spectral width produces zero chromatic broadening and leaves the input
+pulse width unchanged. The sign of `D` is retained in accumulated dispersion
+for dispersion and arrival/chirp interpretation, while pulse-width broadening
+uses its magnitude.
+
+The coefficient `D` is supplied as constant over the fibre section at the
+operating wavelength; it is not derived from wavelength. This scope excludes
+full pulse propagation, initial chirp, higher-order dispersion, nonlinearity,
+PMD, and any G.652 fit or conformance model.
+
 The scope follows the authorized [core theory note](../../../notes/Optical%20Fibre%20Simulator%20-%20Core%20Theory.md),
 [fundamentals note](../../../notes/Fondamentaux%20fibre%20optique%20et%20propagation%20de%20la%20lumi%C3%A8re.md),
 and [ITU-T G.652 note](../../../notes/ITU-g652.md).
