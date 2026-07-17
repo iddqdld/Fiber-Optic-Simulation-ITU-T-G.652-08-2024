@@ -11,15 +11,17 @@ from fibre_sim.standards import (
     G652DDispersionEnvelopeRequest,
     G652DDispersionEnvelopeResult,
     G652DDispersionFitRegion,
+    calculate_g652d_dispersion_envelope,
 )
 
 
-def test_public_exports_are_exact_and_have_no_calculation_export() -> None:
+def test_public_exports_are_exact_and_include_calculation() -> None:
     expected_exports = [
         "G652DDispersionEnvelopeManifest",
         "G652DDispersionEnvelopeRequest",
         "G652DDispersionEnvelopeResult",
         "G652DDispersionFitRegion",
+        "calculate_g652d_dispersion_envelope",
     ]
 
     assert standards.__all__ == expected_exports
@@ -28,8 +30,8 @@ def test_public_exports_are_exact_and_have_no_calculation_export() -> None:
         G652DDispersionEnvelopeRequest,
         G652DDispersionEnvelopeResult,
         G652DDispersionFitRegion,
+        calculate_g652d_dispersion_envelope,
     ]
-    assert not any(name.startswith("calculate_") for name in standards.__all__)
     assert [
         name
         for name, value in vars(standards).items()

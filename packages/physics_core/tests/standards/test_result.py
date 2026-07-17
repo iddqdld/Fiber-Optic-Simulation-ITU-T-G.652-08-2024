@@ -372,7 +372,7 @@ def test_result_json_schema_is_explicit_and_references_manifest_and_region() -> 
     )
 
 
-def test_result_has_no_equation_field_or_calculation_contract() -> None:
+def test_result_has_no_equation_field_or_formula_cross_validation() -> None:
     assert "boundary_equation" not in G652DDispersionEnvelopeResult.model_fields
     assert "equation" not in G652DDispersionEnvelopeResult.model_fields
     result = make_result(
