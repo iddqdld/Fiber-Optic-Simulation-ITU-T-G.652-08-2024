@@ -7,6 +7,10 @@ from pydantic import ValidationError
 import fibre_sim.standards as standards
 import fibre_sim.standards.constants as constants
 from fibre_sim.standards import (
+    G652DDispersionCheckManifest,
+    G652DDispersionCheckRequest,
+    G652DDispersionCheckResult,
+    G652DDispersionCheckStatus,
     G652DDispersionEnvelopeManifest,
     G652DDispersionEnvelopeRequest,
     G652DDispersionEnvelopeResult,
@@ -17,6 +21,10 @@ from fibre_sim.standards import (
 
 def test_public_exports_are_exact_and_include_calculation() -> None:
     expected_exports = [
+        "G652DDispersionCheckManifest",
+        "G652DDispersionCheckRequest",
+        "G652DDispersionCheckResult",
+        "G652DDispersionCheckStatus",
         "G652DDispersionEnvelopeManifest",
         "G652DDispersionEnvelopeRequest",
         "G652DDispersionEnvelopeResult",
@@ -26,6 +34,10 @@ def test_public_exports_are_exact_and_include_calculation() -> None:
 
     assert standards.__all__ == expected_exports
     assert [getattr(standards, name) for name in expected_exports] == [
+        G652DDispersionCheckManifest,
+        G652DDispersionCheckRequest,
+        G652DDispersionCheckResult,
+        G652DDispersionCheckStatus,
         G652DDispersionEnvelopeManifest,
         G652DDispersionEnvelopeRequest,
         G652DDispersionEnvelopeResult,
