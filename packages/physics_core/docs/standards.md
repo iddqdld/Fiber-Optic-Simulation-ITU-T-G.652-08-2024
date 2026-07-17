@@ -76,10 +76,47 @@ The bounds are signed values, not absolute-dispersion magnitudes. Negative,
 zero, and positive results are all valid where produced by the published
 equations.
 
+## Dispersion-check contracts
+
+`G652DDispersionCheckRequest` carries an inclusive-domain wavelength and a
+finite, signed supplied chromatic-dispersion coefficient, both in the units
+described above. `G652DDispersionCheckManifest` identifies the check model and
+its envelope model, records the `inclusive_envelope` comparison rule, and
+states the assumptions and limitations that accompany the check.
+
+`G652DDispersionCheckResult` carries the wavelength, supplied coefficient,
+selected fit region, envelope minimum and maximum, two signed margins, a
+status, and the check manifest. Its source contract requires finite numerical
+values and permits the result fields to be represented independently while
+the calculation contract is being introduced.
+
+The margins are defined as:
+
+```text
+margin_above_minimum = supplied_dispersion - minimum_dispersion
+margin_below_maximum = maximum_dispersion - supplied_dispersion
+```
+
+Both margins are non-negative inside the inclusive envelope. A value equal to
+the minimum or maximum boundary therefore passes. A negative
+`margin_above_minimum` indicates a value below the minimum, while a negative
+`margin_below_maximum` indicates a value above the maximum.
+
+The statuses are `pass`, `fail_below_minimum`, and `fail_above_maximum`.
+`pass` applies when both inclusive comparisons pass; the failure statuses
+identify the violated lower or upper boundary. These contracts apply only
+when the G.652.D preset is explicitly selected. Preset mismatch or absence is
+handled by the caller and must not be reported as a pass. Step 29 defines
+these source and documentation contracts only. Calculation of the check
+arrives in Step 30.
+
 ## Scope and limitations
 
 This implementation evaluates the envelope only. It is not a nominal or
 measurement model and is not complete G.652.D conformance. It does not cover
 statistical link design, multi-section accumulation, pulse broadening, group
 delay, an API, or a frontend. Longitudinal variation and other system-level
-effects are outside this slice.
+effects are outside this slice. The check also does not establish complete
+G.652.D conformance: its supplied coefficient is accepted as input rather than
+measured or independently validated, and it excludes measurement uncertainty,
+longitudinal variation, statistical link design, and other fibre attributes.

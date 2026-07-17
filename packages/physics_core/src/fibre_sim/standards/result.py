@@ -24,6 +24,70 @@ class G652DDispersionFitRegion(StrEnum):
     LINEAR = "linear"
 
 
+class G652DDispersionCheckStatus(StrEnum):
+    PASS = "pass"
+    FAIL_BELOW_MINIMUM = "fail_below_minimum"
+    FAIL_ABOVE_MAXIMUM = "fail_above_maximum"
+
+
+class G652DDispersionCheckManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    model_id: Literal["itu_t_g652d_chromatic_dispersion_check"] = (
+        "itu_t_g652d_chromatic_dispersion_check"
+    )
+    model_version: Literal["1.0.0"] = "1.0.0"
+    envelope_model_id: Literal["itu_t_g652d_chromatic_dispersion_envelope"] = (
+        "itu_t_g652d_chromatic_dispersion_envelope"
+    )
+    envelope_model_version: Literal["1.0.0"] = "1.0.0"
+    standard_name: Literal["ITU-T G.652"] = "ITU-T G.652"
+    standard_edition: Literal["08/2024"] = "08/2024"
+    fibre_category: Literal["G.652.D"] = "G.652.D"
+    comparison_rule: Literal["inclusive_envelope"] = "inclusive_envelope"
+    assumptions: tuple[str, ...] = (
+        "supplied chromatic-dispersion coefficient is compared at the same "
+        "wavelength as the envelope",
+        "values equal to either published envelope boundary pass",
+        "signed margins are positive inside the envelope and negative beyond the violated boundary",
+    )
+    limitations: tuple[str, ...] = (
+        "a passing dispersion check is not complete G.652.D conformance",
+        "the supplied coefficient is accepted as input rather than measured or "
+        "independently validated",
+        "excludes measurement uncertainty, longitudinal variation, and statistical link design",
+        "checks only the represented chromatic-dispersion coefficient attribute",
+    )
+
+
+class G652DDispersionCheckResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    wavelength_nm: float = Field(
+        strict=True,
+        ge=G652D_MIN_WAVELENGTH_NM,
+        le=G652D_MAX_WAVELENGTH_NM,
+        allow_inf_nan=False,
+    )
+    supplied_dispersion_ps_per_nm_km: float = Field(strict=True, allow_inf_nan=False)
+    fit_region: G652DDispersionFitRegion
+    minimum_dispersion_ps_per_nm_km: float = Field(strict=True, allow_inf_nan=False)
+    maximum_dispersion_ps_per_nm_km: float = Field(strict=True, allow_inf_nan=False)
+    margin_above_minimum_ps_per_nm_km: float = Field(strict=True, allow_inf_nan=False)
+    margin_below_maximum_ps_per_nm_km: float = Field(strict=True, allow_inf_nan=False)
+    status: G652DDispersionCheckStatus
+    model_manifest: G652DDispersionCheckManifest
+
+    @model_validator(mode="after")
+    def validate_dispersion_check_bounds(self) -> Self:
+        if self.minimum_dispersion_ps_per_nm_km > self.maximum_dispersion_ps_per_nm_km:
+            raise PydanticCustomError(
+                "dispersion_check_bounds_reversed",
+                "G.652.D dispersion-check minimum cannot exceed maximum.",
+            )
+        return self
+
+
 class G652DDispersionEnvelopeManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
