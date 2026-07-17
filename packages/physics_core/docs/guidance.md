@@ -1,11 +1,13 @@
-# Steps 10-13 guidance
+# Steps 10-14 guidance
 
-Step 11 adds the normalized frequency, or V-number, calculation for a valid
-`GuidanceRequest`. It builds on the scalar refractive-index guidance quantities
-from Steps 10 and 10A. Unlike those earlier quantities, V depends on all four
-request fields: `n_core` and `n_cladding` through the numerical aperture,
-`core_radius_um` through the core radius, and `wavelength_nm` through the
-wavelength.
+Steps 10-14 provide one pure, typed guidance calculation for a valid
+`GuidanceRequest`. Step 10 supplies scalar refractive-index quantities; Step 11
+adds normalized frequency; Step 12 classifies the ideal-model mode regime; Step
+13 adds the large-V mode-count estimate; and Step 14 aggregates those results,
+validity warnings, and a model manifest. Step 14 adds no endpoint, OpenAPI
+schema, or UI.
+
+## Step 10 scalar guidance quantities
 
 The critical angle is
 
@@ -116,6 +118,51 @@ not a universal physical cutoff; values below it raise
 `ModeCountValidityError`. The result remains a floating-point, unrounded
 value, so non-integer estimates are preserved. The `V^2/2` expression is the
 selected project counting convention for this estimate.
+
+## Step 14 aggregate result
+
+`calculate_guidance(request)` returns a frozen `GuidanceResult` with exactly
+these explicit output fields:
+
+| Field | Meaning | Nullable? |
+|---|---|---:|
+| `critical_angle_deg` | Core-to-cladding critical angle in degrees, measured from the normal. | No |
+| `numerical_aperture_dimensionless` | Dimensionless ideal step-index numerical aperture. | No |
+| `air_acceptance_angle_deg` | Inverse-sine acceptance angle in air, in degrees. | Yes |
+| `relative_index_difference_dimensionless` | Exact project convention `(n_core - n_cladding) / n_core`. | No |
+| `v_number_dimensionless` | Dimensionless normalized frequency. | No |
+| `mode_regime` | `"single_mode"` below `V = 2.405`, otherwise `"multimode"`. | No |
+| `approximate_mode_count` | Unrounded `V^2 / 2` estimate when `V >= 10.0`. | Yes |
+| `warnings` | Ordered `GuidanceWarning` values describing unavailable submodel outputs. | No |
+| `model_manifest` | Frozen `GuidanceModelManifest` describing the model and its policy. | No |
+
+The nullable fields are not zero-valued results. `air_acceptance_angle_deg` is
+`null` when the inverse-sine air model is outside its validity domain (`NA >
+1`), and `approximate_mode_count` is `null` when the asymptotic estimate is
+outside its policy domain (`V < 10.0`). Other valid fields remain populated.
+
+`GuidanceWarningCode` is a typed enumeration with the stable values
+`"air_acceptance_angle_unavailable"` and `"mode_count_unavailable"`. Every
+warning also carries its original exception text in `message` and the
+unavailable output name in `output_field`: `air_acceptance_angle_deg` or
+`approximate_mode_count`. If both warnings apply, `warnings` is always ordered
+air acceptance first, then mode count. This makes serialized warning arrays
+stable and directly actionable.
+
+`GuidanceModelManifest` has stable `model_id =
+"ideal_circular_step_index_guidance"` and `model_version = "1.0.0"` values. It
+records the exact policy thresholds
+`mode_regime_cutoff_v_dimensionless = 2.405` and
+`mode_count_min_v_dimensionless = 10.0`. Its assumptions describe an ideal,
+circular, step-index, weak-guidance model with the supplied refractive indices
+and wavelength. Its limitations explicitly state that the result is not a
+G.652.D conformance determination, that it does not use measured cable data,
+and that ideal `V` mode cut-off is distinct from—and not equivalent to—the
+measured G.652.D cable cut-off.
+
+The warning and manifest collections serialize as deterministic JSON arrays.
+The aggregate result is a calculation contract only; this step does not add an
+API endpoint, OpenAPI exposure, or frontend/UI integration.
 
 ## G.652.D boundary
 

@@ -13,17 +13,29 @@ from .mode_count import (
     approximate_mode_count,
 )
 from .request import GuidanceRequest
+from .result import (
+    GuidanceModelManifest,
+    GuidanceResult,
+    GuidanceWarning,
+    GuidanceWarningCode,
+    calculate_guidance,
+)
 
 __all__ = [
     "AirAcceptanceAngleError",
     "ASYMPTOTIC_MODE_COUNT_MIN_V",
     "GuidanceRequest",
+    "GuidanceModelManifest",
+    "GuidanceResult",
+    "GuidanceWarning",
+    "GuidanceWarningCode",
     "LP11_CUTOFF_V",
     "ModeCountValidityError",
     "ModeRegime",
     "air_acceptance_angle_deg",
     "approximate_mode_count",
     "classify_mode_regime",
+    "calculate_guidance",
     "critical_angle_deg",
     "numerical_aperture",
     "relative_index_difference",
