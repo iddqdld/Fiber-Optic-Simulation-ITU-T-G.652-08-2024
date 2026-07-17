@@ -5,9 +5,11 @@ from pydantic import ValidationError
 
 import fibre_sim.attenuation as attenuation
 from fibre_sim.attenuation import (
+    ConstantAttenuationCalculationError,
     ConstantAttenuationManifest,
     ConstantAttenuationRequest,
     ConstantAttenuationResult,
+    calculate_constant_attenuation,
 )
 
 
@@ -21,9 +23,11 @@ def valid_request_values() -> dict[str, object]:
 
 def test_public_exports_and_all_are_exact() -> None:
     expected_exports = [
+        "ConstantAttenuationCalculationError",
         "ConstantAttenuationManifest",
         "ConstantAttenuationRequest",
         "ConstantAttenuationResult",
+        "calculate_constant_attenuation",
     ]
 
     assert attenuation.__all__ == expected_exports
@@ -33,9 +37,11 @@ def test_public_exports_and_all_are_exact() -> None:
         if not name.startswith("_") and callable(value)
     } == set(expected_exports)
     assert [getattr(attenuation, name) for name in expected_exports] == [
+        ConstantAttenuationCalculationError,
         ConstantAttenuationManifest,
         ConstantAttenuationRequest,
         ConstantAttenuationResult,
+        calculate_constant_attenuation,
     ]
 
 
