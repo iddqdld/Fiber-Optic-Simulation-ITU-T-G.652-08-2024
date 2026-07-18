@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,88 +9,277 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import type { operations } from '../../../packages/shared_schemas/generated/api'
+import type {
+  components,
+  operations,
+} from '../../../packages/shared_schemas/generated/api'
 import App from './App'
 
+type Level1Request =
+  operations['preview_level1_simulation']['requestBody']['content']['application/json']
+type Level1Result =
+  operations['preview_level1_simulation']['responses'][200]['content']['application/json']
 type FetchOutcome = Response | Promise<Response> | Error
-type GuidanceResult =
-  operations['calculate_guidance']['responses'][200]['content']['application/json']
 
-const guidanceResult = {
-  critical_angle_deg: 84.78590277783555,
-  numerical_aperture_dimensionless: 0.1317725312802331,
-  air_acceptance_angle_deg: 7.572032141901169,
-  relative_index_difference_dimensionless: 0.004137931034482762,
-  v_number_dimensionless: 2.190064550298241,
-  mode_regime: 'single_mode',
-  approximate_mode_count: null,
+const initialConfiguration = {
+  preset: 'custom',
+  fibre: {
+    n_core: 1.47,
+    n_cladding: 1.465,
+    core_radius_um: 4.1,
+    mode_field_radius_um: 4.82,
+    attenuation_db_per_km: 0.2,
+    dispersion_ps_per_nm_km: 17,
+    group_index_dimensionless: 1.468,
+    cable_application: 'standard_cable',
+  },
+  source: {
+    wavelength_nm: 1550,
+    input_power_dbm: -3,
+    spectral_width_fwhm_nm: 0.2,
+    input_pulse_fwhm_ps: 25,
+  },
+  section: { length_km: 12.5 },
+  sampling: { grid_half_width_um: 15, grid_points: 65 },
+} satisfies Level1Request
+
+const simulationManifest = {
+  model_id: 'level1_single_section_simulation',
+  model_version: '1.0.0',
+  component_model_ids: [
+    'ideal_circular_step_index_guidance',
+    'gaussian_lp01_mode_profile',
+    'constant_fibre_attenuation',
+    'constant_group_index_delay',
+    'first_order_chromatic_pulse_broadening',
+  ],
+  assumptions: [
+    'one uniform fibre section',
+    'all calculations share one operating wavelength',
+    'fibre composition is uniform over the section',
+  ],
+  limitations: [
+    'excludes bends, splices, and connectors',
+    'excludes polarization-mode dispersion',
+    'excludes optical nonlinearity',
+    'excludes multi-section links',
+    'excludes full-wave field solving',
+  ],
+} satisfies Level1Result['model_manifest']
+
+const guidanceManifest = {
+  model_id: 'ideal_circular_step_index_guidance',
+  model_version: '1.0.0',
+  mode_regime_cutoff_v_dimensionless: 2.405,
+  mode_count_min_v_dimensionless: 10,
+  assumptions: ['ideal circular step-index profile'],
+  limitations: ['not a G.652.D conformance model'],
+} satisfies components['schemas']['GuidanceModelManifest']
+
+const attenuationManifest = {
+  model_id: 'constant_fibre_attenuation',
+  model_version: '1.0.0',
+  assumptions: ['uniform attenuation coefficient over the fibre section'],
+  limitations: ['not a G.652 conformance or typical-value model'],
+} satisfies components['schemas']['ConstantAttenuationManifest']
+
+const groupDelayManifest = {
+  model_id: 'constant_group_index_delay',
+  model_version: '1.0.0',
+  vacuum_speed_m_per_s: 299792458,
+  assumptions: ['constant supplied group index over the fibre section'],
+  limitations: ['group index is supplied rather than derived'],
+} satisfies components['schemas']['GroupDelayManifest']
+
+const pulseManifest = {
+  model_id: 'first_order_chromatic_pulse_broadening',
+  model_version: '1.0.0',
+  width_convention: 'fwhm',
+  assumptions: [
+    'Gaussian input pulse and Gaussian source spectrum use FWHM widths',
+  ],
+  limitations: [
+    'first-order delay-spread approximation rather than full pulse propagation',
+  ],
+} satisfies components['schemas']['ChromaticPulseBroadeningManifest']
+
+const modeProfileManifest = {
+  model_id: 'gaussian_lp01_mode_profile',
+  model_version: '1.0.0',
+  normalization_convention: 'unit_peak_field_and_intensity',
+  radius_convention: '1/e_field_radius',
+  assumptions: ['scalar, circularly symmetric Gaussian LP01 approximation'],
+  limitations: ['not an exact step-index eigenmode solver'],
+} satisfies components['schemas']['GaussianModeProfileManifest']
+
+const customResult = {
+  configuration: initialConfiguration,
+  guidance: {
+    critical_angle_deg: 82.5,
+    numerical_aperture_dimensionless: 0.12114041439585586,
+    air_acceptance_angle_deg: 6.95,
+    relative_index_difference_dimensionless: 0.0034,
+    v_number_dimensionless: 2.0133583577642065,
+    mode_regime: 'single_mode',
+    approximate_mode_count: null,
+    warnings: [
+      {
+        code: 'mode_count_unavailable',
+        message:
+          'Mode count estimate is unavailable below the validity threshold.',
+        output_field: 'approximate_mode_count',
+      },
+    ],
+    model_manifest: guidanceManifest,
+  },
+  attenuation: {
+    attenuation_db_per_km: 0.2,
+    input_power_dbm: -3,
+    length_km: 12.5,
+    section_loss_db: 2.5,
+    output_power_dbm: -5.5,
+    model_manifest: attenuationManifest,
+  },
+  group_delay: {
+    group_delay_ps: 61209011.468860894,
+    group_index_dimensionless: 1.468,
+    length_km: 12.5,
+    model_manifest: groupDelayManifest,
+  },
+  pulse_broadening: {
+    accumulated_dispersion_ps_per_nm: 212.5,
+    dispersion_broadening_fwhm_ps: 42.5,
+    dispersion_ps_per_nm_km: 17,
+    input_pulse_fwhm_ps: 25,
+    length_km: 12.5,
+    output_pulse_fwhm_ps: 49.30770730829005,
+    spectral_width_fwhm_nm: 0.2,
+    model_manifest: pulseManifest,
+  },
+  mode_profile: {
+    grid_half_width_um: 15,
+    grid_points: 3,
+    mode_field_radius_um: 4.82,
+    normalized_field: [
+      [0.01, 0.1, 0.01],
+      [0.1, 1, 0.1],
+      [0.01, 0.1, 0.01],
+    ],
+    normalized_intensity: [
+      [0.0001, 0.01, 0.0001],
+      [0.01, 1, 0.01],
+      [0.0001, 0.01, 0.0001],
+    ],
+    x_um: [-15, 0, 15],
+    y_um: [-15, 0, 15],
+    model_manifest: modeProfileManifest,
+  },
+  model_manifest: simulationManifest,
+  standards_checks: {
+    preset: 'custom',
+    preset_definition: null,
+    dispersion: null,
+    attenuation: null,
+  },
   warnings: [
     {
       code: 'mode_count_unavailable',
       message:
-        'V^2/2 estimate requires V >= 10.0 under the project validity policy (clearly highly multimode regime).',
-      output_field: 'approximate_mode_count',
+        'Mode count estimate is unavailable below the validity threshold.',
+      output_field: 'guidance.approximate_mode_count',
+      source_model_id: 'ideal_circular_step_index_guidance',
     },
   ],
-  model_manifest: {
-    model_id: 'ideal_circular_step_index_guidance',
-    model_version: '1.0.0',
-    mode_regime_cutoff_v_dimensionless: 2.405,
-    mode_count_min_v_dimensionless: 10,
-    assumptions: [
-      'ideal circular step-index profile',
-      'scalar weak-guidance mode interpretation',
-      'homogeneous, isotropic, linear media',
-      'n_external=1 for air angle',
-    ],
-    limitations: [
-      'asymptotic mode count only at V >= 10.0 project threshold',
-      'V=2.405 ideal cutoff distinct from measured cable cutoff',
-      'not a G.652.D conformance model',
-    ],
+} satisfies Level1Result
+
+const g652dPreset = {
+  model_id: 'itu_t_g652d_preset',
+  model_version: '1.0.0',
+  preset_id: 'g652d_2024',
+  fibre_category: 'G.652.D',
+  standard_name: 'ITU-T G.652',
+  standard_edition: '08/2024',
+  assumptions: ['Table 2 and Appendix I values are represented separately'],
+  limitations: [
+    'the preset is not a complete G.652.D conformance determination',
+  ],
+  source_references: ['ITU-T G.652 (08/2024), Table 2'],
+} satisfies components['schemas']['G652DPreset']
+
+const dispersionCheckManifest = {
+  model_id: 'itu_t_g652d_chromatic_dispersion_check',
+  model_version: '1.0.0',
+  envelope_model_id: 'itu_t_g652d_chromatic_dispersion_envelope',
+  envelope_model_version: '1.0.0',
+  fibre_category: 'G.652.D',
+  standard_name: 'ITU-T G.652',
+  standard_edition: '08/2024',
+  comparison_rule: 'inclusive_envelope',
+  assumptions: ['values equal to either published envelope boundary pass'],
+  limitations: [
+    'a passing dispersion check is not complete G.652.D conformance',
+  ],
+} satisfies components['schemas']['G652DDispersionCheckManifest']
+
+const attenuationCheckManifest = {
+  model_id: 'itu_t_g652d_attenuation_check',
+  model_version: '1.0.0',
+  fibre_category: 'G.652.D',
+  standard_name: 'ITU-T G.652',
+  standard_edition: '08/2024',
+  comparison_rule: 'inclusive_maximum',
+  assumptions: ['values are compared at the supplied wavelength'],
+  limitations: ['a passing attenuation result is not full G.652.D conformance'],
+} satisfies components['schemas']['G652DAttenuationCheckManifest']
+
+const g652dStandardsChecks = {
+  preset: 'g652d',
+  preset_definition: g652dPreset,
+  dispersion: {
+    fit_region: 'linear',
+    margin_above_minimum_ps_per_nm_km: 8,
+    margin_below_maximum_ps_per_nm_km: 1,
+    maximum_dispersion_ps_per_nm_km: 18,
+    minimum_dispersion_ps_per_nm_km: 8,
+    supplied_dispersion_ps_per_nm_km: 17,
+    wavelength_nm: 1550,
+    status: 'pass',
+    model_manifest: dispersionCheckManifest,
   },
-} satisfies GuidanceResult
+  attenuation: {
+    cable_application: 'standard_cable',
+    limit_band: 'c_band_1530_1565',
+    margin_below_maximum_db_per_km: 0.025,
+    maximum_attenuation_db_per_km: 0.3,
+    not_applicable_reason: null,
+    supplied_attenuation_db_per_km: 0.275,
+    wavelength_nm: 1550,
+    status: 'pass',
+    model_manifest: attenuationCheckManifest,
+  },
+} satisfies Level1Result['standards_checks']
+
+const g652dResult = {
+  ...customResult,
+  configuration: {
+    ...initialConfiguration,
+    preset: 'g652d',
+    fibre: {
+      ...initialConfiguration.fibre,
+      attenuation_db_per_km: 0.275,
+      dispersion_ps_per_nm_km: 17,
+    },
+    source: { ...initialConfiguration.source, wavelength_nm: 1550 },
+  },
+  attenuation: { ...customResult.attenuation, attenuation_db_per_km: 0.275 },
+  standards_checks: g652dStandardsChecks,
+} satisfies Level1Result
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
-
-function healthResponse(available = true): Response {
-  return jsonResponse(
-    { status: available ? 'ok' : 'unavailable' },
-    available ? 200 : 503,
-  )
-}
-
-function mockFetchWithHealth(
-  guidanceResponses: FetchOutcome[] = [],
-  health: FetchOutcome = healthResponse(),
-) {
-  const fetchMock = vi.fn<typeof fetch>()
-
-  fetchMock.mockImplementationOnce(async (input) => {
-    expect(input).toBe('/api/v1/health')
-    if (health instanceof Error) {
-      throw health
-    }
-    return health
-  })
-
-  guidanceResponses.forEach((response) => {
-    fetchMock.mockImplementationOnce(async (input) => {
-      expect(input).toBe('/api/v1/guidance/calculate')
-      if (response instanceof Error) {
-        throw response
-      }
-      return response
-    })
-  })
-
-  vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
 }
 
 function deferred<T>() {
@@ -101,33 +291,97 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function calculatorCard() {
-  return screen.getByRole('region', { name: 'Guidance calculator' })
+function mockFetch(
+  options: { health?: FetchOutcome; preview?: FetchOutcome[] } = {},
+) {
+  let previewIndex = 0
+  const fetchMock = vi
+    .fn<typeof fetch>()
+    .mockImplementation(async (input, init) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+
+      if (url === '/api/v1/health' && method === 'GET') {
+        const outcome = options.health ?? jsonResponse({ status: 'ok' })
+        if (outcome instanceof Error) {
+          throw outcome
+        }
+        return outcome
+      }
+
+      if (url === '/api/v1/simulations/preview' && method === 'POST') {
+        const outcome =
+          options.preview?.[previewIndex] ?? jsonResponse(customResult)
+        previewIndex += 1
+        if (outcome instanceof Error) {
+          throw outcome
+        }
+        return outcome
+      }
+
+      throw new Error(`Unexpected ${method} ${url}`)
+    })
+
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+function previewCalls(fetchMock: ReturnType<typeof mockFetch>) {
+  return fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      String(input) === '/api/v1/simulations/preview' &&
+      (init?.method ?? 'GET') === 'POST',
+  )
+}
+
+function previewPayload(fetchMock: ReturnType<typeof mockFetch>) {
+  const calls = previewCalls(fetchMock)
+  const lastCall = calls.at(-1)
+  if (!lastCall) {
+    throw new Error('Expected a preview request')
+  }
+
+  return JSON.parse(String(lastCall[1]?.body)) as Level1Request
+}
+
+async function settleDebounce() {
+  await act(async () => {
+    vi.advanceTimersByTime(250)
+  })
+  await act(async () => {
+    await Promise.resolve()
+  })
+}
+
+function numberInput(name: RegExp) {
+  return screen.getByRole('spinbutton', { name })
 }
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
-describe('App backend status', () => {
-  test('successful mocked fetch shows "Backend available"', async () => {
-    const fetchMock = mockFetchWithHealth()
+describe('backend health', () => {
+  test('reports an available backend from the health endpoint', async () => {
+    const fetchMock = mockFetch()
 
     render(<App />)
 
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('Backend available')
     })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input]) => String(input) === '/api/v1/health',
+      ),
+    ).toHaveLength(1)
   })
 
-  test('rejected fetch shows "Backend unavailable"', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockRejectedValue(new Error('network failure'))
-    vi.stubGlobal('fetch', fetchMock)
+  test('reports an unavailable backend when health rejects', async () => {
+    mockFetch({ health: new Error('network failure') })
 
     render(<App />)
 
@@ -138,8 +392,8 @@ describe('App backend status', () => {
     })
   })
 
-  test('a non-OK health response shows "Backend unavailable"', async () => {
-    mockFetchWithHealth([], healthResponse(false))
+  test('reports an unavailable backend for a non-OK health response', async () => {
+    mockFetch({ health: jsonResponse({ status: 'unavailable' }, 503) })
 
     render(<App />)
 
@@ -151,271 +405,433 @@ describe('App backend status', () => {
   })
 })
 
-describe('Guidance calculator form', () => {
-  test('renders one titled form with four required spinbuttons and neutral defaults', () => {
-    mockFetchWithHealth()
+describe('Level 1 form', () => {
+  test('renders the complete accessible form with explicit units and defaults', () => {
+    mockFetch()
 
     render(<App />)
 
-    const card = calculatorCard()
     expect(
-      screen.getAllByRole('region', { name: 'Guidance calculator' }),
-    ).toHaveLength(1)
-    expect(card.querySelector('form')).toBeInTheDocument()
+      screen.getByRole('heading', { name: 'Optical Fibre Simulator' }),
+    ).toBeVisible()
+    const configuration = screen.getByRole('region', {
+      name: 'Level 1 configuration',
+    })
     expect(
-      within(card).getByRole('heading', { name: 'Guidance calculator' }),
+      within(configuration).getByRole('heading', {
+        name: 'Level 1 configuration',
+      }),
     ).toBeVisible()
 
+    expect(
+      within(configuration).getByRole('combobox', { name: 'Fibre preset' }),
+    ).toHaveValue('custom')
+    expect(
+      within(configuration).getByRole('option', { name: 'Custom fibre' }),
+    ).toBeInTheDocument()
+    expect(
+      within(configuration).getByRole('option', { name: 'ITU-T G.652.D' }),
+    ).toBeInTheDocument()
+
+    for (const groupName of ['Fibre', 'Source', 'Section', 'Sampling']) {
+      expect(
+        within(configuration).getByRole('group', { name: groupName }),
+      ).toBeVisible()
+    }
+
     const fields = [
-      ['Core refractive index', 1.45],
-      ['Cladding refractive index', 1.444],
-      ['Core radius (µm)', 4.1],
-      ['Wavelength (nm)', 1550],
+      [/Core refractive index.*dimensionless/i, 1.47],
+      [/Cladding refractive index.*dimensionless/i, 1.465],
+      [/Core radius.*µm/i, 4.1],
+      [/Mode.field radius.*µm/i, 4.82],
+      [/Attenuation.*dB\/km/i, 0.2],
+      [/Dispersion.*ps\/\(nm km\)/i, 17],
+      [/Group index.*dimensionless/i, 1.468],
+      [/Wavelength.*nm/i, 1550],
+      [/Input power.*dBm/i, -3],
+      [/Spectral width.*FWHM.*nm/i, 0.2],
+      [/Input pulse.*FWHM.*ps/i, 25],
+      [/length.*km/i, 12.5],
+      [/Grid half.width.*µm/i, 15],
+      [/Grid points/i, 65],
     ] as const
 
-    expect(screen.getAllByRole('spinbutton')).toHaveLength(fields.length)
+    expect(within(configuration).getAllByRole('spinbutton')).toHaveLength(
+      fields.length,
+    )
     fields.forEach(([name, value]) => {
-      const input = within(card).getByRole('spinbutton', { name })
+      const input = within(configuration).getByRole('spinbutton', { name })
       expect(input).toBeRequired()
-      expect(input).toHaveAttribute('step', 'any')
       expect(input).toHaveValue(value)
     })
-
-    for (const [name] of fields) {
-      const input = within(card).getByRole('spinbutton', { name })
-      expect(Number(input.getAttribute('min'))).toBeGreaterThan(0)
-    }
+    expect(
+      within(configuration).getByRole('combobox', {
+        name: 'Cable application',
+      }),
+    ).toHaveValue('standard_cable')
   })
 
-  test('posts the exact numeric guidance payload with POST and JSON headers', async () => {
-    const response = jsonResponse(guidanceResult)
-    const fetchMock = mockFetchWithHealth([response])
+  test('posts the exact nested initial payload after the 250 ms debounce', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
 
     render(<App />)
+    await settleDebounce()
 
-    fireEvent.change(
-      screen.getByRole('spinbutton', { name: 'Core refractive index' }),
-      { target: { value: '1.51' } },
-    )
-    fireEvent.change(
-      screen.getByRole('spinbutton', { name: 'Cladding refractive index' }),
-      { target: { value: '1.49' } },
-    )
-    fireEvent.change(
-      screen.getByRole('spinbutton', { name: 'Core radius (µm)' }),
-      { target: { value: '5.2' } },
-    )
-    fireEvent.change(
-      screen.getByRole('spinbutton', { name: 'Wavelength (nm)' }),
-      { target: { value: '1310' } },
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2)
-    })
-
-    const [, requestInit] = fetchMock.mock.calls[1]
+    expect(previewPayload(fetchMock)).toEqual(initialConfiguration)
+    expect(previewCalls(fetchMock)).toHaveLength(1)
+    const [, requestInit] = previewCalls(fetchMock)[0]
     expect(requestInit?.method).toBe('POST')
     expect(new Headers(requestInit?.headers).get('Content-Type')).toBe(
       'application/json',
     )
-    const payload = JSON.parse(String(requestInit?.body)) as Record<
-      string,
-      number
-    >
-    expect(Object.keys(payload).sort()).toEqual([
-      'core_radius_um',
-      'n_cladding',
-      'n_core',
-      'wavelength_nm',
-    ])
-    expect(payload).toEqual({
-      n_core: 1.51,
-      n_cladding: 1.49,
-      core_radius_um: 5.2,
-      wavelength_nm: 1310,
+  })
+
+  test('G.652.D changes only its three requested defaults', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+
+    fireEvent.change(numberInput(/Core refractive index/i), {
+      target: { value: '1.48' },
+    })
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.4' } })
+    fireEvent.change(numberInput(/Input power/i), { target: { value: '-2' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'g652d' },
+    })
+
+    expect(numberInput(/Core refractive index/i)).toHaveValue(1.48)
+    expect(numberInput(/Core radius/i)).toHaveValue(4.4)
+    expect(numberInput(/Input power/i)).toHaveValue(-2)
+    expect(numberInput(/Wavelength/i)).toHaveValue(1550)
+    expect(numberInput(/Attenuation/i)).toHaveValue(0.275)
+    expect(numberInput(/Dispersion/i)).toHaveValue(17)
+
+    await settleDebounce()
+    expect(previewPayload(fetchMock)).toEqual({
+      ...initialConfiguration,
+      preset: 'g652d',
+      fibre: {
+        ...initialConfiguration.fibre,
+        n_core: 1.48,
+        core_radius_um: 4.4,
+        attenuation_db_per_km: 0.275,
+        dispersion_ps_per_nm_km: 17,
+      },
+      source: { ...initialConfiguration.source, input_power_dbm: -2 },
     })
   })
 
-  test('disables the submit button and shows the pending label while calculating', async () => {
-    const calculation = deferred<Response>()
-    mockFetchWithHealth([calculation.promise])
+  test('switching back to custom preserves current values', () => {
+    mockFetch()
 
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
-
-    const pendingButton = await screen.findByRole('button', {
-      name: 'Calculating…',
+    fireEvent.change(numberInput(/Core refractive index/i), {
+      target: { value: '1.49' },
     })
-    expect(pendingButton).toBeDisabled()
-
-    calculation.resolve(jsonResponse(guidanceResult))
-    await screen.findByRole('region', {
-      name: 'Guidance results',
+    fireEvent.change(numberInput(/Mode.field radius/i), {
+      target: { value: '5.1' },
     })
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '20' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'g652d' },
+    })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'custom' },
+    })
+
+    expect(screen.getByRole('combobox', { name: 'Fibre preset' })).toHaveValue(
+      'custom',
+    )
+    expect(numberInput(/Core refractive index/i)).toHaveValue(1.49)
+    expect(numberInput(/Mode.field radius/i)).toHaveValue(5.1)
+    expect(numberInput(/length.*km/i)).toHaveValue(20)
+    expect(numberInput(/Wavelength/i)).toHaveValue(1550)
+    expect(numberInput(/Attenuation/i)).toHaveValue(0.275)
+  })
+
+  test('coalesces rapid valid edits into one preview request', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialCallCount = previewCalls(fetchMock).length
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.2' } })
+    fireEvent.change(numberInput(/Wavelength/i), { target: { value: '1310' } })
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '13' },
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(249)
+    })
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount + 1)
+    expect(previewPayload(fetchMock)).toEqual({
+      ...initialConfiguration,
+      fibre: { ...initialConfiguration.fibre, core_radius_um: 4.2 },
+      source: { ...initialConfiguration.source, wavelength_nm: 1310 },
+      section: { length_km: 13 },
+    })
+  })
+
+  test('does not preview locally invalid index, grid, or preset wavelength values', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialCallCount = previewCalls(fetchMock).length
+
+    fireEvent.change(numberInput(/Core refractive index/i), {
+      target: { value: '1.46' },
+    })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+
+    fireEvent.change(numberInput(/Core refractive index/i), {
+      target: { value: '1.47' },
+    })
+    fireEvent.change(numberInput(/Grid points/i), { target: { value: '64' } })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+
+    fireEvent.change(numberInput(/Grid points/i), { target: { value: '67' } })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+
+    fireEvent.change(numberInput(/Grid points/i), { target: { value: '65' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'g652d' },
+    })
+    fireEvent.change(numberInput(/Wavelength/i), { target: { value: '1200' } })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+  })
+
+  test('previews the inclusive G.652.D wavelength boundaries only', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialCallCount = previewCalls(fetchMock).length
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'g652d' },
+    })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount + 1)
+
+    const wavelength = numberInput(/Wavelength/i)
+    fireEvent.change(wavelength, { target: { value: '1260' } })
+    await settleDebounce()
+    expect(previewPayload(fetchMock).source.wavelength_nm).toBe(1260)
+
+    fireEvent.change(wavelength, { target: { value: '1259' } })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount + 2)
+
+    fireEvent.change(wavelength, { target: { value: '1625' } })
+    await settleDebounce()
+    expect(previewPayload(fetchMock).source.wavelength_nm).toBe(1625)
+
+    fireEvent.change(wavelength, { target: { value: '1626' } })
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount + 3)
   })
 })
 
-describe('Guidance calculator results', () => {
-  test('renders scientific outputs, the approximate model label, and warning messages', async () => {
-    mockFetchWithHealth([jsonResponse(guidanceResult)])
+describe('Level 1 preview state and results', () => {
+  test('shows loading and update status while retaining the last successful result', async () => {
+    vi.useFakeTimers()
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    mockFetch({ preview: [first.promise, second.promise] })
 
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
+    await settleDebounce()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading preview…')
 
-    const results = await screen.findByRole('region', {
-      name: 'Guidance results',
+    await act(async () => {
+      first.resolve(jsonResponse(customResult))
+      await Promise.resolve()
     })
+    expect(
+      screen.getByRole('region', { name: 'Level 1 preview' }),
+    ).toBeVisible()
 
-    const outputLabels = [
-      /^Critical angle(?: \(°\))?$/,
-      'Numerical aperture',
-      /^Air acceptance angle(?: \(°\))?$/,
-      'Relative index difference',
-      'V-number',
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
+    await settleDebounce()
+    expect(screen.getByRole('status')).toHaveTextContent('Updating preview…')
+    expect(
+      screen.getByText(
+        'Mode count estimate is unavailable below the validity threshold.',
+      ),
+    ).toBeVisible()
+
+    await act(async () => {
+      second.resolve(jsonResponse({ ...customResult, warnings: [] }))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('status')).toHaveTextContent('Preview ready')
+  })
+
+  test('does not let an older or aborted response overwrite the latest result', async () => {
+    vi.useFakeTimers()
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    mockFetch({ preview: [first.promise, second.promise] })
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
+    await settleDebounce()
+
+    await act(async () => {
+      second.resolve(jsonResponse({ ...customResult, warnings: [] }))
+      await Promise.resolve()
+    })
+    expect(
+      screen.getByRole('region', { name: 'Level 1 preview' }),
+    ).toHaveTextContent('No warnings.')
+
+    await act(async () => {
+      first.resolve(
+        jsonResponse({
+          ...customResult,
+          warnings: [
+            {
+              ...customResult.warnings[0],
+              message: 'Stale response warning',
+            },
+          ],
+        }),
+      )
+      await Promise.resolve()
+    })
+    expect(screen.queryByText('Stale response warning')).not.toBeInTheDocument()
+  })
+
+  test('renders exact summary units, model metadata, and warnings', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [jsonResponse(customResult)] })
+
+    render(<App />)
+    await settleDebounce()
+    const preview = screen.getByRole('region', { name: 'Level 1 preview' })
+
+    for (const label of [
       'Mode regime',
-      'Approximate mode count',
-    ]
-    outputLabels.forEach((label) => {
-      expect(within(results).getByText(label, { exact: true })).toBeVisible()
-    })
-    for (const value of [
-      guidanceResult.critical_angle_deg,
-      guidanceResult.numerical_aperture_dimensionless,
-      guidanceResult.air_acceptance_angle_deg,
-      guidanceResult.relative_index_difference_dimensionless,
-      guidanceResult.v_number_dimensionless,
+      'V-number',
+      'Numerical aperture',
+      'Section loss',
+      'Output power',
+      'Group delay',
+      'Input pulse FWHM',
+      'Output pulse FWHM',
     ]) {
-      expect(within(results).getByText(String(value))).toBeVisible()
+      expect(within(preview).getByText(label, { exact: true })).toBeVisible()
     }
-    expect(within(results).getByText('Single mode')).toBeVisible()
-    expect(within(results).getByText('Unavailable')).toBeVisible()
+    expect(preview).toHaveTextContent('Single mode')
+    expect(preview).toHaveTextContent('2.0133583577642065')
+    expect(preview).toHaveTextContent('0.12114041439585586')
+    expect(preview).toHaveTextContent('2.5 dB')
+    expect(preview).toHaveTextContent('-5.5 dBm')
+    expect(preview).toHaveTextContent('61209011.468860894 ps')
+    expect(preview).toHaveTextContent('25 ps')
+    expect(preview).toHaveTextContent('49.30770730829005 ps')
+    expect(preview).toHaveTextContent('level1_single_section_simulation')
+    expect(preview).toHaveTextContent('1.0.0')
     expect(
-      within(results).getByText('Approximate model', { exact: true }),
-    ).toBeVisible()
-    expect(
-      within(results).getByText(guidanceResult.warnings[0].message),
+      within(preview).getByText(
+        'Mode count estimate is unavailable below the validity threshold.',
+      ),
     ).toBeVisible()
   })
 
-  test('renders nullable air angle and mode count as "Unavailable"', async () => {
-    const resultWithUnavailableOutputs = {
-      ...guidanceResult,
-      air_acceptance_angle_deg: null,
-      approximate_mode_count: null,
-    }
-    mockFetchWithHealth([jsonResponse(resultWithUnavailableOutputs)])
+  test('shows custom standards checks as off and G.652.D checks compactly', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch({
+      preview: [jsonResponse(customResult), jsonResponse(g652dResult)],
+    })
 
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
+    await settleDebounce()
+    const customPreview = screen.getByRole('region', {
+      name: 'Level 1 preview',
+    })
+    expect(customPreview).toHaveTextContent(/Custom fibre/i)
+    expect(customPreview).toHaveTextContent(/standards checks.*off/i)
 
-    await screen.findByRole('heading', { name: 'Guidance results' })
-    expect(screen.getAllByText('Unavailable', { exact: true })).toHaveLength(2)
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'g652d' },
+    })
+    await settleDebounce()
+    const g652dPreview = screen.getByRole('region', { name: 'Level 1 preview' })
+    expect(g652dPreview).toHaveTextContent('G.652.D')
+    expect(g652dPreview).toHaveTextContent(/Dispersion.*Pass/i)
+    expect(g652dPreview).toHaveTextContent(/Attenuation.*Pass/i)
+    expect(previewCalls(fetchMock)).toHaveLength(2)
   })
 })
 
-describe('Guidance calculator errors', () => {
-  test('shows the message from a structured non-OK ErrorResponse in an alert', async () => {
+describe('Level 1 preview errors', () => {
+  test('displays the message from a structured 422 response', async () => {
+    vi.useFakeTimers()
     const message =
       'Core refractive index must exceed cladding refractive index.'
-    const response = jsonResponse(
-      {
-        error: {
-          code: 'REQUEST_VALIDATION_ERROR',
-          message,
-          field: null,
-          details: {},
-          trace_id: 'test-trace-id',
-        },
-      },
-      422,
-    )
-    mockFetchWithHealth([response])
-
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(message)
-  })
-
-  test('shows a generic alert for a malformed non-JSON non-OK response', async () => {
-    mockFetchWithHealth([
-      new Response('upstream failure', {
-        status: 502,
-        headers: { 'Content-Type': 'text/plain' },
-      }),
-    ])
-
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /^Calculation failed\.$/,
-    )
-  })
-
-  test('shows a service-reachability alert when calculation fetch is rejected', async () => {
-    mockFetchWithHealth([new Error('network failure')])
-
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'Calculate guidance' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Unable to reach the calculation service.',
-    )
-  })
-
-  test('clears a stale result when a later request starts', async () => {
-    const secondCalculation = deferred<Response>()
-    const firstResult = {
-      ...guidanceResult,
-      warnings: [
-        {
-          code: 'mode_count_unavailable',
-          message: 'Old result warning',
-          output_field: 'approximate_mode_count',
-        },
+    mockFetch({
+      preview: [
+        jsonResponse(
+          {
+            error: {
+              code: 'REQUEST_VALIDATION_ERROR',
+              message,
+              field: null,
+              details: { errors: [] },
+              trace_id: 'level1-test-trace',
+            },
+          },
+          422,
+        ),
       ],
-    }
-    mockFetchWithHealth([jsonResponse(firstResult), secondCalculation.promise])
-
-    render(<App />)
-    const button = screen.getByRole('button', { name: 'Calculate guidance' })
-    fireEvent.click(button)
-    await screen.findByRole('heading', { name: 'Guidance results' })
-    expect(screen.getByText('Old result warning')).toBeVisible()
-
-    fireEvent.click(button)
-    await waitFor(() => {
-      expect(
-        screen.queryByRole('heading', { name: 'Guidance results' }),
-      ).not.toBeInTheDocument()
-      expect(screen.queryByText('Old result warning')).not.toBeInTheDocument()
     })
 
-    secondCalculation.resolve(jsonResponse(guidanceResult))
-    await screen.findByRole('heading', { name: 'Guidance results' })
+    render(<App />)
+    await settleDebounce()
+
+    expect(screen.getByRole('alert')).toHaveTextContent(message)
   })
 
-  test('clears a stale error when a later request starts', async () => {
-    const secondCalculation = deferred<Response>()
-    mockFetchWithHealth([
-      new Response('upstream failure', { status: 500 }),
-      secondCalculation.promise,
-    ])
+  test('uses a stable generic alert for a malformed successful response', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [jsonResponse({ unexpected: true })] })
 
     render(<App />)
-    const button = screen.getByRole('button', { name: 'Calculate guidance' })
-    fireEvent.click(button)
-    await screen.findByRole('alert')
+    await settleDebounce()
 
-    fireEvent.click(button)
-    await waitFor(() => {
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    })
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
+  })
 
-    secondCalculation.resolve(jsonResponse(guidanceResult))
-    await screen.findByRole('heading', { name: 'Guidance results' })
+  test('uses a stable service alert for a network failure', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [new Error('network failure')] })
+
+    render(<App />)
+    await settleDebounce()
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Unable to reach the preview service.',
+    )
   })
 })

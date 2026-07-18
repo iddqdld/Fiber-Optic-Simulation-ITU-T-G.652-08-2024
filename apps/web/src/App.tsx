@@ -1,29 +1,51 @@
-import { type FormEvent, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type {
   components,
   operations,
 } from '../../../packages/shared_schemas/generated/api'
+import {
+  Level1Form,
+  type CableApplication,
+  type FormValues,
+  type NumericFormField,
+  type Preset,
+} from './Level1Form'
+import { Level1Preview } from './Level1Preview'
 
-type GuidanceRequest =
-  operations['calculate_guidance']['requestBody']['content']['application/json']
-type GuidanceResult =
-  operations['calculate_guidance']['responses'][200]['content']['application/json']
+type PreviewRequest =
+  operations['preview_level1_simulation']['requestBody']['content']['application/json']
+type PreviewResult =
+  operations['preview_level1_simulation']['responses'][200]['content']['application/json']
+type HealthResponse = components['schemas']['HealthResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
-
-type FormValues = {
-  n_core: string
-  n_cladding: string
-  core_radius_um: string
-  wavelength_nm: string
-}
+type PreviewWarning = PreviewResult['warnings'][number]
+type StandardsChecks = PreviewResult['standards_checks']
+type AttenuationCheck = NonNullable<StandardsChecks['attenuation']>
+type DispersionCheck = NonNullable<StandardsChecks['dispersion']>
 
 const initialFormValues: FormValues = {
-  n_core: '1.45',
-  n_cladding: '1.444',
+  preset: 'custom',
+  n_core: '1.47',
+  n_cladding: '1.465',
   core_radius_um: '4.1',
+  mode_field_radius_um: '4.82',
+  attenuation_db_per_km: '0.2',
+  dispersion_ps_per_nm_km: '17',
+  group_index_dimensionless: '1.468',
+  cable_application: 'standard_cable',
   wavelength_nm: '1550',
+  input_power_dbm: '-3',
+  spectral_width_fwhm_nm: '0.2',
+  input_pulse_fwhm_ps: '25',
+  length_km: '12.5',
+  grid_half_width_um: '15',
+  grid_points: '65',
 }
+
+const INVALID_CONFIGURATION = 'Invalid configuration. Check the entered values.'
+const PREVIEW_FAILED = 'Preview failed.'
+const PREVIEW_UNREACHABLE = 'Unable to reach the preview service.'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -33,54 +55,111 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+function isPreset(value: string): value is Preset {
+  return value === 'custom' || value === 'g652d'
 }
 
-function isGuidanceWarning(
-  value: unknown,
-): value is GuidanceResult['warnings'][number] {
-  return (
-    isRecord(value) &&
-    (value.code === 'air_acceptance_angle_unavailable' ||
-      value.code === 'mode_count_unavailable') &&
-    typeof value.message === 'string' &&
-    (value.output_field === 'air_acceptance_angle_deg' ||
-      value.output_field === 'approximate_mode_count')
-  )
+function parseFinite(value: string): number | null {
+  if (value.trim() === '') {
+    return null
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
-function isGuidanceModelManifest(
-  value: unknown,
-): value is GuidanceResult['model_manifest'] {
-  return (
-    isRecord(value) &&
-    value.model_id === 'ideal_circular_step_index_guidance' &&
-    value.model_version === '1.0.0' &&
-    isFiniteNumber(value.mode_regime_cutoff_v_dimensionless) &&
-    isFiniteNumber(value.mode_count_min_v_dimensionless) &&
-    isStringArray(value.assumptions) &&
-    isStringArray(value.limitations)
-  )
+function parseFormValues(values: FormValues): {
+  request: PreviewRequest | null
+  error: string | null
+} {
+  const nCore = parseFinite(values.n_core)
+  const nCladding = parseFinite(values.n_cladding)
+  const coreRadius = parseFinite(values.core_radius_um)
+  const modeFieldRadius = parseFinite(values.mode_field_radius_um)
+  const attenuation = parseFinite(values.attenuation_db_per_km)
+  const dispersion = parseFinite(values.dispersion_ps_per_nm_km)
+  const groupIndex = parseFinite(values.group_index_dimensionless)
+  const wavelength = parseFinite(values.wavelength_nm)
+  const inputPower = parseFinite(values.input_power_dbm)
+  const spectralWidth = parseFinite(values.spectral_width_fwhm_nm)
+  const inputPulse = parseFinite(values.input_pulse_fwhm_ps)
+  const length = parseFinite(values.length_km)
+  const gridHalfWidth = parseFinite(values.grid_half_width_um)
+  const gridPoints = parseFinite(values.grid_points)
+
+  if (
+    nCore === null ||
+    nCladding === null ||
+    coreRadius === null ||
+    modeFieldRadius === null ||
+    attenuation === null ||
+    dispersion === null ||
+    groupIndex === null ||
+    wavelength === null ||
+    inputPower === null ||
+    spectralWidth === null ||
+    inputPulse === null ||
+    length === null ||
+    gridHalfWidth === null ||
+    gridPoints === null
+  ) {
+    return { request: null, error: INVALID_CONFIGURATION }
+  }
+
+  if (
+    nCore <= 0 ||
+    nCladding <= 0 ||
+    coreRadius <= 0 ||
+    modeFieldRadius <= 0 ||
+    groupIndex <= 0 ||
+    wavelength <= 0 ||
+    inputPulse <= 0 ||
+    gridHalfWidth <= 0 ||
+    attenuation < 0 ||
+    spectralWidth < 0 ||
+    length < 0 ||
+    nCore <= nCladding ||
+    !Number.isInteger(gridPoints) ||
+    gridPoints < 3 ||
+    gridPoints > 65 ||
+    gridPoints % 2 === 0 ||
+    (values.preset === 'g652d' && (wavelength < 1260 || wavelength > 1625))
+  ) {
+    return { request: null, error: INVALID_CONFIGURATION }
+  }
+
+  const request: PreviewRequest = {
+    preset: values.preset,
+    fibre: {
+      n_core: nCore,
+      n_cladding: nCladding,
+      core_radius_um: coreRadius,
+      mode_field_radius_um: modeFieldRadius,
+      attenuation_db_per_km: attenuation,
+      dispersion_ps_per_nm_km: dispersion,
+      group_index_dimensionless: groupIndex,
+      cable_application: values.cable_application,
+    },
+    source: {
+      wavelength_nm: wavelength,
+      input_power_dbm: inputPower,
+      spectral_width_fwhm_nm: spectralWidth,
+      input_pulse_fwhm_ps: inputPulse,
+    },
+    section: {
+      length_km: length,
+    },
+    sampling: {
+      grid_half_width_um: gridHalfWidth,
+      grid_points: gridPoints,
+    },
+  }
+
+  return { request, error: null }
 }
 
-function isGuidanceResult(value: unknown): value is GuidanceResult {
-  return (
-    isRecord(value) &&
-    isFiniteNumber(value.critical_angle_deg) &&
-    isFiniteNumber(value.numerical_aperture_dimensionless) &&
-    (value.air_acceptance_angle_deg === null ||
-      isFiniteNumber(value.air_acceptance_angle_deg)) &&
-    isFiniteNumber(value.relative_index_difference_dimensionless) &&
-    isFiniteNumber(value.v_number_dimensionless) &&
-    (value.mode_regime === 'single_mode' ||
-      value.mode_regime === 'multimode') &&
-    (value.approximate_mode_count === null ||
-      isFiniteNumber(value.approximate_mode_count)) &&
-    Array.isArray(value.warnings) &&
-    value.warnings.every(isGuidanceWarning) &&
-    isGuidanceModelManifest(value.model_manifest)
-  )
+function isHealthResponse(value: unknown): value is HealthResponse {
+  return isRecord(value) && value.status === 'ok'
 }
 
 function getErrorMessage(
@@ -94,20 +173,90 @@ function getErrorMessage(
     : null
 }
 
-function formatValue(value: number | null): string {
-  return value === null ? 'Unavailable' : String(value)
+function isPreviewWarning(value: unknown): value is PreviewWarning {
+  return (
+    isRecord(value) &&
+    (value.code === 'air_acceptance_angle_unavailable' ||
+      value.code === 'mode_count_unavailable' ||
+      value.code === 'g652d_attenuation_not_applicable') &&
+    typeof value.message === 'string'
+  )
 }
 
-function formatModeRegime(value: GuidanceResult['mode_regime']): string {
-  return value === 'single_mode' ? 'Single mode' : 'Multimode'
+function isAttenuationCheck(value: unknown): value is AttenuationCheck {
+  return (
+    isRecord(value) &&
+    (value.status === 'pass' ||
+      value.status === 'fail_above_maximum' ||
+      value.status === 'not_applicable')
+  )
+}
+
+function isDispersionCheck(value: unknown): value is DispersionCheck {
+  return (
+    isRecord(value) &&
+    (value.status === 'pass' ||
+      value.status === 'fail_below_minimum' ||
+      value.status === 'fail_above_maximum')
+  )
+}
+
+function isPreviewStandardsChecks(value: unknown): value is StandardsChecks {
+  if (
+    !isRecord(value) ||
+    typeof value.preset !== 'string' ||
+    !isPreset(value.preset)
+  ) {
+    return false
+  }
+
+  if (value.preset === 'custom') {
+    return value.attenuation === null && value.dispersion === null
+  }
+
+  return (
+    isAttenuationCheck(value.attenuation) && isDispersionCheck(value.dispersion)
+  )
+}
+
+function isPreviewResult(value: unknown): value is PreviewResult {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    isRecord(value.guidance) &&
+    (value.guidance.mode_regime === 'single_mode' ||
+      value.guidance.mode_regime === 'multimode') &&
+    isFiniteNumber(value.guidance.v_number_dimensionless) &&
+    isFiniteNumber(value.guidance.numerical_aperture_dimensionless) &&
+    isRecord(value.attenuation) &&
+    isFiniteNumber(value.attenuation.section_loss_db) &&
+    isFiniteNumber(value.attenuation.output_power_dbm) &&
+    isRecord(value.group_delay) &&
+    isFiniteNumber(value.group_delay.group_delay_ps) &&
+    isRecord(value.pulse_broadening) &&
+    isFiniteNumber(value.pulse_broadening.input_pulse_fwhm_ps) &&
+    isFiniteNumber(value.pulse_broadening.output_pulse_fwhm_ps) &&
+    isRecord(value.model_manifest) &&
+    value.model_manifest.model_id === 'level1_single_section_simulation' &&
+    value.model_manifest.model_version === '1.0.0' &&
+    Array.isArray(value.warnings) &&
+    value.warnings.every(isPreviewWarning) &&
+    isPreviewStandardsChecks(value.standards_checks)
+  )
 }
 
 function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
+  const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
-  const [result, setResult] = useState<GuidanceResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isCalculating, setIsCalculating] = useState(false)
+  const [result, setResult] = useState<PreviewResult | null>(null)
+  const [serviceError, setServiceError] = useState<string | null>(null)
+  const previewSequence = useRef(0)
+  const resultRef = useRef<PreviewResult | null>(null)
+  const formValidation = parseFormValues(formValues)
+  const error = formValidation.error ?? serviceError
 
   useEffect(() => {
     const controller = new AbortController()
@@ -117,9 +266,9 @@ function App() {
         const response = await fetch('/api/v1/health', {
           signal: controller.signal,
         })
-        const data = (await response.json()) as { status?: string }
+        const data: unknown = await response.json().catch(() => null)
 
-        if (response.ok && data.status === 'ok') {
+        if (response.ok && isHealthResponse(data)) {
           setBackendStatus('Backend available')
         } else {
           setBackendStatus('Backend unavailable')
@@ -133,204 +282,136 @@ function App() {
       }
     }
 
-    checkBackendHealth()
+    void checkBackendHealth()
 
     return () => controller.abort()
   }, [])
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setError(null)
-    setResult(null)
+  useEffect(() => {
+    const requestId = previewSequence.current + 1
+    previewSequence.current = requestId
+    const controller = new AbortController()
+    const parsed = parseFormValues(formValues)
 
-    const request: GuidanceRequest = {
-      n_core: Number(formValues.n_core),
-      n_cladding: Number(formValues.n_cladding),
-      core_radius_um: Number(formValues.core_radius_um),
-      wavelength_nm: Number(formValues.wavelength_nm),
+    if (parsed.error !== null || parsed.request === null) {
+      return () => controller.abort()
     }
 
-    if (
-      !Object.values(request).every(
-        (value) => isFiniteNumber(value) && value > 0,
-      )
-    ) {
-      setError('Calculation failed. Enter valid numeric values.')
-      return
-    }
+    const request = parsed.request
+    const timer = window.setTimeout(() => {
+      const fetchPreview = async () => {
+        setPreviewStatus(
+          resultRef.current === null ? 'Loading preview…' : 'Updating preview…',
+        )
 
-    setIsCalculating(true)
+        try {
+          const response = await fetch('/api/v1/simulations/preview', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(request),
+            signal: controller.signal,
+          })
+          const body: unknown = await response.json().catch(() => null)
 
-    try {
-      const response = await fetch('/api/v1/guidance/calculate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(request),
-      })
-      const body: unknown = await response.json().catch(() => null)
+          if (
+            controller.signal.aborted ||
+            previewSequence.current !== requestId
+          ) {
+            return
+          }
 
-      if (!response.ok) {
-        setError(getErrorMessage(body) ?? 'Calculation failed.')
-        return
+          if (!response.ok) {
+            setServiceError(getErrorMessage(body) ?? PREVIEW_FAILED)
+            setPreviewStatus('Preview unavailable.')
+            return
+          }
+
+          if (!isPreviewResult(body)) {
+            setServiceError(PREVIEW_FAILED)
+            setPreviewStatus('Preview unavailable.')
+            return
+          }
+
+          resultRef.current = body
+          setResult(body)
+          setServiceError(null)
+          setPreviewStatus('Preview ready')
+        } catch {
+          if (
+            controller.signal.aborted ||
+            previewSequence.current !== requestId
+          ) {
+            return
+          }
+
+          setServiceError(PREVIEW_UNREACHABLE)
+          setPreviewStatus('Preview unavailable.')
+        }
       }
 
-      if (!isGuidanceResult(body)) {
-        setError('Calculation failed.')
-        return
-      }
+      void fetchPreview()
+    }, 250)
 
-      setResult(body)
-    } catch {
-      setError('Unable to reach the calculation service.')
-    } finally {
-      setIsCalculating(false)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
     }
+  }, [formValues])
+
+  const updateNumericField = (field: NumericFormField, value: string) => {
+    setServiceError(null)
+    setPreviewStatus('Preview scheduled…')
+    setFormValues((current) => ({ ...current, [field]: value }))
   }
 
-  const updateField = (field: keyof FormValues, value: string) => {
-    setFormValues((current) => ({ ...current, [field]: value }))
+  const updatePreset = (preset: Preset) => {
+    setServiceError(null)
+    setPreviewStatus('Preview scheduled…')
+    setFormValues((current) => {
+      if (preset === 'g652d') {
+        return {
+          ...current,
+          preset,
+          wavelength_nm: '1550',
+          attenuation_db_per_km: '0.275',
+          dispersion_ps_per_nm_km: '17',
+        }
+      }
+
+      return { ...current, preset }
+    })
+  }
+
+  const updateCableApplication = (value: CableApplication) => {
+    setServiceError(null)
+    setPreviewStatus('Preview scheduled…')
+    setFormValues((current) => ({ ...current, cable_application: value }))
   }
 
   return (
     <main>
       <h1>Optical Fibre Simulator</h1>
-      <p>Calculate ideal step-index guidance quantities.</p>
-      <p className="backend-status" role="status">
-        {backendStatus}
+      <p>Configure one fibre section and get an immediate Level 1 preview.</p>
+      <p
+        className="backend-status"
+        role="status"
+        aria-label="Backend status"
+        aria-live="polite"
+      >
+        {backendStatus} ·{' '}
+        {formValidation.error !== null ? 'Preview paused.' : previewStatus}
       </p>
 
-      <section
-        className="calculator-card"
-        aria-labelledby="guidance-calculator-title"
-      >
-        <h2 id="guidance-calculator-title">Guidance calculator</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-grid">
-            <label htmlFor="n-core">Core refractive index</label>
-            <input
-              id="n-core"
-              name="n_core"
-              type="number"
-              min={Number.MIN_VALUE}
-              step="any"
-              required
-              value={formValues.n_core}
-              onChange={(event) => updateField('n_core', event.target.value)}
-            />
-
-            <label htmlFor="n-cladding">Cladding refractive index</label>
-            <input
-              id="n-cladding"
-              name="n_cladding"
-              type="number"
-              min={Number.MIN_VALUE}
-              step="any"
-              required
-              value={formValues.n_cladding}
-              onChange={(event) =>
-                updateField('n_cladding', event.target.value)
-              }
-            />
-
-            <label htmlFor="core-radius">Core radius (µm)</label>
-            <input
-              id="core-radius"
-              name="core_radius_um"
-              type="number"
-              min={Number.MIN_VALUE}
-              step="any"
-              required
-              value={formValues.core_radius_um}
-              onChange={(event) =>
-                updateField('core_radius_um', event.target.value)
-              }
-            />
-
-            <label htmlFor="wavelength">Wavelength (nm)</label>
-            <input
-              id="wavelength"
-              name="wavelength_nm"
-              type="number"
-              min={Number.MIN_VALUE}
-              step="any"
-              required
-              value={formValues.wavelength_nm}
-              onChange={(event) =>
-                updateField('wavelength_nm', event.target.value)
-              }
-            />
-          </div>
-
-          <button type="submit" disabled={isCalculating}>
-            {isCalculating ? 'Calculating…' : 'Calculate guidance'}
-          </button>
-        </form>
-
-        {error && (
-          <p className="error-message" role="alert">
-            {error}
-          </p>
-        )}
-      </section>
-
-      {result && (
-        <section
-          className="results-card"
-          aria-labelledby="guidance-results-title"
-        >
-          <h2 id="guidance-results-title">Guidance results</h2>
-          <p className="model-note">
-            <strong>Approximate model</strong> — ideal circular step-index
-            guidance calculations.
-          </p>
-
-          <dl className="results-grid">
-            <div>
-              <dt>Critical angle (°)</dt>
-              <dd>{result.critical_angle_deg}</dd>
-            </div>
-            <div>
-              <dt>Numerical aperture</dt>
-              <dd>{result.numerical_aperture_dimensionless}</dd>
-            </div>
-            <div>
-              <dt>Air acceptance angle (°)</dt>
-              <dd>{formatValue(result.air_acceptance_angle_deg)}</dd>
-            </div>
-            <div>
-              <dt>Relative index difference</dt>
-              <dd>{result.relative_index_difference_dimensionless}</dd>
-            </div>
-            <div>
-              <dt>V-number</dt>
-              <dd>{result.v_number_dimensionless}</dd>
-            </div>
-            <div>
-              <dt>Mode regime</dt>
-              <dd>{formatModeRegime(result.mode_regime)}</dd>
-            </div>
-            <div>
-              <dt>Approximate mode count</dt>
-              <dd>{formatValue(result.approximate_mode_count)}</dd>
-            </div>
-          </dl>
-
-          {result.warnings.length > 0 && (
-            <section className="warnings" aria-labelledby="warnings-title">
-              <h3 id="warnings-title">Warnings</h3>
-              <ul>
-                {result.warnings.map((warning) => (
-                  <li key={`${warning.code}-${warning.output_field}`}>
-                    {warning.message}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </section>
-      )}
+      <Level1Form
+        values={formValues}
+        error={error}
+        onNumericFieldChange={updateNumericField}
+        onPresetChange={updatePreset}
+        onCableApplicationChange={updateCableApplication}
+      />
+      {result && <Level1Preview result={result} />}
     </main>
   )
 }

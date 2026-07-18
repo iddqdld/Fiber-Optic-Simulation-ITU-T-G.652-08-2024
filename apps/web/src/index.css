@@ -1,157 +1,286 @@
 :root {
-  font-family: system-ui, sans-serif;
-  color: #1f2933;
-  background: #f7f8fa;
+  color: #1d2935;
+  background: #f3f6f8;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  margin: 0;
   min-width: 320px;
+  margin: 0;
+  color: #1d2935;
 }
 
 main {
-  max-width: 48rem;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1.25rem;
+  max-width: 88rem;
   margin: 0 auto;
-  padding: 3rem 1.5rem;
+  padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 4vw, 3rem);
+}
+
+main > h1,
+main > h2,
+main > p,
+main > .backend-status {
+  grid-column: 1 / -1;
 }
 
 h1,
 h2,
 h3,
-p {
+p,
+dl,
+ul {
   margin-top: 0;
 }
 
-h1 {
-  margin-bottom: 1rem;
+h1,
+h2,
+h3 {
+  color: #102a43;
   line-height: 1.2;
 }
 
-p {
-  line-height: 1.5;
-}
-
-.backend-status {
-  margin-bottom: 1.5rem;
-}
-
-.calculator-card,
-.results-card {
-  padding: 1.5rem;
-  background: #fff;
-  border: 1px solid #d9e0e7;
-  border-radius: 0.75rem;
-  box-shadow: 0 0.25rem 1rem rgb(31 41 51 / 8%);
-}
-
-.results-card {
-  margin-top: 1.5rem;
+h1 {
+  max-width: 42rem;
+  margin-bottom: -0.5rem;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  letter-spacing: -0.02em;
 }
 
 h2 {
   margin-bottom: 1.25rem;
-  line-height: 1.3;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
+  line-height: 1.6;
+}
+
+.backend-status {
+  width: fit-content;
+  margin: -0.5rem 0 0;
+  padding: 0.3rem 0.65rem;
+  color: #24445d;
+  font-size: 0.9rem;
+  font-weight: 700;
+  background: #e3eef5;
+  border: 1px solid #b5cfdf;
+  border-radius: 999px;
+}
+
+.calculator-card,
+.results-card {
+  min-width: 0;
+  padding: clamp(1.1rem, 2.5vw, 1.75rem);
+  background: #fff;
+  border: 1px solid #c8d3dc;
+  border-radius: 0.7rem;
+  box-shadow: 0 0.35rem 1.4rem rgb(16 42 67 / 7%);
+}
+
+main > .calculator-card,
+main > .results-card {
+  grid-column: span 6;
+}
+
+.results-card {
+  margin-top: 0;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 1rem;
+  background: #fbfcfd;
+  border: 1px solid #d3dce3;
+  border-radius: 0.55rem;
+}
+
+legend {
+  padding: 0 0.45rem;
+  color: #163d5a;
+  font-weight: 750;
 }
 
 .form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.5rem 1rem;
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
 }
 
 label {
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  color: #263f52;
+  font-size: 0.92rem;
+  font-weight: 700;
 }
 
-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0.65rem 0.75rem;
+input,
+select {
+  min-height: 2.75rem;
   color: inherit;
   font: inherit;
-  border: 1px solid #aeb9c4;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  background: #fff;
+  border: 1px solid #8999a8;
   border-radius: 0.4rem;
 }
 
-button {
-  margin-top: 1.25rem;
-  padding: 0.7rem 1rem;
-  color: #fff;
-  font: inherit;
-  font-weight: 700;
-  background: #1f5f8b;
-  border: 0;
-  border-radius: 0.4rem;
+select {
   cursor: pointer;
 }
 
-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
+input:hover,
+select:hover {
+  border-color: #476b83;
 }
 
 input:focus-visible,
-button:focus-visible {
-  outline: 3px solid #8bc5ed;
+select:focus-visible {
+  outline: 3px solid #72b7dc;
   outline-offset: 2px;
 }
 
-.error-message {
-  margin: 1rem 0 0;
-  color: #a32626;
+.error-message,
+[role='alert'] {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  color: #8e1f2f;
+  font-weight: 650;
+  background: #fff1f2;
+  border: 1px solid #e3a8b1;
+  border-radius: 0.4rem;
 }
 
 .model-note {
   margin-bottom: 1.25rem;
-  color: #52606d;
+  color: #526575;
 }
 
-.results-grid {
+.results-grid,
+.model-details {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  margin: 0;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
 
-.results-grid div {
-  padding: 0.9rem;
-  background: #f7f8fa;
+.results-grid > div,
+.model-details > div {
+  min-width: 0;
+  padding: 0.8rem;
+  background: #f4f7f9;
+  border: 1px solid #e0e7ec;
   border-radius: 0.4rem;
 }
 
 dt {
-  color: #52606d;
-  font-size: 0.9rem;
+  color: #526575;
+  font-size: 0.86rem;
 }
 
 dd {
   margin: 0.3rem 0 0;
-  font-size: 1.1rem;
-  font-weight: 700;
+  color: #102a43;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.standards-summary {
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  background: #f8fafb;
+  border: 1px solid #d3dce3;
+  border-radius: 0.45rem;
+}
+
+.standards-summary h3 {
+  margin-bottom: 0.45rem;
+}
+
+.standards-summary p {
+  margin-bottom: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .warnings {
-  margin-top: 1.5rem;
-  padding: 1rem;
-  color: #704b00;
-  background: #fff8e1;
-  border: 1px solid #e8c96c;
-  border-radius: 0.4rem;
+  margin-top: 1.25rem;
+  padding: 0.85rem 1rem;
+  color: #684800;
+  background: #fff8e5;
+  border: 1px solid #e4c46f;
+  border-radius: 0.45rem;
 }
 
 .warnings h3 {
   margin-bottom: 0.5rem;
+  color: #684800;
 }
 
 .warnings ul {
-  margin: 0;
-  padding-left: 1.25rem;
+  margin-bottom: 0;
+  padding-left: 1.2rem;
+}
+
+.warnings li + li {
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 58rem) {
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  main > .calculator-card,
+  main > .results-card {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 38rem) {
   main {
-    padding: 2rem 1rem;
+    gap: 1rem;
+    padding: 1.25rem 0.85rem 2rem;
   }
 
   .calculator-card,
@@ -159,8 +288,22 @@ dd {
     padding: 1rem;
   }
 
+  fieldset {
+    padding: 0.8rem;
+  }
+
   .form-grid,
-  .results-grid {
+  .results-grid,
+  .model-details {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
