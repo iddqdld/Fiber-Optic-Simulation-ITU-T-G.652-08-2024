@@ -18,6 +18,17 @@ from apps.api.app.schemas.base import DIMENSIONLESS_NUMERIC_FIELDS, PHYSICAL_UNI
 from pydantic import TypeAdapter, ValidationError
 
 from fibre_sim.guidance import GuidanceRequest
+from fibre_sim.level1 import (
+    Level1FibreConfig,
+    Level1SamplingConfig,
+    Level1SectionConfig,
+    Level1SimulationManifest,
+    Level1SimulationRequest,
+    Level1SimulationResult,
+    Level1SourceConfig,
+    Level1StandardsChecks,
+    Level1Warning,
+)
 
 
 def fibre() -> FibreDefinition:
@@ -172,6 +183,36 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
     violations: list[str] = []
 
     for model in main.CONTRACT_MODELS:
+        for field_name, field in model.model_fields.items():
+            if not contains_numeric_annotation(field.annotation):
+                continue
+            has_unit_suffix = any(field_name.endswith(suffix) for suffix in PHYSICAL_UNIT_SUFFIXES)
+            is_dimensionless = field_name in DIMENSIONLESS_NUMERIC_FIELDS or field_name.endswith(
+                "_dimensionless"
+            )
+            if not has_unit_suffix and not is_dimensionless:
+                violations.append(f"{model.__name__}.{field_name}")
+
+    assert violations == []
+
+
+def test_level1_models_are_registered_and_unit_checked() -> None:
+    level1_models = (
+        Level1FibreConfig,
+        Level1SourceConfig,
+        Level1SectionConfig,
+        Level1SamplingConfig,
+        Level1SimulationRequest,
+        Level1StandardsChecks,
+        Level1Warning,
+        Level1SimulationManifest,
+        Level1SimulationResult,
+    )
+
+    assert set(level1_models).issubset(set(main.CONTRACT_MODELS))
+
+    violations: list[str] = []
+    for model in level1_models:
         for field_name, field in model.model_fields.items():
             if not contains_numeric_annotation(field.annotation):
                 continue

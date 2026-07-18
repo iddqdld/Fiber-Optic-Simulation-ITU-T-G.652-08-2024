@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/simulations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Simulation Preview */
+        post: operations["preview_level1_simulation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -78,6 +95,65 @@ export interface components {
              */
             temperature_c: number | null;
         };
+        /** ChromaticPulseBroadeningManifest */
+        ChromaticPulseBroadeningManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "constant supplied chromatic-dispersion coefficient over the fibre section",
+             *       "Gaussian input pulse and Gaussian source spectrum use FWHM widths",
+             *       "independent Gaussian broadening contributions combine in quadrature",
+             *       "pulse-width broadening uses the magnitude of chromatic dispersion"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "first-order delay-spread approximation rather than full pulse propagation",
+             *       "dispersion sign is retained for accumulated dispersion but not pulse-width magnitude",
+             *       "excludes initial chirp, higher-order dispersion, nonlinearity, and polarization-mode dispersion",
+             *       "not a G.652 dispersion fit or conformance model"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default first_order_chromatic_pulse_broadening
+             * @constant
+             */
+            model_id: "first_order_chromatic_pulse_broadening";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Width Convention
+             * @default fwhm
+             * @constant
+             */
+            width_convention: "fwhm";
+        };
+        /** ChromaticPulseBroadeningResult */
+        ChromaticPulseBroadeningResult: {
+            /** Accumulated Dispersion Ps Per Nm */
+            accumulated_dispersion_ps_per_nm: number;
+            /** Dispersion Broadening Fwhm Ps */
+            dispersion_broadening_fwhm_ps: number;
+            /** Dispersion Ps Per Nm Km */
+            dispersion_ps_per_nm_km: number;
+            /** Input Pulse Fwhm Ps */
+            input_pulse_fwhm_ps: number;
+            /** Length Km */
+            length_km: number;
+            model_manifest: components["schemas"]["ChromaticPulseBroadeningManifest"];
+            /** Output Pulse Fwhm Ps */
+            output_pulse_fwhm_ps: number;
+            /** Spectral Width Fwhm Nm */
+            spectral_width_fwhm_nm: number;
+        };
         /** Connector */
         Connector: {
             /**
@@ -94,6 +170,53 @@ export interface components {
              * @default null
              */
             return_loss_db: number | null;
+        };
+        /** ConstantAttenuationManifest */
+        ConstantAttenuationManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "uniform attenuation coefficient over the fibre section",
+             *       "passive fibre loss only",
+             *       "attenuation is additive in dB"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "attenuation coefficient is supplied rather than inferred from wavelength or material",
+             *       "excludes splice, connector, bend, and engineering-margin losses",
+             *       "not a G.652 conformance or typical-value model"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default constant_fibre_attenuation
+             * @constant
+             */
+            model_id: "constant_fibre_attenuation";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+        };
+        /** ConstantAttenuationResult */
+        ConstantAttenuationResult: {
+            /** Attenuation Db Per Km */
+            attenuation_db_per_km: number;
+            /** Input Power Dbm */
+            input_power_dbm: number;
+            /** Length Km */
+            length_km: number;
+            model_manifest: components["schemas"]["ConstantAttenuationManifest"];
+            /** Output Power Dbm */
+            output_power_dbm: number;
+            /** Section Loss Db */
+            section_loss_db: number;
         };
         /** DistanceSeries */
         DistanceSeries: {
@@ -168,6 +291,677 @@ export interface components {
             x_um?: number[];
             /** Y Um */
             y_um?: number[];
+        };
+        /**
+         * G652DAttenuationApplication
+         * @enum {string}
+         */
+        G652DAttenuationApplication: "standard_cable" | "short_jumper" | "indoor_cable" | "drop_cable";
+        /** G652DAttenuationCheckManifest */
+        G652DAttenuationCheckManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "the supplied value is a cable attenuation coefficient measured at the same wavelength being checked",
+             *       "the C-band limit overrides the general 1310-1625 nm cable limit for 1530-1565 nm inclusively"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Comparison Rule
+             * @default inclusive_maximum
+             * @constant
+             */
+            comparison_rule: "inclusive_maximum";
+            /**
+             * Fibre Category
+             * @default G.652.D
+             * @constant
+             */
+            fibre_category: "G.652.D";
+            /**
+             * Limitations
+             * @default [
+             *       "the direct check does not infer a 1260-1310 nm value from the +0.07 dB/km extension note; a measured 1310 nm value is required",
+             *       "hydrogen ageing is a type test and is not inferred from the supplied attenuation value",
+             *       "short jumpers, indoor cables, and drop cables are excluded from the represented standard-cable context",
+             *       "a passing attenuation result is not full G.652.D conformance"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default itu_t_g652d_attenuation_check
+             * @constant
+             */
+            model_id: "itu_t_g652d_attenuation_check";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Standard Edition
+             * @default 08/2024
+             * @constant
+             */
+            standard_edition: "08/2024";
+            /**
+             * Standard Name
+             * @default ITU-T G.652
+             * @constant
+             */
+            standard_name: "ITU-T G.652";
+        };
+        /** G652DAttenuationCheckResult */
+        G652DAttenuationCheckResult: {
+            cable_application: components["schemas"]["G652DAttenuationApplication"];
+            /** @default null */
+            limit_band: components["schemas"]["G652DAttenuationLimitBand"] | null;
+            /**
+             * Margin Below Maximum Db Per Km
+             * @default null
+             */
+            margin_below_maximum_db_per_km: number | null;
+            /**
+             * Maximum Attenuation Db Per Km
+             * @default null
+             */
+            maximum_attenuation_db_per_km: number | null;
+            model_manifest: components["schemas"]["G652DAttenuationCheckManifest"];
+            /**
+             * Not Applicable Reason
+             * @default null
+             */
+            not_applicable_reason: string | null;
+            status: components["schemas"]["G652DAttenuationCheckStatus"];
+            /** Supplied Attenuation Db Per Km */
+            supplied_attenuation_db_per_km: number;
+            /** Wavelength Nm */
+            wavelength_nm: number;
+        };
+        /**
+         * G652DAttenuationCheckStatus
+         * @enum {string}
+         */
+        G652DAttenuationCheckStatus: "pass" | "fail_above_maximum" | "not_applicable";
+        /**
+         * G652DAttenuationLimitBand
+         * @enum {string}
+         */
+        G652DAttenuationLimitBand: "general_1310_1625" | "c_band_1530_1565";
+        /** G652DDispersionCheckManifest */
+        G652DDispersionCheckManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "supplied chromatic-dispersion coefficient is compared at the same wavelength as the envelope",
+             *       "values equal to either published envelope boundary pass",
+             *       "signed margins are positive inside the envelope and negative beyond the violated boundary"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Comparison Rule
+             * @default inclusive_envelope
+             * @constant
+             */
+            comparison_rule: "inclusive_envelope";
+            /**
+             * Envelope Model Id
+             * @default itu_t_g652d_chromatic_dispersion_envelope
+             * @constant
+             */
+            envelope_model_id: "itu_t_g652d_chromatic_dispersion_envelope";
+            /**
+             * Envelope Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            envelope_model_version: "1.0.0";
+            /**
+             * Fibre Category
+             * @default G.652.D
+             * @constant
+             */
+            fibre_category: "G.652.D";
+            /**
+             * Limitations
+             * @default [
+             *       "a passing dispersion check is not complete G.652.D conformance",
+             *       "the supplied coefficient is accepted as input rather than measured or independently validated",
+             *       "excludes measurement uncertainty, longitudinal variation, and statistical link design",
+             *       "checks only the represented chromatic-dispersion coefficient attribute"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default itu_t_g652d_chromatic_dispersion_check
+             * @constant
+             */
+            model_id: "itu_t_g652d_chromatic_dispersion_check";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Standard Edition
+             * @default 08/2024
+             * @constant
+             */
+            standard_edition: "08/2024";
+            /**
+             * Standard Name
+             * @default ITU-T G.652
+             * @constant
+             */
+            standard_name: "ITU-T G.652";
+        };
+        /** G652DDispersionCheckResult */
+        G652DDispersionCheckResult: {
+            fit_region: components["schemas"]["G652DDispersionFitRegion"];
+            /** Margin Above Minimum Ps Per Nm Km */
+            margin_above_minimum_ps_per_nm_km: number;
+            /** Margin Below Maximum Ps Per Nm Km */
+            margin_below_maximum_ps_per_nm_km: number;
+            /** Maximum Dispersion Ps Per Nm Km */
+            maximum_dispersion_ps_per_nm_km: number;
+            /** Minimum Dispersion Ps Per Nm Km */
+            minimum_dispersion_ps_per_nm_km: number;
+            model_manifest: components["schemas"]["G652DDispersionCheckManifest"];
+            status: components["schemas"]["G652DDispersionCheckStatus"];
+            /** Supplied Dispersion Ps Per Nm Km */
+            supplied_dispersion_ps_per_nm_km: number;
+            /** Wavelength Nm */
+            wavelength_nm: number;
+        };
+        /**
+         * G652DDispersionCheckStatus
+         * @enum {string}
+         */
+        G652DDispersionCheckStatus: "pass" | "fail_below_minimum" | "fail_above_maximum";
+        /** G652DDispersionEnvelopeManifest */
+        G652DDispersionEnvelopeManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "normative chromatic-dispersion coefficient boundaries for G.652.D fibre attributes",
+             *       "1260-1460 nm uses the published three-term Sellmeier boundary form",
+             *       "1460-1625 nm uses the published linear boundary form",
+             *       "the linear region owns the shared 1460 nm boundary for deterministic evaluation"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Boundary Equations
+             * @default [
+             *       "6-2a",
+             *       "6-2b",
+             *       "6-2c",
+             *       "6-3"
+             *     ]
+             */
+            boundary_equations: string[];
+            /**
+             * Fibre Category
+             * @default G.652.D
+             * @constant
+             */
+            fibre_category: "G.652.D";
+            /**
+             * Limitations
+             * @default [
+             *       "envelope bounds are not a nominal or measured product dispersion curve",
+             *       "dispersion-envelope evaluation alone is not complete G.652.D conformance",
+             *       "excludes longitudinal variation, statistical link design, and multi-section accumulation",
+             *       "does not calculate pulse broadening or group delay"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Linear Maximum Intercept Ps Per Nm Km
+             * @default 12.472
+             */
+            linear_maximum_intercept_ps_per_nm_km: number;
+            /**
+             * Linear Maximum Slope Ps Per Nm2 Km
+             * @default 0.068
+             */
+            linear_maximum_slope_ps_per_nm2_km: number;
+            /**
+             * Linear Minimum Intercept Ps Per Nm Km
+             * @default 8.625
+             */
+            linear_minimum_intercept_ps_per_nm_km: number;
+            /**
+             * Linear Minimum Slope Ps Per Nm2 Km
+             * @default 0.052
+             */
+            linear_minimum_slope_ps_per_nm2_km: number;
+            /**
+             * Model Id
+             * @default itu_t_g652d_chromatic_dispersion_envelope
+             * @constant
+             */
+            model_id: "itu_t_g652d_chromatic_dispersion_envelope";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Standard Edition
+             * @default 08/2024
+             * @constant
+             */
+            standard_edition: "08/2024";
+            /**
+             * Standard Name
+             * @default ITU-T G.652
+             * @constant
+             */
+            standard_name: "ITU-T G.652";
+            /**
+             * Wavelength Max Nm
+             * @default 1625
+             */
+            wavelength_max_nm: number;
+            /**
+             * Wavelength Min Nm
+             * @default 1260
+             */
+            wavelength_min_nm: number;
+            /**
+             * Wavelength Transition Nm
+             * @default 1460
+             */
+            wavelength_transition_nm: number;
+            /**
+             * Zero Dispersion Slope Max Ps Per Nm2 Km
+             * @default 0.092
+             */
+            zero_dispersion_slope_max_ps_per_nm2_km: number;
+            /**
+             * Zero Dispersion Slope Min Ps Per Nm2 Km
+             * @default 0.073
+             */
+            zero_dispersion_slope_min_ps_per_nm2_km: number;
+            /**
+             * Zero Dispersion Wavelength Max Nm
+             * @default 1324
+             */
+            zero_dispersion_wavelength_max_nm: number;
+            /**
+             * Zero Dispersion Wavelength Min Nm
+             * @default 1300
+             */
+            zero_dispersion_wavelength_min_nm: number;
+        };
+        /**
+         * G652DDispersionFitRegion
+         * @enum {string}
+         */
+        G652DDispersionFitRegion: "three_term_sellmeier" | "linear";
+        /** G652DPreset */
+        G652DPreset: {
+            /**
+             * Assumptions
+             * @default [
+             *       "Table 2 values are represented as standard limits and Appendix I Table I.1 values are separate informative simulation defaults",
+             *       "the nested dispersion envelope manifest represents the G.652.D chromatic-dispersion boundary equations"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Fibre Category
+             * @default G.652.D
+             * @constant
+             */
+            fibre_category: "G.652.D";
+            /**
+             * Limitations
+             * @default [
+             *       "the preset encodes attributes beyond the implemented checks",
+             *       "mode-field diameter nominal range and tolerance are not a direct measured-value envelope",
+             *       "the macrobend value is a qualification condition rather than a continuous bend-loss model",
+             *       "the PMD value is statistical and is not deterministic group delay",
+             *       "the preset is not a complete G.652.D conformance determination or product guarantee"
+             *     ]
+             */
+            limitations: string[];
+            limits?: components["schemas"]["G652DStandardLimits"];
+            /**
+             * Model Id
+             * @default itu_t_g652d_preset
+             * @constant
+             */
+            model_id: "itu_t_g652d_preset";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Preset Id
+             * @default g652d_2024
+             * @constant
+             */
+            preset_id: "g652d_2024";
+            simulation_defaults?: components["schemas"]["G652DSimulationDefaults"];
+            /**
+             * Source References
+             * @default [
+             *       "ITU-T G.652 (08/2024), Table 2",
+             *       "ITU-T G.652 (08/2024), Appendix I, Table I.1"
+             *     ]
+             */
+            source_references: string[];
+            /**
+             * Standard Edition
+             * @default 08/2024
+             * @constant
+             */
+            standard_edition: "08/2024";
+            /**
+             * Standard Name
+             * @default ITU-T G.652
+             * @constant
+             */
+            standard_name: "ITU-T G.652";
+        };
+        /** G652DSimulationDefaults */
+        G652DSimulationDefaults: {
+            /**
+             * Attenuation Db Per Km
+             * @default 0.275
+             */
+            attenuation_db_per_km: number;
+            /**
+             * Default Kind
+             * @default informative_design_example
+             * @constant
+             */
+            default_kind: "informative_design_example";
+            /**
+             * Dispersion Ps Per Nm Km
+             * @default 17
+             */
+            dispersion_ps_per_nm_km: number;
+            /**
+             * Limitations
+             * @default [
+             *       "these are not normative limits or a product guarantee",
+             *       "these defaults do not supply core radius, refractive indices, or group index"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Reference Wavelength Nm
+             * @default 1550
+             */
+            reference_wavelength_nm: number;
+            /**
+             * Source Reference
+             * @default ITU-T G.652 (08/2024), Appendix I, Table I.1
+             * @constant
+             */
+            source_reference: "ITU-T G.652 (08/2024), Appendix I, Table I.1";
+        };
+        /** G652DStandardLimits */
+        G652DStandardLimits: {
+            /**
+             * Attenuation C Band Max Db Per Km
+             * @default 0.3
+             */
+            attenuation_c_band_max_db_per_km: number;
+            /**
+             * Attenuation C Band Max Wavelength Nm
+             * @default 1565
+             */
+            attenuation_c_band_max_wavelength_nm: number;
+            /**
+             * Attenuation C Band Min Wavelength Nm
+             * @default 1530
+             */
+            attenuation_c_band_min_wavelength_nm: number;
+            /**
+             * Attenuation General Max Db Per Km
+             * @default 0.4
+             */
+            attenuation_general_max_db_per_km: number;
+            /**
+             * Attenuation General Max Wavelength Nm
+             * @default 1625
+             */
+            attenuation_general_max_wavelength_nm: number;
+            /**
+             * Attenuation General Min Wavelength Nm
+             * @default 1310
+             */
+            attenuation_general_min_wavelength_nm: number;
+            /**
+             * Attenuation Hydrogen Aged Center Wavelength Nm
+             * @default 1383
+             */
+            attenuation_hydrogen_aged_center_wavelength_nm: number;
+            /**
+             * Attenuation Hydrogen Aged Max Db Per Km
+             * @default 0.4
+             */
+            attenuation_hydrogen_aged_max_db_per_km: number;
+            /**
+             * Attenuation Hydrogen Aged Tolerance Nm
+             * @default 3
+             */
+            attenuation_hydrogen_aged_tolerance_nm: number;
+            /**
+             * Cable Cutoff Wavelength Max Nm
+             * @default 1260
+             */
+            cable_cutoff_wavelength_max_nm: number;
+            /**
+             * Cladding Diameter Nominal Um
+             * @default 125
+             */
+            cladding_diameter_nominal_um: number;
+            /**
+             * Cladding Diameter Tolerance Um
+             * @default 0.7
+             */
+            cladding_diameter_tolerance_um: number;
+            /**
+             * Cladding Non Circularity Max Percent
+             * @default 1
+             */
+            cladding_non_circularity_max_percent: number;
+            /**
+             * Core Concentricity Error Max Um
+             * @default 0.6
+             */
+            core_concentricity_error_max_um: number;
+            dispersion_envelope_manifest?: components["schemas"]["G652DDispersionEnvelopeManifest"];
+            /**
+             * Macrobend Max Loss Db
+             * @default 0.1
+             */
+            macrobend_max_loss_db: number;
+            /**
+             * Macrobend Radius Mm
+             * @default 30
+             */
+            macrobend_radius_mm: number;
+            /**
+             * Macrobend Turns
+             * @default 100
+             */
+            macrobend_turns: number;
+            /**
+             * Macrobend Wavelength Nm
+             * @default 1625
+             */
+            macrobend_wavelength_nm: number;
+            /**
+             * Mode Field Diameter Nominal Max Um
+             * @default 9.2
+             */
+            mode_field_diameter_nominal_max_um: number;
+            /**
+             * Mode Field Diameter Nominal Min Um
+             * @default 8.6
+             */
+            mode_field_diameter_nominal_min_um: number;
+            /**
+             * Mode Field Diameter Reference Wavelength Nm
+             * @default 1310
+             */
+            mode_field_diameter_reference_wavelength_nm: number;
+            /**
+             * Mode Field Diameter Tolerance Um
+             * @default 0.4
+             */
+            mode_field_diameter_tolerance_um: number;
+            /**
+             * Pmd Exceedance Probability Percent
+             * @default 0.01
+             */
+            pmd_exceedance_probability_percent: number;
+            /**
+             * Pmd Max Ps Per Sqrt Km
+             * @default 0.2
+             */
+            pmd_max_ps_per_sqrt_km: number;
+            /**
+             * Pmd Sample Cable Count
+             * @default 20
+             */
+            pmd_sample_cable_count: number;
+            /**
+             * Proof Stress Min Gpa
+             * @default 0.69
+             */
+            proof_stress_min_gpa: number;
+            /**
+             * Source Reference
+             * @default ITU-T G.652 (08/2024), Table 2
+             * @constant
+             */
+            source_reference: "ITU-T G.652 (08/2024), Table 2";
+        };
+        /** GaussianModeProfileManifest */
+        GaussianModeProfileManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "scalar, circularly symmetric Gaussian LP01 approximation",
+             *       "F/F0=exp(-r^2/w^2)"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "not an exact step-index eigenmode solver",
+             *       "mode_field_radius_um must come from a supplied/independently calculated value rather than being inferred by this contract"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default gaussian_lp01_mode_profile
+             * @constant
+             */
+            model_id: "gaussian_lp01_mode_profile";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Normalization Convention
+             * @default unit_peak_field_and_intensity
+             * @constant
+             */
+            normalization_convention: "unit_peak_field_and_intensity";
+            /**
+             * Radius Convention
+             * @default 1/e_field_radius
+             * @constant
+             */
+            radius_convention: "1/e_field_radius";
+        };
+        /** GaussianModeProfileResult */
+        GaussianModeProfileResult: {
+            /** Grid Half Width Um */
+            grid_half_width_um: number;
+            /** Grid Points */
+            grid_points: number;
+            /** Mode Field Radius Um */
+            mode_field_radius_um: number;
+            model_manifest: components["schemas"]["GaussianModeProfileManifest"];
+            /** Normalized Field */
+            normalized_field: number[][];
+            /** Normalized Intensity */
+            normalized_intensity: number[][];
+            /** X Um */
+            x_um: number[];
+            /** Y Um */
+            y_um: number[];
+        };
+        /** GroupDelayManifest */
+        GroupDelayManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "constant supplied group index over the fibre section",
+             *       "deterministic propagation delay for the supplied section",
+             *       "vacuum speed of light is exact at 299792458 m/s"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "group index is supplied rather than derived from wavelength-dependent effective index",
+             *       "excludes chromatic pulse broadening and polarization-mode dispersion",
+             *       "propagation group delay is distinct from differential group delay",
+             *       "not a G.652 group-delay fit or conformance model"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default constant_group_index_delay
+             * @constant
+             */
+            model_id: "constant_group_index_delay";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Vacuum Speed M Per S
+             * @default 299792458
+             */
+            vacuum_speed_m_per_s: number;
+        };
+        /** GroupDelayResult */
+        GroupDelayResult: {
+            /** Group Delay Ps */
+            group_delay_ps: number;
+            /** Group Index Dimensionless */
+            group_index_dimensionless: number;
+            /** Length Km */
+            length_km: number;
+            model_manifest: components["schemas"]["GroupDelayManifest"];
         };
         /** GuidanceModelManifest */
         GuidanceModelManifest: {
@@ -278,6 +1072,135 @@ export interface components {
          * @enum {string}
          */
         IndexProfile: "STEP" | "GRADED" | "CUSTOM";
+        /** Level1FibreConfig */
+        Level1FibreConfig: {
+            /** Attenuation Db Per Km */
+            attenuation_db_per_km: number;
+            cable_application: components["schemas"]["G652DAttenuationApplication"];
+            /** Core Radius Um */
+            core_radius_um: number;
+            /** Dispersion Ps Per Nm Km */
+            dispersion_ps_per_nm_km: number;
+            /** Group Index Dimensionless */
+            group_index_dimensionless: number;
+            /** Mode Field Radius Um */
+            mode_field_radius_um: number;
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+        };
+        /**
+         * Level1FibrePreset
+         * @enum {string}
+         */
+        Level1FibrePreset: "custom" | "g652d";
+        /** Level1SamplingConfig */
+        Level1SamplingConfig: {
+            /** Grid Half Width Um */
+            grid_half_width_um: number;
+            /**
+             * Grid Points
+             * @default 65
+             */
+            grid_points: number;
+        };
+        /** Level1SectionConfig */
+        Level1SectionConfig: {
+            /** Length Km */
+            length_km: number;
+        };
+        /** Level1SimulationManifest */
+        Level1SimulationManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "one uniform fibre section",
+             *       "all calculations share one operating wavelength",
+             *       "fibre composition is uniform over the section"
+             *     ]
+             */
+            assumptions: string[];
+            /** Component Model Ids */
+            component_model_ids: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "excludes bends, splices, and connectors",
+             *       "excludes polarization-mode dispersion",
+             *       "excludes optical nonlinearity",
+             *       "excludes multi-section links",
+             *       "excludes full-wave field solving"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default level1_single_section_simulation
+             * @constant
+             */
+            model_id: "level1_single_section_simulation";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+        };
+        /** Level1SimulationRequest */
+        Level1SimulationRequest: {
+            fibre: components["schemas"]["Level1FibreConfig"];
+            preset: components["schemas"]["Level1FibrePreset"];
+            sampling: components["schemas"]["Level1SamplingConfig"];
+            section: components["schemas"]["Level1SectionConfig"];
+            source: components["schemas"]["Level1SourceConfig"];
+        };
+        /** Level1SimulationResult */
+        Level1SimulationResult: {
+            attenuation: components["schemas"]["ConstantAttenuationResult"];
+            configuration: components["schemas"]["Level1SimulationRequest"];
+            group_delay: components["schemas"]["GroupDelayResult"];
+            guidance: components["schemas"]["GuidanceResult"];
+            mode_profile: components["schemas"]["GaussianModeProfileResult"];
+            model_manifest: components["schemas"]["Level1SimulationManifest"];
+            pulse_broadening: components["schemas"]["ChromaticPulseBroadeningResult"];
+            standards_checks: components["schemas"]["Level1StandardsChecks"];
+            /** Warnings */
+            warnings: components["schemas"]["Level1Warning"][];
+        };
+        /** Level1SourceConfig */
+        Level1SourceConfig: {
+            /** Input Power Dbm */
+            input_power_dbm: number;
+            /** Input Pulse Fwhm Ps */
+            input_pulse_fwhm_ps: number;
+            /** Spectral Width Fwhm Nm */
+            spectral_width_fwhm_nm: number;
+            /** Wavelength Nm */
+            wavelength_nm: number;
+        };
+        /** Level1StandardsChecks */
+        Level1StandardsChecks: {
+            attenuation: components["schemas"]["G652DAttenuationCheckResult"] | null;
+            dispersion: components["schemas"]["G652DDispersionCheckResult"] | null;
+            preset: components["schemas"]["Level1FibrePreset"];
+            preset_definition: components["schemas"]["G652DPreset"] | null;
+        };
+        /** Level1Warning */
+        Level1Warning: {
+            code: components["schemas"]["Level1WarningCode"];
+            /** Message */
+            message: string;
+            /** Output Field */
+            output_field: string;
+            /** Source Model Id */
+            source_model_id: string;
+        };
+        /**
+         * Level1WarningCode
+         * @enum {string}
+         */
+        Level1WarningCode: "air_acceptance_angle_unavailable" | "mode_count_unavailable" | "g652d_attenuation_not_applicable";
         LinkComponent: components["schemas"]["Splice"] | components["schemas"]["Connector"];
         /**
          * ModeRegime
@@ -664,6 +1587,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    preview_level1_simulation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Level1SimulationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Level1SimulationResult"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

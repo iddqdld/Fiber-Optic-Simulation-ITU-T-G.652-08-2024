@@ -10,12 +10,42 @@ from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from fibre_sim.attenuation import ConstantAttenuationManifest, ConstantAttenuationResult
+from fibre_sim.dispersion import (
+    ChromaticPulseBroadeningManifest,
+    ChromaticPulseBroadeningResult,
+    GroupDelayManifest,
+    GroupDelayResult,
+)
 from fibre_sim.guidance import (
     GuidanceModelManifest,
     GuidanceRequest,
     GuidanceResult,
     GuidanceWarning,
     calculate_guidance,
+)
+from fibre_sim.level1 import (
+    Level1FibreConfig,
+    Level1SamplingConfig,
+    Level1SectionConfig,
+    Level1SimulationManifest,
+    Level1SimulationRequest,
+    Level1SimulationResult,
+    Level1SourceConfig,
+    Level1StandardsChecks,
+    Level1Warning,
+    calculate_level1_simulation,
+)
+from fibre_sim.modes import GaussianModeProfileManifest, GaussianModeProfileResult
+from fibre_sim.standards import (
+    G652DAttenuationCheckManifest,
+    G652DAttenuationCheckResult,
+    G652DDispersionCheckManifest,
+    G652DDispersionCheckResult,
+    G652DDispersionEnvelopeManifest,
+    G652DPreset,
+    G652DSimulationDefaults,
+    G652DStandardLimits,
 )
 
 from .schemas import (
@@ -77,19 +107,54 @@ async def post_guidance_calculate(request: GuidanceRequest) -> GuidanceResult:
     return calculate_guidance(request)
 
 
+@app.post(
+    "/api/v1/simulations/preview",
+    operation_id="preview_level1_simulation",
+    response_model=Level1SimulationResult,
+    responses={422: {"model": ErrorResponse, "description": "Request validation failed"}},
+)
+async def post_simulation_preview(request: Level1SimulationRequest) -> Level1SimulationResult:
+    return calculate_level1_simulation(request)
+
+
 CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     CableSection,
+    ChromaticPulseBroadeningManifest,
+    ChromaticPulseBroadeningResult,
+    ConstantAttenuationManifest,
+    ConstantAttenuationResult,
     Connector,
     DistanceSeries,
     ErrorBody,
     ErrorResponse,
     FieldCrossSection,
     FibreDefinition,
+    G652DAttenuationCheckManifest,
+    G652DAttenuationCheckResult,
+    G652DDispersionCheckManifest,
+    G652DDispersionCheckResult,
+    G652DDispersionEnvelopeManifest,
+    G652DPreset,
+    G652DSimulationDefaults,
+    G652DStandardLimits,
+    GaussianModeProfileManifest,
+    GaussianModeProfileResult,
     GuidanceModelManifest,
     GuidanceRequest,
     GuidanceResult,
     GuidanceWarning,
+    GroupDelayManifest,
+    GroupDelayResult,
     HealthResponse,
+    Level1FibreConfig,
+    Level1SamplingConfig,
+    Level1SectionConfig,
+    Level1SimulationManifest,
+    Level1SimulationRequest,
+    Level1SimulationResult,
+    Level1SourceConfig,
+    Level1StandardsChecks,
+    Level1Warning,
     ModelManifest,
     ModelReference,
     ModelWarning,
