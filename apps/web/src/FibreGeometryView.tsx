@@ -19,11 +19,30 @@ const RAY_EDGE_FACTOR = 0.82
 const MIN_RAY_SLOPE = 0.18
 const MAX_RAY_SLOPE = 0.85
 const DEGREES_TO_RADIANS = Math.PI / 180
+const MIN_MODE_GRID_POINTS = 3
+const MAX_MODE_GRID_POINTS = 65
+const MODE_FIELD_POINT_SIZE = 0.075
+const MODE_FIELD_DISPLAY_THRESHOLD = 0.01
+const MODE_PROFILE_MODEL_ID = 'gaussian_lp01_mode_profile'
+const MODE_PROFILE_MODEL_VERSION = '1.0.0'
 
 export type RayGuidance = {
   criticalAngleDeg: number
   modelId: string
   modelVersion: string
+}
+
+export type ModeProfileData = {
+  modeFieldRadiusUm: number
+  gridHalfWidthUm: number
+  gridPoints: number
+  xUm: number[]
+  yUm: number[]
+  normalizedIntensity: number[][]
+  modelId: string
+  modelVersion: string
+  normalizationConvention: 'unit_peak_field_and_intensity'
+  radiusConvention: '1/e_field_radius'
 }
 
 type RayStatus =
@@ -36,6 +55,7 @@ export type FibreGeometryViewProps = {
   coreRadiusUm: number | null
   sectionLengthKm: number | null
   rayGuidance: RayGuidance | null
+  modeProfile: ModeProfileData | null
 }
 
 export type FibreGeometrySceneProps = {
@@ -44,6 +64,8 @@ export type FibreGeometrySceneProps = {
   rayGuidance?: RayGuidance | null
   incidenceAngleDeg?: number
   rayViewEnabled?: boolean
+  modeProfile?: ModeProfileData | null
+  modeViewEnabled?: boolean
 }
 
 type RayPoint = [number, number, number]
@@ -86,6 +108,137 @@ function isValidRayGuidance(
     typeof guidance.modelVersion === 'string' &&
     guidance.modelVersion.trim().length > 0
   )
+}
+
+function isValidModeProfile(
+  profile: ModeProfileData | null | undefined,
+): profile is ModeProfileData {
+  if (
+    profile === null ||
+    profile === undefined ||
+    !Number.isFinite(profile.modeFieldRadiusUm) ||
+    profile.modeFieldRadiusUm <= 0 ||
+    !Number.isFinite(profile.gridHalfWidthUm) ||
+    profile.gridHalfWidthUm <= 0 ||
+    !Number.isSafeInteger(profile.gridPoints) ||
+    profile.gridPoints < MIN_MODE_GRID_POINTS ||
+    profile.gridPoints > MAX_MODE_GRID_POINTS ||
+    profile.gridPoints % 2 === 0 ||
+    !Array.isArray(profile.xUm) ||
+    !Array.isArray(profile.yUm) ||
+    !Array.isArray(profile.normalizedIntensity) ||
+    profile.xUm.length !== profile.gridPoints ||
+    profile.yUm.length !== profile.gridPoints ||
+    profile.normalizedIntensity.length !== profile.gridPoints ||
+    profile.modelId !== MODE_PROFILE_MODEL_ID ||
+    profile.modelVersion !== MODE_PROFILE_MODEL_VERSION ||
+    profile.normalizationConvention !== 'unit_peak_field_and_intensity' ||
+    profile.radiusConvention !== '1/e_field_radius'
+  ) {
+    return false
+  }
+
+  return (
+    profile.xUm.every((value) => Number.isFinite(value)) &&
+    profile.yUm.every((value) => Number.isFinite(value)) &&
+    profile.normalizedIntensity.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === profile.gridPoints &&
+        row.every(
+          (value) => Number.isFinite(value) && value >= 0 && value <= 1,
+        ),
+    )
+  )
+}
+
+function hasDisplayableModeSample(profile: ModeProfileData): boolean {
+  return profile.normalizedIntensity.some((row) =>
+    row.some((intensity) => intensity >= MODE_FIELD_DISPLAY_THRESHOLD),
+  )
+}
+
+function hasValidPhysicalCoreRadius(
+  coreRadiusUm: number | null,
+): coreRadiusUm is number {
+  return (
+    coreRadiusUm !== null && Number.isFinite(coreRadiusUm) && coreRadiusUm > 0
+  )
+}
+
+type ModeFieldGeometry = {
+  positions: Float32Array
+  colors: Float32Array
+  intensities: Float32Array
+  sampleCount: number
+}
+
+function getModeFieldColor(intensity: number): [number, number, number] {
+  return [
+    0.18 + intensity * 0.82,
+    0.36 + intensity * 0.54,
+    0.72 + intensity * 0.28,
+  ]
+}
+
+function getModeFieldGeometry(
+  profile: ModeProfileData | null | undefined,
+  coreRadiusUm: number | null,
+): ModeFieldGeometry | null {
+  if (
+    !isValidModeProfile(profile) ||
+    !hasValidPhysicalCoreRadius(coreRadiusUm)
+  ) {
+    return null
+  }
+
+  const normalizedCoreRadius = getNormalisedCoreRadius(coreRadiusUm)
+  const coordinateScale = normalizedCoreRadius / coreRadiusUm
+  const maximumSampleCount = profile.gridPoints * profile.gridPoints
+  const positions = new Float32Array(maximumSampleCount * 3)
+  const colors = new Float32Array(maximumSampleCount * 3)
+  const intensities = new Float32Array(maximumSampleCount)
+  let sampleIndex = 0
+
+  for (let rowIndex = 0; rowIndex < profile.gridPoints; rowIndex += 1) {
+    const y = profile.yUm[rowIndex]
+    const intensityRow = profile.normalizedIntensity[rowIndex]
+
+    for (
+      let columnIndex = 0;
+      columnIndex < profile.gridPoints;
+      columnIndex += 1
+    ) {
+      const intensity = intensityRow[columnIndex]
+
+      if (intensity < MODE_FIELD_DISPLAY_THRESHOLD) {
+        continue
+      }
+
+      const positionOffset = sampleIndex * 3
+      const [red, green, blue] = getModeFieldColor(intensity)
+
+      positions[positionOffset] = 0
+      positions[positionOffset + 1] = profile.xUm[columnIndex] * coordinateScale
+      positions[positionOffset + 2] = y * coordinateScale
+      colors[positionOffset] = red
+      colors[positionOffset + 1] = green
+      colors[positionOffset + 2] = blue
+      intensities[sampleIndex] = intensity
+      sampleIndex += 1
+    }
+  }
+
+  if (sampleIndex === 0) {
+    return null
+  }
+
+  return {
+    positions: positions.slice(0, sampleIndex * 3),
+    colors: colors.slice(0, sampleIndex * 3),
+    intensities: intensities.slice(0, sampleIndex),
+    sampleCount: sampleIndex,
+  }
 }
 
 function getRayStatus(
@@ -287,6 +440,162 @@ function EducationalRayLayer({
   return null
 }
 
+function ApproximateLP01FieldLayer({
+  geometry,
+}: {
+  geometry: ModeFieldGeometry
+}) {
+  return (
+    <group name="approximate-lp01-field-layer">
+      <points name="approximate-lp01-field">
+        <bufferGeometry name="approximate-lp01-field-geometry">
+          <bufferAttribute
+            attach="attributes-position"
+            name="approximate-lp01-field-position-attribute"
+            args={[geometry.positions, 3]}
+            array={geometry.positions}
+            count={geometry.sampleCount}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            name="approximate-lp01-field-color-attribute"
+            args={[geometry.colors, 3]}
+            array={geometry.colors}
+            count={geometry.sampleCount}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-intensity"
+            name="approximate-lp01-field-intensity-attribute"
+            args={[geometry.intensities, 1]}
+            array={geometry.intensities}
+            count={geometry.sampleCount}
+            itemSize={1}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          name="approximate-lp01-field-material"
+          size={MODE_FIELD_POINT_SIZE}
+          vertexColors
+          transparent
+          opacity={0.92}
+          depthWrite={false}
+          depthTest={false}
+          sizeAttenuation
+          toneMapped={false}
+        />
+      </points>
+    </group>
+  )
+}
+
+type ModeProfilePanelProps = {
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+  modeProfile: ModeProfileData | null
+  coreRadiusUm: number | null
+}
+
+function ModeProfilePanel({
+  enabled,
+  onEnabledChange,
+  modeProfile,
+  coreRadiusUm,
+}: ModeProfilePanelProps) {
+  const validProfile = isValidModeProfile(modeProfile)
+  const available =
+    validProfile &&
+    hasValidPhysicalCoreRadius(coreRadiusUm) &&
+    hasDisplayableModeSample(modeProfile)
+
+  return (
+    <>
+      <div className="geometry-layer-control">
+        <label htmlFor="approximate-lp01-field-view">
+          <input
+            id="approximate-lp01-field-view"
+            type="checkbox"
+            checked={enabled}
+            aria-describedby={enabled ? 'mode-profile-explanation' : undefined}
+            onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+          />
+          Approximate LP01 field
+        </label>
+      </div>
+
+      {enabled && (
+        <>
+          {!available && (
+            <p className="mode-profile-status" role="status">
+              Approximate LP01 field unavailable: valid backend normalized
+              intensity samples at or above the display threshold and a positive
+              entered core radius are required to place this transverse slice.
+            </p>
+          )}
+
+          {available && (
+            <dl className="mode-facts">
+              <div>
+                <dt>Mode-field radius</dt>
+                <dd>{modeProfile.modeFieldRadiusUm} µm</dd>
+              </div>
+              <div>
+                <dt>Grid half-width</dt>
+                <dd>±{modeProfile.gridHalfWidthUm} µm</dd>
+              </div>
+              <div>
+                <dt>Grid dimensions / backend samples</dt>
+                <dd>
+                  {modeProfile.gridPoints} × {modeProfile.gridPoints} (
+                  {modeProfile.gridPoints * modeProfile.gridPoints} samples)
+                </dd>
+              </div>
+              <div>
+                <dt>Normalized intensity (dimensionless)</dt>
+                <dd>0–1</dd>
+              </div>
+              <div>
+                <dt>Display threshold</dt>
+                <dd>≥ {MODE_FIELD_DISPLAY_THRESHOLD} normalized intensity</dd>
+              </div>
+              <div>
+                <dt>Approximate model</dt>
+                <dd className="mode-profile-model">
+                  {modeProfile.modelId} ({modeProfile.modelVersion})
+                </dd>
+              </div>
+              <div>
+                <dt>Normalization</dt>
+                <dd className="mode-profile-model">
+                  {modeProfile.normalizationConvention}
+                </dd>
+              </div>
+              <div>
+                <dt>Radius convention</dt>
+                <dd className="mode-profile-model">
+                  {modeProfile.radiusConvention}
+                </dd>
+              </div>
+            </dl>
+          )}
+
+          <p id="mode-profile-explanation" className="mode-profile-explanation">
+            This is a scalar, circularly symmetric Gaussian LP01 approximation
+            reconstructed from backend normalized-intensity samples. It shows a
+            transverse slice with normalized/unit-peak intensity from 0–1;
+            display placement and scale are schematic. Samples below 0.01, or 1%
+            of unit peak, are omitted from the display for clarity without
+            changing the backend grid or reported values. This field layer is
+            separate from the educational ray and is not a physical ray path. It
+            is not an exact step-index eigenmode or a full-wave solution.
+          </p>
+        </>
+      )}
+    </>
+  )
+}
+
 function getRayStatusText(
   status: RayStatus,
   incidenceAngleDeg: number,
@@ -454,12 +763,18 @@ export function FibreGeometryScene({
   rayGuidance = null,
   incidenceAngleDeg = DEFAULT_INCIDENCE_ANGLE_DEG,
   rayViewEnabled = false,
+  modeProfile = null,
+  modeViewEnabled = true,
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
-  const coreMaterialProps = rayViewEnabled
-    ? { transparent: true, opacity: 0.42, depthWrite: false }
-    : {}
+  const modeFieldGeometry = modeViewEnabled
+    ? getModeFieldGeometry(modeProfile, coreRadiusUm)
+    : null
+  const coreMaterialProps =
+    rayViewEnabled || modeFieldGeometry !== null
+      ? { transparent: true, opacity: 0.42, depthWrite: false }
+      : {}
 
   return (
     <group name="fibre-geometry-scene">
@@ -506,6 +821,9 @@ export function FibreGeometryScene({
           guidance={rayGuidance}
         />
       )}
+      {modeFieldGeometry !== null && (
+        <ApproximateLP01FieldLayer geometry={modeFieldGeometry} />
+      )}
     </group>
   )
 }
@@ -514,9 +832,11 @@ export function FibreGeometryView({
   coreRadiusUm,
   sectionLengthKm,
   rayGuidance,
+  modeProfile,
 }: FibreGeometryViewProps) {
   const [visualLength, setVisualLength] = useState(DEFAULT_VISUAL_LENGTH)
   const [rayViewEnabled, setRayViewEnabled] = useState(true)
+  const [modeViewEnabled, setModeViewEnabled] = useState(true)
   const [incidenceAngleDeg, setIncidenceAngleDeg] = useState(
     DEFAULT_INCIDENCE_ANGLE_DEG,
   )
@@ -564,6 +884,8 @@ export function FibreGeometryView({
             rayGuidance={rayGuidance}
             incidenceAngleDeg={incidenceAngleDeg}
             rayViewEnabled={rayViewEnabled}
+            modeProfile={modeProfile}
+            modeViewEnabled={modeViewEnabled}
           />
           <FibreOrbitControls />
         </Canvas>
@@ -604,6 +926,13 @@ export function FibreGeometryView({
         incidenceAngleDeg={incidenceAngleDeg}
         onIncidenceAngleChange={setIncidenceAngleDeg}
         guidance={rayGuidance}
+      />
+
+      <ModeProfilePanel
+        enabled={modeViewEnabled}
+        onEnabledChange={setModeViewEnabled}
+        modeProfile={modeProfile}
+        coreRadiusUm={coreRadiusUm}
       />
 
       <p id="geometry-scale-note" className="geometry-note">
