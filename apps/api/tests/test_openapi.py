@@ -138,6 +138,9 @@ def test_level1_preview_path_has_exact_operation_and_response_contracts() -> Non
         operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
+    assert operation["responses"]["422"]["description"] == (
+        "Request validation or calculation failed"
+    )
 
 
 def test_level1_component_schemas_are_closed_and_reference_nested_contracts() -> None:

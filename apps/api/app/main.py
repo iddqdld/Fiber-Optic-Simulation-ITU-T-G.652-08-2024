@@ -6,14 +6,20 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from fibre_sim.attenuation import ConstantAttenuationManifest, ConstantAttenuationResult
+from fibre_sim.attenuation import (
+    ConstantAttenuationCalculationError,
+    ConstantAttenuationManifest,
+    ConstantAttenuationResult,
+)
 from fibre_sim.dispersion import (
+    ChromaticPulseBroadeningCalculationError,
     ChromaticPulseBroadeningManifest,
     ChromaticPulseBroadeningResult,
+    GroupDelayCalculationError,
     GroupDelayManifest,
     GroupDelayResult,
 )
@@ -111,10 +117,30 @@ async def post_guidance_calculate(request: GuidanceRequest) -> GuidanceResult:
     "/api/v1/simulations/preview",
     operation_id="preview_level1_simulation",
     response_model=Level1SimulationResult,
-    responses={422: {"model": ErrorResponse, "description": "Request validation failed"}},
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or calculation failed",
+        }
+    },
 )
 async def post_simulation_preview(request: Level1SimulationRequest) -> Level1SimulationResult:
-    return calculate_level1_simulation(request)
+    try:
+        return calculate_level1_simulation(request)
+    except (
+        ConstantAttenuationCalculationError,
+        GroupDelayCalculationError,
+        ChromaticPulseBroadeningCalculationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="Level 1 simulation could not produce finite results from the supplied values.",
+            field=None,
+            details={"reason": "non_finite_result"},
+            status_code=422,
+        ) from exc
 
 
 CONTRACT_MODELS: tuple[type[BaseModel], ...] = (

@@ -3031,7 +3031,7 @@
                 }
               }
             },
-            "description": "Request validation failed"
+            "description": "Request validation or calculation failed"
           }
         },
         "summary": "Post Simulation Preview"
