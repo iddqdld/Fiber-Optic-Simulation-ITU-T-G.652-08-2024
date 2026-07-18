@@ -1613,7 +1613,7 @@ export interface operations {
                     "application/json": components["schemas"]["Level1SimulationResult"];
                 };
             };
-            /** @description Request validation failed */
+            /** @description Request validation or calculation failed */
             422: {
                 headers: {
                     [name: string]: unknown;
