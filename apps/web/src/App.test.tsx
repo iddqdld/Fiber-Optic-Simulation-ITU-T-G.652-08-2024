@@ -14,6 +14,7 @@ import type {
   operations,
 } from '../../../packages/shared_schemas/generated/api'
 import App from './App'
+import type { ModeProfileData } from './FibreGeometryView'
 
 type GeometryProps = {
   coreRadiusUm: number | null
@@ -23,6 +24,7 @@ type GeometryProps = {
     modelId: string
     modelVersion: string
   } | null
+  modeProfile: ModeProfileData | null
 }
 
 vi.mock('./FibreGeometryView', () => ({
@@ -30,6 +32,7 @@ vi.mock('./FibreGeometryView', () => ({
     coreRadiusUm,
     sectionLengthKm,
     rayGuidance,
+    modeProfile,
   }: GeometryProps) => (
     <section role="region" aria-label="3D fibre geometry">
       <p>
@@ -43,6 +46,11 @@ vi.mock('./FibreGeometryView', () => ({
         {rayGuidance === null
           ? 'null'
           : `${rayGuidance.criticalAngleDeg}° · ${rayGuidance.modelId} · ${rayGuidance.modelVersion}`}
+      </p>
+      <p aria-label="Mode profile" data-testid="mode-profile">
+        {modeProfile === null
+          ? 'null'
+          : `Grid: ${modeProfile.gridPoints} x ${modeProfile.gridPoints} · Extent: x ${modeProfile.xUm[0]}..${modeProfile.xUm.at(-1)} µm, y ${modeProfile.yUm[0]}..${modeProfile.yUm.at(-1)} µm · Center intensity: ${modeProfile.normalizedIntensity[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Radius: ${modeProfile.modeFieldRadiusUm} µm · Model: ${modeProfile.modelId} ${modeProfile.modelVersion} · Normalization: ${modeProfile.normalizationConvention} · Radius convention: ${modeProfile.radiusConvention}`}
       </p>
     </section>
   ),
@@ -145,6 +153,41 @@ const modeProfileManifest = {
   limitations: ['not an exact step-index eigenmode solver'],
 } satisfies components['schemas']['GaussianModeProfileManifest']
 
+function buildModeProfile({
+  gridHalfWidthUm = 15,
+  gridPoints = 65,
+  modeFieldRadiusUm = 4.82,
+}: {
+  gridHalfWidthUm?: number
+  gridPoints?: number
+  modeFieldRadiusUm?: number
+} = {}) {
+  const axis = Array.from(
+    { length: gridPoints },
+    (_, index) =>
+      -gridHalfWidthUm + (2 * gridHalfWidthUm * index) / (gridPoints - 1),
+  )
+  const normalizedField = axis.map((yUm) =>
+    axis.map((xUm) =>
+      Math.exp(-((xUm ** 2 + yUm ** 2) / modeFieldRadiusUm ** 2)),
+    ),
+  )
+  const normalizedIntensity = normalizedField.map((row) =>
+    row.map((field) => field ** 2),
+  )
+
+  return {
+    grid_half_width_um: gridHalfWidthUm,
+    grid_points: gridPoints,
+    mode_field_radius_um: modeFieldRadiusUm,
+    normalized_field: normalizedField,
+    normalized_intensity: normalizedIntensity,
+    x_um: axis,
+    y_um: axis,
+    model_manifest: modeProfileManifest,
+  } satisfies Level1Result['mode_profile']
+}
+
 const customResult = {
   configuration: initialConfiguration,
   guidance: {
@@ -189,24 +232,7 @@ const customResult = {
     spectral_width_fwhm_nm: 0.2,
     model_manifest: pulseManifest,
   },
-  mode_profile: {
-    grid_half_width_um: 15,
-    grid_points: 3,
-    mode_field_radius_um: 4.82,
-    normalized_field: [
-      [0.01, 0.1, 0.01],
-      [0.1, 1, 0.1],
-      [0.01, 0.1, 0.01],
-    ],
-    normalized_intensity: [
-      [0.0001, 0.01, 0.0001],
-      [0.01, 1, 0.01],
-      [0.0001, 0.01, 0.0001],
-    ],
-    x_um: [-15, 0, 15],
-    y_um: [-15, 0, 15],
-    model_manifest: modeProfileManifest,
-  },
+  mode_profile: buildModeProfile(),
   model_manifest: simulationManifest,
   standards_checks: {
     preset: 'custom',
@@ -388,6 +414,10 @@ async function settleDebounce() {
 
 function numberInput(name: RegExp) {
   return screen.getByRole('spinbutton', { name })
+}
+
+function modeProfileOutput() {
+  return screen.getByTestId('mode-profile')
 }
 
 afterEach(() => {
@@ -739,9 +769,11 @@ describe('Level 1 preview state and results', () => {
 
     render(<App />)
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
 
     await act(async () => {
       first.resolve(jsonResponse(customResult))
@@ -749,6 +781,49 @@ describe('Level 1 preview state and results', () => {
     })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
       '85.27298324998428° · ideal_circular_step_index_guidance · 1.0.0',
+    )
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+  })
+
+  test('propagates the validated 65-point mode profile in camelCase', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [jsonResponse(customResult)] })
+
+    render(<App />)
+    await settleDebounce()
+
+    const modeProfile = customResult.mode_profile
+    expect(modeProfile.grid_points).toBe(65)
+    expect(modeProfile.x_um).toHaveLength(65)
+    expect(modeProfile.y_um).toHaveLength(65)
+    expect(modeProfile.x_um[0]).toBe(-15)
+    expect(modeProfile.x_um[1]).toBe(-14.53125)
+    expect(modeProfile.x_um[32]).toBe(0)
+    expect(modeProfile.x_um[64]).toBe(15)
+    expect(modeProfile.normalized_intensity[32][32]).toBe(1)
+    expect(modeProfile.normalized_intensity[32][33]).toBeCloseTo(
+      0.9812622474073953,
+      15,
+    )
+    expect(modeProfile.normalized_intensity[0][0]).toBeCloseTo(
+      1.4992187712298396e-17,
+      16,
+    )
+
+    expect(modeProfileOutput()).toHaveTextContent('Grid: 65 x 65')
+    expect(modeProfileOutput()).toHaveTextContent(
+      'Extent: x -15..15 µm, y -15..15 µm',
+    )
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
+    expect(modeProfileOutput()).toHaveTextContent(
+      'Model: gaussian_lp01_mode_profile 1.0.0',
+    )
+    expect(modeProfileOutput()).toHaveTextContent(
+      'Normalization: unit_peak_field_and_intensity',
+    )
+    expect(modeProfileOutput()).toHaveTextContent(
+      'Radius convention: 1/e_field_radius',
     )
   })
 
@@ -767,14 +842,17 @@ describe('Level 1 preview state and results', () => {
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
       '85.27298324998428°',
     )
+    expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
 
     fireEvent.change(numberInput(/Core refractive index/i), {
       target: { value: '1.48' },
     })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
 
     await act(async () => {
       second.resolve(
@@ -795,6 +873,7 @@ describe('Level 1 preview state and results', () => {
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
       '81.83568244780919° · ideal_circular_step_index_guidance · 1.0.0',
     )
+    expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
   })
 
   test('clears ray guidance for invalid edits without scheduling a request', async () => {
@@ -809,9 +888,11 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     const initialCallCount = previewCalls(fetchMock).length
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '0' } })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
@@ -830,6 +911,10 @@ describe('Level 1 preview state and results', () => {
       preview: [
         jsonResponse(customResult),
         jsonResponse(malformedGuidanceResult),
+        jsonResponse(
+          { error: { message: 'Preview service rejected the request.' } },
+          500,
+        ),
         new Error('network failure'),
       ],
     })
@@ -839,20 +924,168 @@ describe('Level 1 preview state and results', () => {
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
       '85.27298324998428°',
     )
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.2' } })
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Preview service rejected the request.',
+    )
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.4' } })
+    await settleDebounce()
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(modeProfileOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Unable to reach the preview service.',
     )
-    expect(previewCalls(fetchMock)).toHaveLength(3)
+    expect(previewCalls(fetchMock)).toHaveLength(4)
   })
+
+  const malformedModeProfiles: Array<[string, unknown]> = [
+    [
+      'a short x axis',
+      {
+        ...customResult.mode_profile,
+        x_um: customResult.mode_profile.x_um.slice(1),
+      },
+    ],
+    [
+      'a nonfinite y axis value',
+      {
+        ...customResult.mode_profile,
+        y_um: customResult.mode_profile.y_um.map((value, index) =>
+          index === 32 ? Number.NaN : value,
+        ),
+      },
+    ],
+    [
+      'a malformed field grid',
+      {
+        ...customResult.mode_profile,
+        normalized_field: customResult.mode_profile.normalized_field.map(
+          (row, index) => (index === 32 ? row.slice(1) : row),
+        ),
+      },
+    ],
+    [
+      'a malformed intensity grid',
+      {
+        ...customResult.mode_profile,
+        normalized_intensity:
+          customResult.mode_profile.normalized_intensity.slice(1),
+      },
+    ],
+    [
+      'an out-of-range field sample',
+      {
+        ...customResult.mode_profile,
+        normalized_field: customResult.mode_profile.normalized_field.map(
+          (row, index) =>
+            index === 32
+              ? row.map((value, column) => (column === 32 ? 1.01 : value))
+              : row,
+        ),
+      },
+    ],
+    [
+      'a nonfinite intensity sample',
+      {
+        ...customResult.mode_profile,
+        normalized_intensity:
+          customResult.mode_profile.normalized_intensity.map((row, index) =>
+            index === 32
+              ? row.map((value, column) => (column === 32 ? Number.NaN : value))
+              : row,
+          ),
+      },
+    ],
+    ['an even grid size', { ...customResult.mode_profile, grid_points: 64 }],
+    ['an oversized grid', { ...customResult.mode_profile, grid_points: 67 }],
+    [
+      'a nonpositive mode radius',
+      { ...customResult.mode_profile, mode_field_radius_um: 0 },
+    ],
+    [
+      'a nonpositive grid extent',
+      { ...customResult.mode_profile, grid_half_width_um: 0 },
+    ],
+    [
+      'the wrong model',
+      {
+        ...customResult.mode_profile,
+        model_manifest: { ...modeProfileManifest, model_id: 'wrong_model' },
+      },
+    ],
+    [
+      'the wrong model version',
+      {
+        ...customResult.mode_profile,
+        model_manifest: { ...modeProfileManifest, model_version: '2.0.0' },
+      },
+    ],
+    [
+      'the wrong normalization convention',
+      {
+        ...customResult.mode_profile,
+        model_manifest: {
+          ...modeProfileManifest,
+          normalization_convention: 'wrong_normalization',
+        },
+      },
+    ],
+    [
+      'the wrong radius convention',
+      {
+        ...customResult.mode_profile,
+        model_manifest: {
+          ...modeProfileManifest,
+          radius_convention: 'wrong_radius',
+        },
+      },
+    ],
+  ]
+
+  test.each(malformedModeProfiles)(
+    'rejects %s mode-profile data without using it',
+    async (_description, malformedModeProfile) => {
+      vi.useFakeTimers()
+      const fetchMock = mockFetch({
+        preview: [
+          jsonResponse(customResult),
+          jsonResponse({
+            ...customResult,
+            mode_profile: malformedModeProfile,
+          }),
+        ],
+      })
+
+      render(<App />)
+      await settleDebounce()
+      expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+
+      fireEvent.change(numberInput(/Core radius/i), {
+        target: { value: '4.2' },
+      })
+      await settleDebounce()
+
+      expect(modeProfileOutput()).toHaveTextContent('null')
+      expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+      expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
+      expect(
+        screen.getByRole('region', { name: 'Level 1 preview' }),
+      ).toBeVisible()
+      expect(previewCalls(fetchMock)).toHaveLength(2)
+    },
+  )
 
   test('shows loading and update status while retaining the last successful result', async () => {
     vi.useFakeTimers()
@@ -875,6 +1108,7 @@ describe('Level 1 preview state and results', () => {
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
     await settleDebounce()
     expect(screen.getByRole('status')).toHaveTextContent('Updating preview…')
+    expect(modeProfileOutput()).toHaveTextContent('null')
     expect(
       screen.getByText(
         'Mode count estimate is unavailable below the validity threshold.',
@@ -885,6 +1119,7 @@ describe('Level 1 preview state and results', () => {
       second.resolve(jsonResponse({ ...customResult, warnings: [] }))
       await Promise.resolve()
     })
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
     expect(screen.getByRole('status')).toHaveTextContent('Preview ready')
   })
 
@@ -903,6 +1138,7 @@ describe('Level 1 preview state and results', () => {
       second.resolve(jsonResponse({ ...customResult, warnings: [] }))
       await Promise.resolve()
     })
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
     expect(
       screen.getByRole('region', { name: 'Level 1 preview' }),
     ).toHaveTextContent('No warnings.')
@@ -922,6 +1158,7 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     expect(screen.queryByText('Stale response warning')).not.toBeInTheDocument()
+    expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
   })
 
   test('renders exact summary units, model metadata, and warnings', async () => {

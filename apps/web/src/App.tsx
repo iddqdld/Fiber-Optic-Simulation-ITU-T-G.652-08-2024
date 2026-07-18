@@ -11,7 +11,11 @@ import {
   type NumericFormField,
   type Preset,
 } from './Level1Form'
-import { FibreGeometryView, type RayGuidance } from './FibreGeometryView'
+import {
+  FibreGeometryView,
+  type ModeProfileData,
+  type RayGuidance,
+} from './FibreGeometryView'
 import { Level1Preview } from './Level1Preview'
 
 type PreviewRequest =
@@ -21,9 +25,11 @@ type PreviewResult =
 type HealthResponse = components['schemas']['HealthResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 type PreviewWarning = PreviewResult['warnings'][number]
+type ModeProfileResult = PreviewResult['mode_profile']
 type StandardsChecks = PreviewResult['standards_checks']
 type AttenuationCheck = NonNullable<StandardsChecks['attenuation']>
 type DispersionCheck = NonNullable<StandardsChecks['dispersion']>
+
 const initialFormValues: FormValues = {
   preset: 'custom',
   n_core: '1.47',
@@ -53,6 +59,35 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isFiniteNumberArray(
+  value: unknown,
+  length: number,
+): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length === length &&
+    value.every(isFiniteNumber)
+  )
+}
+
+function isNormalizedGrid(
+  value: unknown,
+  gridPoints: number,
+): value is number[][] {
+  return (
+    Array.isArray(value) &&
+    value.length === gridPoints &&
+    value.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === gridPoints &&
+        row.every(
+          (sample) => isFiniteNumber(sample) && sample >= 0 && sample <= 1,
+        ),
+    )
+  )
 }
 
 function isPreset(value: string): value is Preset {
@@ -233,6 +268,36 @@ function isPreviewStandardsChecks(value: unknown): value is StandardsChecks {
   )
 }
 
+function isModeProfileResult(value: unknown): value is ModeProfileResult {
+  if (
+    !isRecord(value) ||
+    !isFiniteNumber(value.mode_field_radius_um) ||
+    value.mode_field_radius_um <= 0 ||
+    !isFiniteNumber(value.grid_half_width_um) ||
+    value.grid_half_width_um <= 0 ||
+    !isFiniteNumber(value.grid_points) ||
+    !Number.isInteger(value.grid_points) ||
+    value.grid_points < 3 ||
+    value.grid_points > 65 ||
+    value.grid_points % 2 === 0 ||
+    !isFiniteNumberArray(value.x_um, value.grid_points) ||
+    !isFiniteNumberArray(value.y_um, value.grid_points) ||
+    !isNormalizedGrid(value.normalized_field, value.grid_points) ||
+    !isNormalizedGrid(value.normalized_intensity, value.grid_points) ||
+    !isRecord(value.model_manifest)
+  ) {
+    return false
+  }
+
+  return (
+    value.model_manifest.model_id === 'gaussian_lp01_mode_profile' &&
+    value.model_manifest.model_version === '1.0.0' &&
+    value.model_manifest.normalization_convention ===
+      'unit_peak_field_and_intensity' &&
+    value.model_manifest.radius_convention === '1/e_field_radius'
+  )
+}
+
 function isPreviewResult(value: unknown): value is PreviewResult {
   if (!isRecord(value)) {
     return false
@@ -268,6 +333,7 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     isRecord(value.pulse_broadening) &&
     isFiniteNumber(value.pulse_broadening.input_pulse_fwhm_ps) &&
     isFiniteNumber(value.pulse_broadening.output_pulse_fwhm_ps) &&
+    isModeProfileResult(value.mode_profile) &&
     isRecord(value.model_manifest) &&
     value.model_manifest.model_id === 'level1_single_section_simulation' &&
     value.model_manifest.model_version === '1.0.0' &&
@@ -277,18 +343,44 @@ function isPreviewResult(value: unknown): value is PreviewResult {
   )
 }
 
+function toModeProfileData(value: ModeProfileResult): ModeProfileData {
+  return {
+    modeFieldRadiusUm: value.mode_field_radius_um,
+    gridHalfWidthUm: value.grid_half_width_um,
+    gridPoints: value.grid_points,
+    xUm: value.x_um,
+    yUm: value.y_um,
+    normalizedIntensity: value.normalized_intensity,
+    modelId: value.model_manifest.model_id,
+    modelVersion: value.model_manifest.model_version,
+    normalizationConvention: value.model_manifest.normalization_convention,
+    radiusConvention: value.model_manifest.radius_convention,
+  }
+}
+
+type VisualizationData = {
+  rayGuidance: RayGuidance
+  modeProfile: ModeProfileData
+}
+
 function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
   const [result, setResult] = useState<PreviewResult | null>(null)
-  const [rayGuidance, setRayGuidance] = useState<RayGuidance | null>(null)
+  const [visualizationData, setVisualizationData] =
+    useState<VisualizationData | null>(null)
   const [serviceError, setServiceError] = useState<string | null>(null)
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
   const geometryValues = getGeometryValues(formValues)
   const error = formValidation.error ?? serviceError
+
+  const clearVisualizationData = () => {
+    previewSequence.current += 1
+    setVisualizationData(null)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -331,7 +423,6 @@ function App() {
 
     const request = parsed.request
     const timer = window.setTimeout(() => {
-      setRayGuidance(null)
       const fetchPreview = async () => {
         setPreviewStatus(
           resultRef.current === null ? 'Loading preview…' : 'Updating preview…',
@@ -356,14 +447,14 @@ function App() {
           }
 
           if (!response.ok) {
-            setRayGuidance(null)
+            setVisualizationData(null)
             setServiceError(getErrorMessage(body) ?? PREVIEW_FAILED)
             setPreviewStatus('Preview unavailable.')
             return
           }
 
           if (!isPreviewResult(body)) {
-            setRayGuidance(null)
+            setVisualizationData(null)
             setServiceError(PREVIEW_FAILED)
             setPreviewStatus('Preview unavailable.')
             return
@@ -371,10 +462,13 @@ function App() {
 
           resultRef.current = body
           setResult(body)
-          setRayGuidance({
-            criticalAngleDeg: body.guidance.critical_angle_deg,
-            modelId: body.guidance.model_manifest.model_id,
-            modelVersion: body.guidance.model_manifest.model_version,
+          setVisualizationData({
+            rayGuidance: {
+              criticalAngleDeg: body.guidance.critical_angle_deg,
+              modelId: body.guidance.model_manifest.model_id,
+              modelVersion: body.guidance.model_manifest.model_version,
+            },
+            modeProfile: toModeProfileData(body.mode_profile),
           })
           setServiceError(null)
           setPreviewStatus('Preview ready')
@@ -386,7 +480,7 @@ function App() {
             return
           }
 
-          setRayGuidance(null)
+          setVisualizationData(null)
           setServiceError(PREVIEW_UNREACHABLE)
           setPreviewStatus('Preview unavailable.')
         }
@@ -402,14 +496,14 @@ function App() {
   }, [formValues])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
-    setRayGuidance(null)
+    clearVisualizationData()
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => ({ ...current, [field]: value }))
   }
 
   const updatePreset = (preset: Preset) => {
-    setRayGuidance(null)
+    clearVisualizationData()
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => {
@@ -428,7 +522,7 @@ function App() {
   }
 
   const updateCableApplication = (value: CableApplication) => {
-    setRayGuidance(null)
+    clearVisualizationData()
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => ({ ...current, cable_application: value }))
@@ -459,7 +553,8 @@ function App() {
         <FibreGeometryView
           coreRadiusUm={geometryValues.coreRadiusUm}
           sectionLengthKm={geometryValues.sectionLengthKm}
-          rayGuidance={rayGuidance}
+          rayGuidance={visualizationData?.rayGuidance ?? null}
+          modeProfile={visualizationData?.modeProfile ?? null}
         />
         {result && <Level1Preview result={result} />}
       </div>
