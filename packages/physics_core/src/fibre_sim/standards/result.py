@@ -19,6 +19,114 @@ from .constants import (
 )
 
 
+class G652DAttenuationApplication(StrEnum):
+    STANDARD_CABLE = "standard_cable"
+    SHORT_JUMPER = "short_jumper"
+    INDOOR_CABLE = "indoor_cable"
+    DROP_CABLE = "drop_cable"
+
+
+class G652DAttenuationLimitBand(StrEnum):
+    GENERAL_1310_1625 = "general_1310_1625"
+    C_BAND_1530_1565 = "c_band_1530_1565"
+
+
+class G652DAttenuationCheckStatus(StrEnum):
+    PASS = "pass"
+    FAIL_ABOVE_MAXIMUM = "fail_above_maximum"
+    NOT_APPLICABLE = "not_applicable"
+
+
+class G652DAttenuationCheckManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    model_id: Literal["itu_t_g652d_attenuation_check"] = "itu_t_g652d_attenuation_check"
+    model_version: Literal["1.0.0"] = "1.0.0"
+    standard_name: Literal["ITU-T G.652"] = "ITU-T G.652"
+    standard_edition: Literal["08/2024"] = "08/2024"
+    fibre_category: Literal["G.652.D"] = "G.652.D"
+    comparison_rule: Literal["inclusive_maximum"] = "inclusive_maximum"
+    assumptions: tuple[str, ...] = (
+        "the supplied value is a cable attenuation coefficient measured at the same "
+        "wavelength being checked",
+        "the C-band limit overrides the general 1310-1625 nm cable limit for "
+        "1530-1565 nm inclusively",
+    )
+    limitations: tuple[str, ...] = (
+        "the direct check does not infer a 1260-1310 nm value from the +0.07 dB/km "
+        "extension note; a measured 1310 nm value is required",
+        "hydrogen ageing is a type test and is not inferred from the supplied attenuation value",
+        "short jumpers, indoor cables, and drop cables are excluded from the represented "
+        "standard-cable context",
+        "a passing attenuation result is not full G.652.D conformance",
+    )
+
+
+class G652DAttenuationCheckResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    wavelength_nm: float = Field(
+        strict=True,
+        ge=G652D_MIN_WAVELENGTH_NM,
+        le=G652D_MAX_WAVELENGTH_NM,
+        allow_inf_nan=False,
+    )
+    supplied_attenuation_db_per_km: float = Field(
+        strict=True,
+        ge=0,
+        allow_inf_nan=False,
+    )
+    cable_application: G652DAttenuationApplication
+    limit_band: G652DAttenuationLimitBand | None = None
+    maximum_attenuation_db_per_km: float | None = Field(
+        default=None,
+        strict=True,
+        ge=0,
+        allow_inf_nan=False,
+    )
+    margin_below_maximum_db_per_km: float | None = Field(
+        default=None,
+        strict=True,
+        allow_inf_nan=False,
+    )
+    status: G652DAttenuationCheckStatus
+    not_applicable_reason: str | None = None
+    model_manifest: G652DAttenuationCheckManifest
+
+    @model_validator(mode="after")
+    def validate_attenuation_check_shape(self) -> Self:
+        comparison_values = (
+            self.limit_band,
+            self.maximum_attenuation_db_per_km,
+            self.margin_below_maximum_db_per_km,
+        )
+        if self.status is G652DAttenuationCheckStatus.NOT_APPLICABLE:
+            if any(value is not None for value in comparison_values):
+                raise PydanticCustomError(
+                    "attenuation_not_applicable_comparison_fields_forbidden",
+                    "G.652.D not-applicable attenuation results must omit limit band, "
+                    "maximum, and margin.",
+                )
+            if self.not_applicable_reason is None or not self.not_applicable_reason.strip():
+                raise PydanticCustomError(
+                    "attenuation_not_applicable_reason_required",
+                    "G.652.D not-applicable attenuation results require a nonblank reason.",
+                )
+            return self
+
+        if any(value is None for value in comparison_values):
+            raise PydanticCustomError(
+                "attenuation_comparison_fields_required",
+                "G.652.D applicable attenuation results require limit band, maximum, and margin.",
+            )
+        if self.not_applicable_reason is not None:
+            raise PydanticCustomError(
+                "attenuation_not_applicable_reason_forbidden",
+                "G.652.D applicable attenuation results must omit a not-applicable reason.",
+            )
+        return self
+
+
 class G652DDispersionFitRegion(StrEnum):
     THREE_TERM_SELLMEIER = "three_term_sellmeier"
     LINEAR = "linear"
