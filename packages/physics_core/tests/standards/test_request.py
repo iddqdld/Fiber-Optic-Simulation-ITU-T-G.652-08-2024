@@ -7,6 +7,12 @@ from pydantic import ValidationError
 import fibre_sim.standards as standards
 import fibre_sim.standards.constants as constants
 from fibre_sim.standards import (
+    G652DAttenuationApplication,
+    G652DAttenuationCheckManifest,
+    G652DAttenuationCheckRequest,
+    G652DAttenuationCheckResult,
+    G652DAttenuationCheckStatus,
+    G652DAttenuationLimitBand,
     G652DDispersionCheckManifest,
     G652DDispersionCheckRequest,
     G652DDispersionCheckResult,
@@ -15,12 +21,24 @@ from fibre_sim.standards import (
     G652DDispersionEnvelopeRequest,
     G652DDispersionEnvelopeResult,
     G652DDispersionFitRegion,
+    G652DPreset,
+    G652DSimulationDefaults,
+    G652DStandardLimits,
     calculate_g652d_dispersion_envelope,
+    check_g652d_attenuation,
+    check_g652d_dispersion,
+    get_g652d_preset,
 )
 
 
 def test_public_exports_are_exact_and_include_calculation() -> None:
     expected_exports = [
+        "G652DAttenuationApplication",
+        "G652DAttenuationCheckManifest",
+        "G652DAttenuationCheckRequest",
+        "G652DAttenuationCheckResult",
+        "G652DAttenuationCheckStatus",
+        "G652DAttenuationLimitBand",
         "G652DDispersionCheckManifest",
         "G652DDispersionCheckRequest",
         "G652DDispersionCheckResult",
@@ -29,11 +47,23 @@ def test_public_exports_are_exact_and_include_calculation() -> None:
         "G652DDispersionEnvelopeRequest",
         "G652DDispersionEnvelopeResult",
         "G652DDispersionFitRegion",
+        "G652DPreset",
+        "G652DSimulationDefaults",
+        "G652DStandardLimits",
         "calculate_g652d_dispersion_envelope",
+        "check_g652d_attenuation",
+        "check_g652d_dispersion",
+        "get_g652d_preset",
     ]
 
     assert standards.__all__ == expected_exports
     assert [getattr(standards, name) for name in expected_exports] == [
+        G652DAttenuationApplication,
+        G652DAttenuationCheckManifest,
+        G652DAttenuationCheckRequest,
+        G652DAttenuationCheckResult,
+        G652DAttenuationCheckStatus,
+        G652DAttenuationLimitBand,
         G652DDispersionCheckManifest,
         G652DDispersionCheckRequest,
         G652DDispersionCheckResult,
@@ -42,7 +72,13 @@ def test_public_exports_are_exact_and_include_calculation() -> None:
         G652DDispersionEnvelopeRequest,
         G652DDispersionEnvelopeResult,
         G652DDispersionFitRegion,
+        G652DPreset,
+        G652DSimulationDefaults,
+        G652DStandardLimits,
         calculate_g652d_dispersion_envelope,
+        check_g652d_attenuation,
+        check_g652d_dispersion,
+        get_g652d_preset,
     ]
     assert [
         name
