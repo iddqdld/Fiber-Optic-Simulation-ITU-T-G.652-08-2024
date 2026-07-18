@@ -100,6 +100,110 @@
         "title": "CableSection",
         "type": "object"
       },
+      "ChromaticPulseBroadeningManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "constant supplied chromatic-dispersion coefficient over the fibre section",
+              "Gaussian input pulse and Gaussian source spectrum use FWHM widths",
+              "independent Gaussian broadening contributions combine in quadrature",
+              "pulse-width broadening uses the magnitude of chromatic dispersion"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "first-order delay-spread approximation rather than full pulse propagation",
+              "dispersion sign is retained for accumulated dispersion but not pulse-width magnitude",
+              "excludes initial chirp, higher-order dispersion, nonlinearity, and polarization-mode dispersion",
+              "not a G.652 dispersion fit or conformance model"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "first_order_chromatic_pulse_broadening",
+            "default": "first_order_chromatic_pulse_broadening",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "width_convention": {
+            "const": "fwhm",
+            "default": "fwhm",
+            "title": "Width Convention",
+            "type": "string"
+          }
+        },
+        "title": "ChromaticPulseBroadeningManifest",
+        "type": "object"
+      },
+      "ChromaticPulseBroadeningResult": {
+        "additionalProperties": false,
+        "properties": {
+          "accumulated_dispersion_ps_per_nm": {
+            "title": "Accumulated Dispersion Ps Per Nm",
+            "type": "number"
+          },
+          "dispersion_broadening_fwhm_ps": {
+            "minimum": 0,
+            "title": "Dispersion Broadening Fwhm Ps",
+            "type": "number"
+          },
+          "dispersion_ps_per_nm_km": {
+            "title": "Dispersion Ps Per Nm Km",
+            "type": "number"
+          },
+          "input_pulse_fwhm_ps": {
+            "exclusiveMinimum": 0,
+            "title": "Input Pulse Fwhm Ps",
+            "type": "number"
+          },
+          "length_km": {
+            "minimum": 0,
+            "title": "Length Km",
+            "type": "number"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/ChromaticPulseBroadeningManifest"
+          },
+          "output_pulse_fwhm_ps": {
+            "exclusiveMinimum": 0,
+            "title": "Output Pulse Fwhm Ps",
+            "type": "number"
+          },
+          "spectral_width_fwhm_nm": {
+            "minimum": 0,
+            "title": "Spectral Width Fwhm Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_km",
+          "dispersion_ps_per_nm_km",
+          "spectral_width_fwhm_nm",
+          "input_pulse_fwhm_ps",
+          "accumulated_dispersion_ps_per_nm",
+          "dispersion_broadening_fwhm_ps",
+          "output_pulse_fwhm_ps",
+          "model_manifest"
+        ],
+        "title": "ChromaticPulseBroadeningResult",
+        "type": "object"
+      },
       "Connector": {
         "additionalProperties": false,
         "properties": {
@@ -135,6 +239,90 @@
           "loss_db"
         ],
         "title": "Connector",
+        "type": "object"
+      },
+      "ConstantAttenuationManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "uniform attenuation coefficient over the fibre section",
+              "passive fibre loss only",
+              "attenuation is additive in dB"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "attenuation coefficient is supplied rather than inferred from wavelength or material",
+              "excludes splice, connector, bend, and engineering-margin losses",
+              "not a G.652 conformance or typical-value model"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "constant_fibre_attenuation",
+            "default": "constant_fibre_attenuation",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          }
+        },
+        "title": "ConstantAttenuationManifest",
+        "type": "object"
+      },
+      "ConstantAttenuationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation_db_per_km": {
+            "minimum": 0,
+            "title": "Attenuation Db Per Km",
+            "type": "number"
+          },
+          "input_power_dbm": {
+            "title": "Input Power Dbm",
+            "type": "number"
+          },
+          "length_km": {
+            "minimum": 0,
+            "title": "Length Km",
+            "type": "number"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/ConstantAttenuationManifest"
+          },
+          "output_power_dbm": {
+            "title": "Output Power Dbm",
+            "type": "number"
+          },
+          "section_loss_db": {
+            "minimum": 0,
+            "title": "Section Loss Db",
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_km",
+          "attenuation_db_per_km",
+          "input_power_dbm",
+          "section_loss_db",
+          "output_power_dbm",
+          "model_manifest"
+        ],
+        "title": "ConstantAttenuationResult",
         "type": "object"
       },
       "DistanceSeries": {
@@ -333,6 +521,986 @@
           }
         },
         "title": "FieldCrossSection",
+        "type": "object"
+      },
+      "G652DAttenuationApplication": {
+        "enum": [
+          "standard_cable",
+          "short_jumper",
+          "indoor_cable",
+          "drop_cable"
+        ],
+        "title": "G652DAttenuationApplication",
+        "type": "string"
+      },
+      "G652DAttenuationCheckManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "the supplied value is a cable attenuation coefficient measured at the same wavelength being checked",
+              "the C-band limit overrides the general 1310-1625 nm cable limit for 1530-1565 nm inclusively"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "comparison_rule": {
+            "const": "inclusive_maximum",
+            "default": "inclusive_maximum",
+            "title": "Comparison Rule",
+            "type": "string"
+          },
+          "fibre_category": {
+            "const": "G.652.D",
+            "default": "G.652.D",
+            "title": "Fibre Category",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [
+              "the direct check does not infer a 1260-1310 nm value from the +0.07 dB/km extension note; a measured 1310 nm value is required",
+              "hydrogen ageing is a type test and is not inferred from the supplied attenuation value",
+              "short jumpers, indoor cables, and drop cables are excluded from the represented standard-cable context",
+              "a passing attenuation result is not full G.652.D conformance"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "itu_t_g652d_attenuation_check",
+            "default": "itu_t_g652d_attenuation_check",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "standard_edition": {
+            "const": "08/2024",
+            "default": "08/2024",
+            "title": "Standard Edition",
+            "type": "string"
+          },
+          "standard_name": {
+            "const": "ITU-T G.652",
+            "default": "ITU-T G.652",
+            "title": "Standard Name",
+            "type": "string"
+          }
+        },
+        "title": "G652DAttenuationCheckManifest",
+        "type": "object"
+      },
+      "G652DAttenuationCheckResult": {
+        "additionalProperties": false,
+        "properties": {
+          "cable_application": {
+            "$ref": "#/components/schemas/G652DAttenuationApplication"
+          },
+          "limit_band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/G652DAttenuationLimitBand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "margin_below_maximum_db_per_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Margin Below Maximum Db Per Km"
+          },
+          "maximum_attenuation_db_per_km": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Maximum Attenuation Db Per Km"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/G652DAttenuationCheckManifest"
+          },
+          "not_applicable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Not Applicable Reason"
+          },
+          "status": {
+            "$ref": "#/components/schemas/G652DAttenuationCheckStatus"
+          },
+          "supplied_attenuation_db_per_km": {
+            "minimum": 0,
+            "title": "Supplied Attenuation Db Per Km",
+            "type": "number"
+          },
+          "wavelength_nm": {
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Wavelength Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wavelength_nm",
+          "supplied_attenuation_db_per_km",
+          "cable_application",
+          "status",
+          "model_manifest"
+        ],
+        "title": "G652DAttenuationCheckResult",
+        "type": "object"
+      },
+      "G652DAttenuationCheckStatus": {
+        "enum": [
+          "pass",
+          "fail_above_maximum",
+          "not_applicable"
+        ],
+        "title": "G652DAttenuationCheckStatus",
+        "type": "string"
+      },
+      "G652DAttenuationLimitBand": {
+        "enum": [
+          "general_1310_1625",
+          "c_band_1530_1565"
+        ],
+        "title": "G652DAttenuationLimitBand",
+        "type": "string"
+      },
+      "G652DDispersionCheckManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "supplied chromatic-dispersion coefficient is compared at the same wavelength as the envelope",
+              "values equal to either published envelope boundary pass",
+              "signed margins are positive inside the envelope and negative beyond the violated boundary"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "comparison_rule": {
+            "const": "inclusive_envelope",
+            "default": "inclusive_envelope",
+            "title": "Comparison Rule",
+            "type": "string"
+          },
+          "envelope_model_id": {
+            "const": "itu_t_g652d_chromatic_dispersion_envelope",
+            "default": "itu_t_g652d_chromatic_dispersion_envelope",
+            "title": "Envelope Model Id",
+            "type": "string"
+          },
+          "envelope_model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Envelope Model Version",
+            "type": "string"
+          },
+          "fibre_category": {
+            "const": "G.652.D",
+            "default": "G.652.D",
+            "title": "Fibre Category",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [
+              "a passing dispersion check is not complete G.652.D conformance",
+              "the supplied coefficient is accepted as input rather than measured or independently validated",
+              "excludes measurement uncertainty, longitudinal variation, and statistical link design",
+              "checks only the represented chromatic-dispersion coefficient attribute"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "itu_t_g652d_chromatic_dispersion_check",
+            "default": "itu_t_g652d_chromatic_dispersion_check",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "standard_edition": {
+            "const": "08/2024",
+            "default": "08/2024",
+            "title": "Standard Edition",
+            "type": "string"
+          },
+          "standard_name": {
+            "const": "ITU-T G.652",
+            "default": "ITU-T G.652",
+            "title": "Standard Name",
+            "type": "string"
+          }
+        },
+        "title": "G652DDispersionCheckManifest",
+        "type": "object"
+      },
+      "G652DDispersionCheckResult": {
+        "additionalProperties": false,
+        "properties": {
+          "fit_region": {
+            "$ref": "#/components/schemas/G652DDispersionFitRegion"
+          },
+          "margin_above_minimum_ps_per_nm_km": {
+            "title": "Margin Above Minimum Ps Per Nm Km",
+            "type": "number"
+          },
+          "margin_below_maximum_ps_per_nm_km": {
+            "title": "Margin Below Maximum Ps Per Nm Km",
+            "type": "number"
+          },
+          "maximum_dispersion_ps_per_nm_km": {
+            "title": "Maximum Dispersion Ps Per Nm Km",
+            "type": "number"
+          },
+          "minimum_dispersion_ps_per_nm_km": {
+            "title": "Minimum Dispersion Ps Per Nm Km",
+            "type": "number"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/G652DDispersionCheckManifest"
+          },
+          "status": {
+            "$ref": "#/components/schemas/G652DDispersionCheckStatus"
+          },
+          "supplied_dispersion_ps_per_nm_km": {
+            "title": "Supplied Dispersion Ps Per Nm Km",
+            "type": "number"
+          },
+          "wavelength_nm": {
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Wavelength Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wavelength_nm",
+          "supplied_dispersion_ps_per_nm_km",
+          "fit_region",
+          "minimum_dispersion_ps_per_nm_km",
+          "maximum_dispersion_ps_per_nm_km",
+          "margin_above_minimum_ps_per_nm_km",
+          "margin_below_maximum_ps_per_nm_km",
+          "status",
+          "model_manifest"
+        ],
+        "title": "G652DDispersionCheckResult",
+        "type": "object"
+      },
+      "G652DDispersionCheckStatus": {
+        "enum": [
+          "pass",
+          "fail_below_minimum",
+          "fail_above_maximum"
+        ],
+        "title": "G652DDispersionCheckStatus",
+        "type": "string"
+      },
+      "G652DDispersionEnvelopeManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "normative chromatic-dispersion coefficient boundaries for G.652.D fibre attributes",
+              "1260-1460 nm uses the published three-term Sellmeier boundary form",
+              "1460-1625 nm uses the published linear boundary form",
+              "the linear region owns the shared 1460 nm boundary for deterministic evaluation"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "boundary_equations": {
+            "default": [
+              "6-2a",
+              "6-2b",
+              "6-2c",
+              "6-3"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Boundary Equations",
+            "type": "array"
+          },
+          "fibre_category": {
+            "const": "G.652.D",
+            "default": "G.652.D",
+            "title": "Fibre Category",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [
+              "envelope bounds are not a nominal or measured product dispersion curve",
+              "dispersion-envelope evaluation alone is not complete G.652.D conformance",
+              "excludes longitudinal variation, statistical link design, and multi-section accumulation",
+              "does not calculate pulse broadening or group delay"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "linear_maximum_intercept_ps_per_nm_km": {
+            "default": 12.472,
+            "title": "Linear Maximum Intercept Ps Per Nm Km",
+            "type": "number"
+          },
+          "linear_maximum_slope_ps_per_nm2_km": {
+            "default": 0.068,
+            "title": "Linear Maximum Slope Ps Per Nm2 Km",
+            "type": "number"
+          },
+          "linear_minimum_intercept_ps_per_nm_km": {
+            "default": 8.625,
+            "title": "Linear Minimum Intercept Ps Per Nm Km",
+            "type": "number"
+          },
+          "linear_minimum_slope_ps_per_nm2_km": {
+            "default": 0.052,
+            "title": "Linear Minimum Slope Ps Per Nm2 Km",
+            "type": "number"
+          },
+          "model_id": {
+            "const": "itu_t_g652d_chromatic_dispersion_envelope",
+            "default": "itu_t_g652d_chromatic_dispersion_envelope",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "standard_edition": {
+            "const": "08/2024",
+            "default": "08/2024",
+            "title": "Standard Edition",
+            "type": "string"
+          },
+          "standard_name": {
+            "const": "ITU-T G.652",
+            "default": "ITU-T G.652",
+            "title": "Standard Name",
+            "type": "string"
+          },
+          "wavelength_max_nm": {
+            "default": 1625.0,
+            "title": "Wavelength Max Nm",
+            "type": "number"
+          },
+          "wavelength_min_nm": {
+            "default": 1260.0,
+            "title": "Wavelength Min Nm",
+            "type": "number"
+          },
+          "wavelength_transition_nm": {
+            "default": 1460.0,
+            "title": "Wavelength Transition Nm",
+            "type": "number"
+          },
+          "zero_dispersion_slope_max_ps_per_nm2_km": {
+            "default": 0.092,
+            "title": "Zero Dispersion Slope Max Ps Per Nm2 Km",
+            "type": "number"
+          },
+          "zero_dispersion_slope_min_ps_per_nm2_km": {
+            "default": 0.073,
+            "title": "Zero Dispersion Slope Min Ps Per Nm2 Km",
+            "type": "number"
+          },
+          "zero_dispersion_wavelength_max_nm": {
+            "default": 1324.0,
+            "title": "Zero Dispersion Wavelength Max Nm",
+            "type": "number"
+          },
+          "zero_dispersion_wavelength_min_nm": {
+            "default": 1300.0,
+            "title": "Zero Dispersion Wavelength Min Nm",
+            "type": "number"
+          }
+        },
+        "title": "G652DDispersionEnvelopeManifest",
+        "type": "object"
+      },
+      "G652DDispersionFitRegion": {
+        "enum": [
+          "three_term_sellmeier",
+          "linear"
+        ],
+        "title": "G652DDispersionFitRegion",
+        "type": "string"
+      },
+      "G652DPreset": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "Table 2 values are represented as standard limits and Appendix I Table I.1 values are separate informative simulation defaults",
+              "the nested dispersion envelope manifest represents the G.652.D chromatic-dispersion boundary equations"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "fibre_category": {
+            "const": "G.652.D",
+            "default": "G.652.D",
+            "title": "Fibre Category",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [
+              "the preset encodes attributes beyond the implemented checks",
+              "mode-field diameter nominal range and tolerance are not a direct measured-value envelope",
+              "the macrobend value is a qualification condition rather than a continuous bend-loss model",
+              "the PMD value is statistical and is not deterministic group delay",
+              "the preset is not a complete G.652.D conformance determination or product guarantee"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/G652DStandardLimits"
+          },
+          "model_id": {
+            "const": "itu_t_g652d_preset",
+            "default": "itu_t_g652d_preset",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "preset_id": {
+            "const": "g652d_2024",
+            "default": "g652d_2024",
+            "title": "Preset Id",
+            "type": "string"
+          },
+          "simulation_defaults": {
+            "$ref": "#/components/schemas/G652DSimulationDefaults"
+          },
+          "source_references": {
+            "default": [
+              "ITU-T G.652 (08/2024), Table 2",
+              "ITU-T G.652 (08/2024), Appendix I, Table I.1"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Source References",
+            "type": "array"
+          },
+          "standard_edition": {
+            "const": "08/2024",
+            "default": "08/2024",
+            "title": "Standard Edition",
+            "type": "string"
+          },
+          "standard_name": {
+            "const": "ITU-T G.652",
+            "default": "ITU-T G.652",
+            "title": "Standard Name",
+            "type": "string"
+          }
+        },
+        "title": "G652DPreset",
+        "type": "object"
+      },
+      "G652DSimulationDefaults": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation_db_per_km": {
+            "default": 0.275,
+            "minimum": 0,
+            "title": "Attenuation Db Per Km",
+            "type": "number"
+          },
+          "default_kind": {
+            "const": "informative_design_example",
+            "default": "informative_design_example",
+            "title": "Default Kind",
+            "type": "string"
+          },
+          "dispersion_ps_per_nm_km": {
+            "default": 17.0,
+            "title": "Dispersion Ps Per Nm Km",
+            "type": "number"
+          },
+          "limitations": {
+            "default": [
+              "these are not normative limits or a product guarantee",
+              "these defaults do not supply core radius, refractive indices, or group index"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "reference_wavelength_nm": {
+            "default": 1550.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Reference Wavelength Nm",
+            "type": "number"
+          },
+          "source_reference": {
+            "const": "ITU-T G.652 (08/2024), Appendix I, Table I.1",
+            "default": "ITU-T G.652 (08/2024), Appendix I, Table I.1",
+            "title": "Source Reference",
+            "type": "string"
+          }
+        },
+        "title": "G652DSimulationDefaults",
+        "type": "object"
+      },
+      "G652DStandardLimits": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation_c_band_max_db_per_km": {
+            "default": 0.3,
+            "minimum": 0,
+            "title": "Attenuation C Band Max Db Per Km",
+            "type": "number"
+          },
+          "attenuation_c_band_max_wavelength_nm": {
+            "default": 1565.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Attenuation C Band Max Wavelength Nm",
+            "type": "number"
+          },
+          "attenuation_c_band_min_wavelength_nm": {
+            "default": 1530.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Attenuation C Band Min Wavelength Nm",
+            "type": "number"
+          },
+          "attenuation_general_max_db_per_km": {
+            "default": 0.4,
+            "minimum": 0,
+            "title": "Attenuation General Max Db Per Km",
+            "type": "number"
+          },
+          "attenuation_general_max_wavelength_nm": {
+            "default": 1625.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Attenuation General Max Wavelength Nm",
+            "type": "number"
+          },
+          "attenuation_general_min_wavelength_nm": {
+            "default": 1310.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Attenuation General Min Wavelength Nm",
+            "type": "number"
+          },
+          "attenuation_hydrogen_aged_center_wavelength_nm": {
+            "default": 1383.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Attenuation Hydrogen Aged Center Wavelength Nm",
+            "type": "number"
+          },
+          "attenuation_hydrogen_aged_max_db_per_km": {
+            "default": 0.4,
+            "minimum": 0,
+            "title": "Attenuation Hydrogen Aged Max Db Per Km",
+            "type": "number"
+          },
+          "attenuation_hydrogen_aged_tolerance_nm": {
+            "default": 3.0,
+            "minimum": 0,
+            "title": "Attenuation Hydrogen Aged Tolerance Nm",
+            "type": "number"
+          },
+          "cable_cutoff_wavelength_max_nm": {
+            "default": 1260.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Cable Cutoff Wavelength Max Nm",
+            "type": "number"
+          },
+          "cladding_diameter_nominal_um": {
+            "default": 125.0,
+            "minimum": 0,
+            "title": "Cladding Diameter Nominal Um",
+            "type": "number"
+          },
+          "cladding_diameter_tolerance_um": {
+            "default": 0.7,
+            "minimum": 0,
+            "title": "Cladding Diameter Tolerance Um",
+            "type": "number"
+          },
+          "cladding_non_circularity_max_percent": {
+            "default": 1.0,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Cladding Non Circularity Max Percent",
+            "type": "number"
+          },
+          "core_concentricity_error_max_um": {
+            "default": 0.6,
+            "minimum": 0,
+            "title": "Core Concentricity Error Max Um",
+            "type": "number"
+          },
+          "dispersion_envelope_manifest": {
+            "$ref": "#/components/schemas/G652DDispersionEnvelopeManifest"
+          },
+          "macrobend_max_loss_db": {
+            "default": 0.1,
+            "minimum": 0,
+            "title": "Macrobend Max Loss Db",
+            "type": "number"
+          },
+          "macrobend_radius_mm": {
+            "default": 30.0,
+            "exclusiveMinimum": 0,
+            "title": "Macrobend Radius Mm",
+            "type": "number"
+          },
+          "macrobend_turns": {
+            "default": 100,
+            "minimum": 1,
+            "title": "Macrobend Turns",
+            "type": "integer"
+          },
+          "macrobend_wavelength_nm": {
+            "default": 1625.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Macrobend Wavelength Nm",
+            "type": "number"
+          },
+          "mode_field_diameter_nominal_max_um": {
+            "default": 9.2,
+            "minimum": 0,
+            "title": "Mode Field Diameter Nominal Max Um",
+            "type": "number"
+          },
+          "mode_field_diameter_nominal_min_um": {
+            "default": 8.6,
+            "minimum": 0,
+            "title": "Mode Field Diameter Nominal Min Um",
+            "type": "number"
+          },
+          "mode_field_diameter_reference_wavelength_nm": {
+            "default": 1310.0,
+            "maximum": 1625.0,
+            "minimum": 1260.0,
+            "title": "Mode Field Diameter Reference Wavelength Nm",
+            "type": "number"
+          },
+          "mode_field_diameter_tolerance_um": {
+            "default": 0.4,
+            "minimum": 0,
+            "title": "Mode Field Diameter Tolerance Um",
+            "type": "number"
+          },
+          "pmd_exceedance_probability_percent": {
+            "default": 0.01,
+            "maximum": 100,
+            "minimum": 0,
+            "title": "Pmd Exceedance Probability Percent",
+            "type": "number"
+          },
+          "pmd_max_ps_per_sqrt_km": {
+            "default": 0.2,
+            "minimum": 0,
+            "title": "Pmd Max Ps Per Sqrt Km",
+            "type": "number"
+          },
+          "pmd_sample_cable_count": {
+            "default": 20,
+            "minimum": 1,
+            "title": "Pmd Sample Cable Count",
+            "type": "integer"
+          },
+          "proof_stress_min_gpa": {
+            "default": 0.69,
+            "minimum": 0,
+            "title": "Proof Stress Min Gpa",
+            "type": "number"
+          },
+          "source_reference": {
+            "const": "ITU-T G.652 (08/2024), Table 2",
+            "default": "ITU-T G.652 (08/2024), Table 2",
+            "title": "Source Reference",
+            "type": "string"
+          }
+        },
+        "title": "G652DStandardLimits",
+        "type": "object"
+      },
+      "GaussianModeProfileManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "scalar, circularly symmetric Gaussian LP01 approximation",
+              "F/F0=exp(-r^2/w^2)"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "not an exact step-index eigenmode solver",
+              "mode_field_radius_um must come from a supplied/independently calculated value rather than being inferred by this contract"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "gaussian_lp01_mode_profile",
+            "default": "gaussian_lp01_mode_profile",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "normalization_convention": {
+            "const": "unit_peak_field_and_intensity",
+            "default": "unit_peak_field_and_intensity",
+            "title": "Normalization Convention",
+            "type": "string"
+          },
+          "radius_convention": {
+            "const": "1/e_field_radius",
+            "default": "1/e_field_radius",
+            "title": "Radius Convention",
+            "type": "string"
+          }
+        },
+        "title": "GaussianModeProfileManifest",
+        "type": "object"
+      },
+      "GaussianModeProfileResult": {
+        "additionalProperties": false,
+        "properties": {
+          "grid_half_width_um": {
+            "exclusiveMinimum": 0,
+            "title": "Grid Half Width Um",
+            "type": "number"
+          },
+          "grid_points": {
+            "maximum": 65,
+            "minimum": 3,
+            "title": "Grid Points",
+            "type": "integer"
+          },
+          "mode_field_radius_um": {
+            "exclusiveMinimum": 0,
+            "title": "Mode Field Radius Um",
+            "type": "number"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/GaussianModeProfileManifest"
+          },
+          "normalized_field": {
+            "items": {
+              "items": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Normalized Field",
+            "type": "array"
+          },
+          "normalized_intensity": {
+            "items": {
+              "items": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Normalized Intensity",
+            "type": "array"
+          },
+          "x_um": {
+            "items": {
+              "type": "number"
+            },
+            "title": "X Um",
+            "type": "array"
+          },
+          "y_um": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Y Um",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode_field_radius_um",
+          "grid_half_width_um",
+          "grid_points",
+          "x_um",
+          "y_um",
+          "normalized_field",
+          "normalized_intensity",
+          "model_manifest"
+        ],
+        "title": "GaussianModeProfileResult",
+        "type": "object"
+      },
+      "GroupDelayManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "constant supplied group index over the fibre section",
+              "deterministic propagation delay for the supplied section",
+              "vacuum speed of light is exact at 299792458 m/s"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "group index is supplied rather than derived from wavelength-dependent effective index",
+              "excludes chromatic pulse broadening and polarization-mode dispersion",
+              "propagation group delay is distinct from differential group delay",
+              "not a G.652 group-delay fit or conformance model"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "constant_group_index_delay",
+            "default": "constant_group_index_delay",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "vacuum_speed_m_per_s": {
+            "default": 299792458.0,
+            "exclusiveMinimum": 0,
+            "title": "Vacuum Speed M Per S",
+            "type": "number"
+          }
+        },
+        "title": "GroupDelayManifest",
+        "type": "object"
+      },
+      "GroupDelayResult": {
+        "additionalProperties": false,
+        "properties": {
+          "group_delay_ps": {
+            "minimum": 0,
+            "title": "Group Delay Ps",
+            "type": "number"
+          },
+          "group_index_dimensionless": {
+            "exclusiveMinimum": 0,
+            "title": "Group Index Dimensionless",
+            "type": "number"
+          },
+          "length_km": {
+            "minimum": 0,
+            "title": "Length Km",
+            "type": "number"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/GroupDelayManifest"
+          }
+        },
+        "required": [
+          "length_km",
+          "group_index_dimensionless",
+          "group_delay_ps",
+          "model_manifest"
+        ],
+        "title": "GroupDelayResult",
         "type": "object"
       },
       "GuidanceModelManifest": {
@@ -548,6 +1716,353 @@
           "CUSTOM"
         ],
         "title": "IndexProfile",
+        "type": "string"
+      },
+      "Level1FibreConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation_db_per_km": {
+            "minimum": 0,
+            "title": "Attenuation Db Per Km",
+            "type": "number"
+          },
+          "cable_application": {
+            "$ref": "#/components/schemas/G652DAttenuationApplication"
+          },
+          "core_radius_um": {
+            "exclusiveMinimum": 0,
+            "title": "Core Radius Um",
+            "type": "number"
+          },
+          "dispersion_ps_per_nm_km": {
+            "title": "Dispersion Ps Per Nm Km",
+            "type": "number"
+          },
+          "group_index_dimensionless": {
+            "exclusiveMinimum": 0,
+            "title": "Group Index Dimensionless",
+            "type": "number"
+          },
+          "mode_field_radius_um": {
+            "exclusiveMinimum": 0,
+            "title": "Mode Field Radius Um",
+            "type": "number"
+          },
+          "n_cladding": {
+            "exclusiveMinimum": 0,
+            "title": "N Cladding",
+            "type": "number"
+          },
+          "n_core": {
+            "exclusiveMinimum": 0,
+            "title": "N Core",
+            "type": "number"
+          }
+        },
+        "required": [
+          "n_core",
+          "n_cladding",
+          "core_radius_um",
+          "mode_field_radius_um",
+          "attenuation_db_per_km",
+          "dispersion_ps_per_nm_km",
+          "group_index_dimensionless",
+          "cable_application"
+        ],
+        "title": "Level1FibreConfig",
+        "type": "object"
+      },
+      "Level1FibrePreset": {
+        "enum": [
+          "custom",
+          "g652d"
+        ],
+        "title": "Level1FibrePreset",
+        "type": "string"
+      },
+      "Level1SamplingConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "grid_half_width_um": {
+            "exclusiveMinimum": 0,
+            "title": "Grid Half Width Um",
+            "type": "number"
+          },
+          "grid_points": {
+            "default": 65,
+            "maximum": 65,
+            "minimum": 3,
+            "title": "Grid Points",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grid_half_width_um"
+        ],
+        "title": "Level1SamplingConfig",
+        "type": "object"
+      },
+      "Level1SectionConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "length_km": {
+            "minimum": 0,
+            "title": "Length Km",
+            "type": "number"
+          }
+        },
+        "required": [
+          "length_km"
+        ],
+        "title": "Level1SectionConfig",
+        "type": "object"
+      },
+      "Level1SimulationManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "one uniform fibre section",
+              "all calculations share one operating wavelength",
+              "fibre composition is uniform over the section"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "component_model_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Component Model Ids",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "excludes bends, splices, and connectors",
+              "excludes polarization-mode dispersion",
+              "excludes optical nonlinearity",
+              "excludes multi-section links",
+              "excludes full-wave field solving"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "level1_single_section_simulation",
+            "default": "level1_single_section_simulation",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component_model_ids"
+        ],
+        "title": "Level1SimulationManifest",
+        "type": "object"
+      },
+      "Level1SimulationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fibre": {
+            "$ref": "#/components/schemas/Level1FibreConfig"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/Level1FibrePreset"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/Level1SamplingConfig"
+          },
+          "section": {
+            "$ref": "#/components/schemas/Level1SectionConfig"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Level1SourceConfig"
+          }
+        },
+        "required": [
+          "preset",
+          "fibre",
+          "source",
+          "section",
+          "sampling"
+        ],
+        "title": "Level1SimulationRequest",
+        "type": "object"
+      },
+      "Level1SimulationResult": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation": {
+            "$ref": "#/components/schemas/ConstantAttenuationResult"
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/Level1SimulationRequest"
+          },
+          "group_delay": {
+            "$ref": "#/components/schemas/GroupDelayResult"
+          },
+          "guidance": {
+            "$ref": "#/components/schemas/GuidanceResult"
+          },
+          "mode_profile": {
+            "$ref": "#/components/schemas/GaussianModeProfileResult"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/Level1SimulationManifest"
+          },
+          "pulse_broadening": {
+            "$ref": "#/components/schemas/ChromaticPulseBroadeningResult"
+          },
+          "standards_checks": {
+            "$ref": "#/components/schemas/Level1StandardsChecks"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/Level1Warning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configuration",
+          "guidance",
+          "mode_profile",
+          "attenuation",
+          "group_delay",
+          "pulse_broadening",
+          "standards_checks",
+          "warnings",
+          "model_manifest"
+        ],
+        "title": "Level1SimulationResult",
+        "type": "object"
+      },
+      "Level1SourceConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "input_power_dbm": {
+            "title": "Input Power Dbm",
+            "type": "number"
+          },
+          "input_pulse_fwhm_ps": {
+            "exclusiveMinimum": 0,
+            "title": "Input Pulse Fwhm Ps",
+            "type": "number"
+          },
+          "spectral_width_fwhm_nm": {
+            "minimum": 0,
+            "title": "Spectral Width Fwhm Nm",
+            "type": "number"
+          },
+          "wavelength_nm": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wavelength_nm",
+          "input_power_dbm",
+          "spectral_width_fwhm_nm",
+          "input_pulse_fwhm_ps"
+        ],
+        "title": "Level1SourceConfig",
+        "type": "object"
+      },
+      "Level1StandardsChecks": {
+        "additionalProperties": false,
+        "properties": {
+          "attenuation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/G652DAttenuationCheckResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dispersion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/G652DDispersionCheckResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preset": {
+            "$ref": "#/components/schemas/Level1FibrePreset"
+          },
+          "preset_definition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/G652DPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "preset",
+          "preset_definition",
+          "dispersion",
+          "attenuation"
+        ],
+        "title": "Level1StandardsChecks",
+        "type": "object"
+      },
+      "Level1Warning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/Level1WarningCode"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "output_field": {
+            "title": "Output Field",
+            "type": "string"
+          },
+          "source_model_id": {
+            "title": "Source Model Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "source_model_id",
+          "message",
+          "output_field"
+        ],
+        "title": "Level1Warning",
+        "type": "object"
+      },
+      "Level1WarningCode": {
+        "enum": [
+          "air_acceptance_angle_unavailable",
+          "mode_count_unavailable",
+          "g652d_attenuation_not_applicable"
+        ],
+        "title": "Level1WarningCode",
         "type": "string"
       },
       "LinkComponent": {
@@ -1482,6 +2997,44 @@
           }
         },
         "summary": "Get Health"
+      }
+    },
+    "/api/v1/simulations/preview": {
+      "post": {
+        "operationId": "preview_level1_simulation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Level1SimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Level1SimulationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Post Simulation Preview"
       }
     }
   }

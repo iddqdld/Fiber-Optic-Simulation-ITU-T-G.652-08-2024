@@ -94,7 +94,11 @@ def test_health_response_model_is_exposed_without_changing_health_payload() -> N
 def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
     paths = main.app.openapi()["paths"]
 
-    assert set(paths) == {"/api/v1/health", "/api/v1/guidance/calculate"}
+    assert set(paths) == {
+        "/api/v1/health",
+        "/api/v1/guidance/calculate",
+        "/api/v1/simulations/preview",
+    }
     guidance_path = paths["/api/v1/guidance/calculate"]
     assert set(guidance_path) == {"post"}
 
@@ -113,6 +117,142 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
         operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
+
+
+def test_level1_preview_path_has_exact_operation_and_response_contracts() -> None:
+    preview_path = main.app.openapi()["paths"]["/api/v1/simulations/preview"]
+
+    assert set(preview_path) == {"post"}
+    operation = preview_path["post"]
+    assert operation["operationId"] == "preview_level1_simulation"
+    assert (
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/Level1SimulationRequest"
+    )
+    assert set(operation["responses"]) == {"200", "422"}
+    assert (
+        operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/Level1SimulationResult"
+    )
+    assert (
+        operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+
+def test_level1_component_schemas_are_closed_and_reference_nested_contracts() -> None:
+    schemas = main.app.openapi()["components"]["schemas"]
+
+    for name in (
+        "Level1SimulationRequest",
+        "Level1FibreConfig",
+        "Level1SourceConfig",
+        "Level1SectionConfig",
+        "Level1SamplingConfig",
+        "Level1SimulationResult",
+        "Level1StandardsChecks",
+        "Level1Warning",
+        "Level1SimulationManifest",
+    ):
+        assert schemas[name]["additionalProperties"] is False
+
+    request = schemas["Level1SimulationRequest"]
+    assert set(request["properties"]) == {
+        "preset",
+        "fibre",
+        "source",
+        "section",
+        "sampling",
+    }
+    assert set(request["required"]) == set(request["properties"])
+    assert request["properties"]["fibre"] == {"$ref": "#/components/schemas/Level1FibreConfig"}
+    assert request["properties"]["source"] == {"$ref": "#/components/schemas/Level1SourceConfig"}
+    assert request["properties"]["section"] == {"$ref": "#/components/schemas/Level1SectionConfig"}
+    assert request["properties"]["sampling"] == {
+        "$ref": "#/components/schemas/Level1SamplingConfig"
+    }
+
+    fibre = schemas["Level1FibreConfig"]
+    assert fibre["properties"]["cable_application"] == {
+        "$ref": "#/components/schemas/G652DAttenuationApplication"
+    }
+    assert schemas["Level1FibrePreset"]["enum"] == ["custom", "g652d"]
+    assert schemas["G652DAttenuationApplication"]["enum"] == [
+        "standard_cable",
+        "short_jumper",
+        "indoor_cable",
+        "drop_cable",
+    ]
+
+    result = schemas["Level1SimulationResult"]
+    assert {
+        field: result["properties"][field]
+        for field in (
+            "configuration",
+            "guidance",
+            "mode_profile",
+            "attenuation",
+            "group_delay",
+            "pulse_broadening",
+            "standards_checks",
+            "model_manifest",
+        )
+    } == {
+        "configuration": {"$ref": "#/components/schemas/Level1SimulationRequest"},
+        "guidance": {"$ref": "#/components/schemas/GuidanceResult"},
+        "mode_profile": {"$ref": "#/components/schemas/GaussianModeProfileResult"},
+        "attenuation": {"$ref": "#/components/schemas/ConstantAttenuationResult"},
+        "group_delay": {"$ref": "#/components/schemas/GroupDelayResult"},
+        "pulse_broadening": {"$ref": "#/components/schemas/ChromaticPulseBroadeningResult"},
+        "standards_checks": {"$ref": "#/components/schemas/Level1StandardsChecks"},
+        "model_manifest": {"$ref": "#/components/schemas/Level1SimulationManifest"},
+    }
+    assert result["properties"]["warnings"] == {
+        "items": {"$ref": "#/components/schemas/Level1Warning"},
+        "title": "Warnings",
+        "type": "array",
+    }
+
+    standards = schemas["Level1StandardsChecks"]
+    for field, reference in (
+        ("preset_definition", "G652DPreset"),
+        ("dispersion", "G652DDispersionCheckResult"),
+        ("attenuation", "G652DAttenuationCheckResult"),
+    ):
+        assert standards["properties"][field]["anyOf"] == [
+            {"$ref": f"#/components/schemas/{reference}"},
+            {"type": "null"},
+        ]
+
+    warning = schemas["Level1Warning"]
+    assert set(warning["properties"]) == {
+        "code",
+        "source_model_id",
+        "message",
+        "output_field",
+    }
+    assert warning["properties"]["code"] == {"$ref": "#/components/schemas/Level1WarningCode"}
+    assert schemas["Level1WarningCode"]["enum"] == [
+        "air_acceptance_angle_unavailable",
+        "mode_count_unavailable",
+        "g652d_attenuation_not_applicable",
+    ]
+
+    manifest = schemas["Level1SimulationManifest"]
+    for field in ("component_model_ids", "assumptions", "limitations"):
+        assert manifest["properties"][field]["type"] == "array"
+        assert manifest["properties"][field]["items"] == {"type": "string"}
+
+    profile = schemas["GaussianModeProfileResult"]
+    assert profile["properties"]["x_um"] == {
+        "items": {"type": "number"},
+        "title": "X Um",
+        "type": "array",
+    }
+    assert profile["properties"]["normalized_intensity"]["items"] == {
+        "items": {"maximum": 1, "minimum": 0, "type": "number"},
+        "type": "array",
+    }
 
 
 def test_guidance_result_components_have_exact_nested_contracts() -> None:

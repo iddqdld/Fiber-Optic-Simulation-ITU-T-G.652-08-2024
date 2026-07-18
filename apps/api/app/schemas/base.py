@@ -14,6 +14,10 @@ PHYSICAL_UNIT_SUFFIXES: tuple[str, ...] = (
     "_deg",
     "_c",
     "_hz",
+    "_mm",
+    "_gpa",
+    "_percent",
+    "_m_per_s",
 )
 
 DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
@@ -22,8 +26,12 @@ DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
     "n_cladding",
     "n_core",
     "section_index",
+    "grid_points",
+    "macrobend_turns",
+    "normalized_field",
     "normalized_intensity",
     "approximate_mode_count",
+    "pmd_sample_cable_count",
 }
 
 
