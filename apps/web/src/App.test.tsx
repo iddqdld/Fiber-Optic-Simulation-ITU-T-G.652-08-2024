@@ -15,6 +15,39 @@ import type {
 } from '../../../packages/shared_schemas/generated/api'
 import App from './App'
 
+type GeometryProps = {
+  coreRadiusUm: number | null
+  sectionLengthKm: number | null
+  rayGuidance: {
+    criticalAngleDeg: number
+    modelId: string
+    modelVersion: string
+  } | null
+}
+
+vi.mock('./FibreGeometryView', () => ({
+  FibreGeometryView: ({
+    coreRadiusUm,
+    sectionLengthKm,
+    rayGuidance,
+  }: GeometryProps) => (
+    <section role="region" aria-label="3D fibre geometry">
+      <p>
+        Core radius: {coreRadiusUm === null ? 'null' : `${coreRadiusUm} µm`}
+      </p>
+      <p>
+        Section length:{' '}
+        {sectionLengthKm === null ? 'null' : `${sectionLengthKm} km`}
+      </p>
+      <p aria-label="Ray guidance" data-testid="ray-guidance">
+        {rayGuidance === null
+          ? 'null'
+          : `${rayGuidance.criticalAngleDeg}° · ${rayGuidance.modelId} · ${rayGuidance.modelVersion}`}
+      </p>
+    </section>
+  ),
+}))
+
 type Level1Request =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
 type Level1Result =
@@ -115,9 +148,9 @@ const modeProfileManifest = {
 const customResult = {
   configuration: initialConfiguration,
   guidance: {
-    critical_angle_deg: 82.5,
+    critical_angle_deg: 85.27298324998428,
     numerical_aperture_dimensionless: 0.12114041439585586,
-    air_acceptance_angle_deg: 6.95,
+    air_acceptance_angle_deg: 6.957923692892281,
     relative_index_difference_dimensionless: 0.0034,
     v_number_dimensionless: 2.0133583577642065,
     mode_regime: 'single_mode',
@@ -651,7 +684,176 @@ describe('Level 1 form', () => {
   })
 })
 
+describe('Fibre geometry integration', () => {
+  test('receives immediate valid and null values without waiting for preview', () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+
+    const geometry = screen.getByRole('region', { name: '3D fibre geometry' })
+    expect(previewCalls(fetchMock)).toHaveLength(0)
+    expect(geometry).toHaveTextContent('Core radius: 4.1 µm')
+    expect(geometry).toHaveTextContent('Section length: 12.5 km')
+
+    fireEvent.change(numberInput(/Core radius/i), {
+      target: { value: '4.6' },
+    })
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '0' },
+    })
+    expect(geometry).toHaveTextContent('Core radius: 4.6 µm')
+    expect(geometry).toHaveTextContent('Section length: 0 km')
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '' } })
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '-1' },
+    })
+    expect(geometry).toHaveTextContent('Core radius: null')
+    expect(geometry).toHaveTextContent('Section length: null')
+  })
+
+  test('does not schedule a preview for invalid geometry-only edits', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialCallCount = previewCalls(fetchMock).length
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '0' } })
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '-1' },
+    })
+    await settleDebounce()
+
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+  })
+})
+
 describe('Level 1 preview state and results', () => {
+  test('keeps ray guidance null until a validated preview is ready', async () => {
+    vi.useFakeTimers()
+    const first = deferred<Response>()
+    mockFetch({ preview: [first.promise] })
+
+    render(<App />)
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+
+    await settleDebounce()
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+
+    await act(async () => {
+      first.resolve(jsonResponse(customResult))
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      '85.27298324998428° · ideal_circular_step_index_guidance · 1.0.0',
+    )
+  })
+
+  test('clears ray guidance immediately on edits and restores only the latest success', async () => {
+    vi.useFakeTimers()
+    const first = deferred<Response>()
+    const second = deferred<Response>()
+    mockFetch({ preview: [first.promise, second.promise] })
+
+    render(<App />)
+    await settleDebounce()
+    await act(async () => {
+      first.resolve(jsonResponse(customResult))
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      '85.27298324998428°',
+    )
+
+    fireEvent.change(numberInput(/Core refractive index/i), {
+      target: { value: '1.48' },
+    })
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+
+    await settleDebounce()
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+
+    await act(async () => {
+      second.resolve(
+        jsonResponse({
+          ...customResult,
+          configuration: {
+            ...customResult.configuration,
+            fibre: { ...customResult.configuration.fibre, n_core: 1.48 },
+          },
+          guidance: {
+            ...customResult.guidance,
+            critical_angle_deg: 81.83568244780919,
+          },
+        }),
+      )
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      '81.83568244780919° · ideal_circular_step_index_guidance · 1.0.0',
+    )
+  })
+
+  test('clears ray guidance for invalid edits without scheduling a request', async () => {
+    vi.useFakeTimers()
+    const first = deferred<Response>()
+    const fetchMock = mockFetch({ preview: [first.promise] })
+
+    render(<App />)
+    await settleDebounce()
+    await act(async () => {
+      first.resolve(jsonResponse(customResult))
+      await Promise.resolve()
+    })
+    const initialCallCount = previewCalls(fetchMock).length
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '0' } })
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+  })
+
+  test('clears ray guidance on preview failure and malformed guidance', async () => {
+    vi.useFakeTimers()
+    const malformedGuidanceResult = {
+      ...customResult,
+      guidance: {
+        ...customResult.guidance,
+        critical_angle_deg: 90,
+      },
+    }
+    const fetchMock = mockFetch({
+      preview: [
+        jsonResponse(customResult),
+        jsonResponse(malformedGuidanceResult),
+        new Error('network failure'),
+      ],
+    })
+
+    render(<App />)
+    await settleDebounce()
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      '85.27298324998428°',
+    )
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.2' } })
+    await settleDebounce()
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
+
+    fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
+    await settleDebounce()
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Unable to reach the preview service.',
+    )
+    expect(previewCalls(fetchMock)).toHaveLength(3)
+  })
+
   test('shows loading and update status while retaining the last successful result', async () => {
     vi.useFakeTimers()
     const first = deferred<Response>()
