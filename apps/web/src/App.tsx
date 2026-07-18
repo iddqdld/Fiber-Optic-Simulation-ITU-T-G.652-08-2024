@@ -11,6 +11,7 @@ import {
   type NumericFormField,
   type Preset,
 } from './Level1Form'
+import { FibreGeometryView, type RayGuidance } from './FibreGeometryView'
 import { Level1Preview } from './Level1Preview'
 
 type PreviewRequest =
@@ -23,7 +24,6 @@ type PreviewWarning = PreviewResult['warnings'][number]
 type StandardsChecks = PreviewResult['standards_checks']
 type AttenuationCheck = NonNullable<StandardsChecks['attenuation']>
 type DispersionCheck = NonNullable<StandardsChecks['dispersion']>
-
 const initialFormValues: FormValues = {
   preset: 'custom',
   n_core: '1.47',
@@ -66,6 +66,20 @@ function parseFinite(value: string): number | null {
 
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function getGeometryValues(values: FormValues): {
+  coreRadiusUm: number | null
+  sectionLengthKm: number | null
+} {
+  const coreRadius = parseFinite(values.core_radius_um)
+  const sectionLength = parseFinite(values.length_km)
+
+  return {
+    coreRadiusUm: coreRadius !== null && coreRadius > 0 ? coreRadius : null,
+    sectionLengthKm:
+      sectionLength !== null && sectionLength >= 0 ? sectionLength : null,
+  }
 }
 
 function parseFormValues(values: FormValues): {
@@ -224,12 +238,28 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     return false
   }
 
+  if (!isRecord(value.guidance)) {
+    return false
+  }
+
+  const guidance = value.guidance
+
+  if (
+    !isFiniteNumber(guidance.critical_angle_deg) ||
+    guidance.critical_angle_deg <= 0 ||
+    guidance.critical_angle_deg >= 90 ||
+    !isRecord(guidance.model_manifest) ||
+    guidance.model_manifest.model_id !== 'ideal_circular_step_index_guidance' ||
+    guidance.model_manifest.model_version !== '1.0.0'
+  ) {
+    return false
+  }
+
   return (
-    isRecord(value.guidance) &&
-    (value.guidance.mode_regime === 'single_mode' ||
-      value.guidance.mode_regime === 'multimode') &&
-    isFiniteNumber(value.guidance.v_number_dimensionless) &&
-    isFiniteNumber(value.guidance.numerical_aperture_dimensionless) &&
+    (guidance.mode_regime === 'single_mode' ||
+      guidance.mode_regime === 'multimode') &&
+    isFiniteNumber(guidance.v_number_dimensionless) &&
+    isFiniteNumber(guidance.numerical_aperture_dimensionless) &&
     isRecord(value.attenuation) &&
     isFiniteNumber(value.attenuation.section_loss_db) &&
     isFiniteNumber(value.attenuation.output_power_dbm) &&
@@ -252,10 +282,12 @@ function App() {
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
   const [result, setResult] = useState<PreviewResult | null>(null)
+  const [rayGuidance, setRayGuidance] = useState<RayGuidance | null>(null)
   const [serviceError, setServiceError] = useState<string | null>(null)
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
+  const geometryValues = getGeometryValues(formValues)
   const error = formValidation.error ?? serviceError
 
   useEffect(() => {
@@ -299,6 +331,7 @@ function App() {
 
     const request = parsed.request
     const timer = window.setTimeout(() => {
+      setRayGuidance(null)
       const fetchPreview = async () => {
         setPreviewStatus(
           resultRef.current === null ? 'Loading preview…' : 'Updating preview…',
@@ -323,12 +356,14 @@ function App() {
           }
 
           if (!response.ok) {
+            setRayGuidance(null)
             setServiceError(getErrorMessage(body) ?? PREVIEW_FAILED)
             setPreviewStatus('Preview unavailable.')
             return
           }
 
           if (!isPreviewResult(body)) {
+            setRayGuidance(null)
             setServiceError(PREVIEW_FAILED)
             setPreviewStatus('Preview unavailable.')
             return
@@ -336,6 +371,11 @@ function App() {
 
           resultRef.current = body
           setResult(body)
+          setRayGuidance({
+            criticalAngleDeg: body.guidance.critical_angle_deg,
+            modelId: body.guidance.model_manifest.model_id,
+            modelVersion: body.guidance.model_manifest.model_version,
+          })
           setServiceError(null)
           setPreviewStatus('Preview ready')
         } catch {
@@ -346,6 +386,7 @@ function App() {
             return
           }
 
+          setRayGuidance(null)
           setServiceError(PREVIEW_UNREACHABLE)
           setPreviewStatus('Preview unavailable.')
         }
@@ -361,12 +402,14 @@ function App() {
   }, [formValues])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
+    setRayGuidance(null)
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => ({ ...current, [field]: value }))
   }
 
   const updatePreset = (preset: Preset) => {
+    setRayGuidance(null)
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => {
@@ -385,6 +428,7 @@ function App() {
   }
 
   const updateCableApplication = (value: CableApplication) => {
+    setRayGuidance(null)
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => ({ ...current, cable_application: value }))
@@ -411,7 +455,14 @@ function App() {
         onPresetChange={updatePreset}
         onCableApplicationChange={updateCableApplication}
       />
-      {result && <Level1Preview result={result} />}
+      <div className="preview-column">
+        <FibreGeometryView
+          coreRadiusUm={geometryValues.coreRadiusUm}
+          sectionLengthKm={geometryValues.sectionLengthKm}
+          rayGuidance={rayGuidance}
+        />
+        {result && <Level1Preview result={result} />}
+      </div>
     </main>
   )
 }

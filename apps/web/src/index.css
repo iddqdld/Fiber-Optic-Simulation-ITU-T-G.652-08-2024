@@ -89,6 +89,7 @@ p {
 }
 
 .calculator-card,
+.geometry-card,
 .results-card {
   min-width: 0;
   padding: clamp(1.1rem, 2.5vw, 1.75rem);
@@ -99,12 +100,15 @@ p {
 }
 
 main > .calculator-card,
-main > .results-card {
+main > .preview-column {
   grid-column: span 6;
 }
 
-.results-card {
-  margin-top: 0;
+.preview-column {
+  display: grid;
+  align-content: start;
+  gap: 1.25rem;
+  min-width: 0;
 }
 
 form {
@@ -179,6 +183,179 @@ input:focus-visible,
 select:focus-visible {
   outline: 3px solid #72b7dc;
   outline-offset: 2px;
+}
+
+.geometry-card h2 {
+  margin-bottom: 0.65rem;
+}
+
+.geometry-viewport {
+  position: relative;
+  min-height: 18rem;
+  height: clamp(18rem, 34vw, 25rem);
+  overflow: hidden;
+  background: #f4f7f9;
+  border: 1px solid #d3dce3;
+  border-radius: 0.5rem;
+}
+
+.geometry-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.geometry-controls {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.geometry-controls input[type='range'],
+.ray-controls input[type='range'] {
+  min-height: 2rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.geometry-controls output,
+.ray-controls output {
+  color: #102a43;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.geometry-controls p,
+.ray-controls p {
+  margin-bottom: 0;
+  color: #526575;
+  font-size: 0.9rem;
+}
+
+.geometry-layer-control,
+.ray-controls {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.geometry-layer-control input[type='checkbox'] {
+  width: 1.1rem;
+  min-height: 1.1rem;
+  accent-color: #356b8d;
+}
+
+.geometry-layer-control label {
+  flex-direction: row;
+  align-items: center;
+}
+
+.ray-boundary-button {
+  width: fit-content;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.7rem;
+  color: #24445d;
+  font: inherit;
+  font-weight: 700;
+  background: #eef4f7;
+  border: 1px solid #9bb6c5;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.ray-boundary-button:hover:not(:disabled) {
+  border-color: #476b83;
+}
+
+.ray-boundary-button:focus-visible {
+  outline: 3px solid #72b7dc;
+  outline-offset: 2px;
+}
+
+.ray-boundary-button:disabled {
+  color: #71808d;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.ray-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.ray-facts > div {
+  min-width: 0;
+  padding: 0.8rem;
+  background: #f4f7f9;
+  border: 1px solid #e0e7ec;
+  border-radius: 0.4rem;
+}
+
+.ray-status {
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.8rem;
+  color: #24445d;
+  font-weight: 700;
+  background: #eef4f7;
+  border: 1px solid #b8cdd8;
+  border-radius: 0.4rem;
+}
+
+.ray-status[data-state='total_internal_reflection'] {
+  color: #205847;
+  background: #edf7f2;
+  border-color: #a7d1bc;
+}
+
+.ray-status[data-state='critical_boundary'] {
+  color: #694f16;
+  background: #fff8e5;
+  border-color: #e4c46f;
+}
+
+.ray-status[data-state='transmission'] {
+  color: #244b72;
+  background: #eef5fc;
+  border-color: #b6cee5;
+}
+
+.ray-status[data-state='unavailable'] {
+  color: #526575;
+  background: #f4f7f9;
+  border-color: #d3dce3;
+}
+
+.ray-explanation {
+  margin: 0.8rem 0 0;
+  color: #526575;
+}
+
+.ray-model {
+  overflow-wrap: anywhere;
+}
+
+.geometry-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.geometry-facts > div {
+  min-width: 0;
+  padding: 0.8rem;
+  background: #f4f7f9;
+  border: 1px solid #e0e7ec;
+  border-radius: 0.4rem;
+}
+
+.geometry-note {
+  margin: 1rem 0 0;
+  color: #526575;
 }
 
 .error-message,
@@ -272,7 +449,7 @@ dd {
   }
 
   main > .calculator-card,
-  main > .results-card {
+  main > .preview-column {
     grid-column: 1 / -1;
   }
 }
@@ -284,6 +461,7 @@ dd {
   }
 
   .calculator-card,
+  .geometry-card,
   .results-card {
     padding: 1rem;
   }
@@ -293,9 +471,15 @@ dd {
   }
 
   .form-grid,
+  .geometry-facts,
+  .ray-facts,
   .results-grid,
   .model-details {
     grid-template-columns: 1fr;
+  }
+
+  .geometry-viewport {
+    height: clamp(16rem, 65vw, 22rem);
   }
 }
 
