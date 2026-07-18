@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from fibre_sim.guidance import GuidanceRequest, v_number
+from fibre_sim.guidance import GuidanceRequest, numerical_aperture, v_number
 
 
 def make_request(
@@ -61,3 +61,30 @@ def test_v_number_is_positive_and_deterministic_for_a_valid_request() -> None:
 
     assert first > 0.0
     assert second == first
+
+
+def test_v_number_handles_equal_subnormal_radius_and_wavelength() -> None:
+    subnormal = math.nextafter(0.0, math.inf)
+    request = make_request(1.5, 1.4, core_radius_um=subnormal, wavelength_nm=subnormal)
+
+    result = v_number(request)
+    expected = 2.0 * math.pi * 1_000.0 * numerical_aperture(request)
+
+    assert math.isfinite(result)
+    assert result == pytest.approx(expected, rel=1e-15, abs=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("core_radius_um", "wavelength_nm", "scale"),
+    [
+        (4.1, 1550.0, 3.5),
+        (math.nextafter(0.0, math.inf), math.nextafter(0.0, math.inf), 2.0),
+    ],
+)
+def test_v_number_is_invariant_under_common_radius_and_wavelength_scaling(
+    core_radius_um: float, wavelength_nm: float, scale: float
+) -> None:
+    baseline = make_request(1.5, 1.4, core_radius_um, wavelength_nm)
+    scaled = make_request(1.5, 1.4, core_radius_um * scale, wavelength_nm * scale)
+
+    assert v_number(scaled) == pytest.approx(v_number(baseline), rel=1e-14, abs=1e-12)
