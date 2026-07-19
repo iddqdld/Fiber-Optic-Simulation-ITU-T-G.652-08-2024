@@ -1,5 +1,6 @@
 import json
 import math
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -29,6 +30,8 @@ def valid_result_values() -> dict[str, object]:
         "input_power_dbm": -3.0,
         "section_loss_db": 2.5,
         "output_power_dbm": -5.5,
+        "distance_samples_km": (0.0, 6.25, 12.5),
+        "power_samples_dbm": (-3.0, -4.25, -5.5),
         "model_manifest": ConstantAttenuationManifest(),
     }
 
@@ -36,6 +39,32 @@ def valid_result_values() -> dict[str, object]:
 def make_result(**overrides: object) -> ConstantAttenuationResult:
     values = valid_result_values()
     values.update(overrides)
+    if "distance_samples_km" not in overrides and "length_km" in overrides:
+        length_km = cast(float, values["length_km"])
+        values["distance_samples_km"] = (0.0,) if length_km == 0.0 else (0.0, length_km)
+    if "power_samples_dbm" not in overrides and {
+        "input_power_dbm",
+        "output_power_dbm",
+        "length_km",
+    }.intersection(overrides):
+        input_power_dbm = cast(float, values["input_power_dbm"])
+        output_power_dbm = cast(float, values["output_power_dbm"])
+        sample_count = (
+            1 if cast(float, values["length_km"]) == 0.0 else 2 if "length_km" in overrides else 3
+        )
+        values["power_samples_dbm"] = (
+            (input_power_dbm,)
+            if sample_count == 1
+            else tuple(
+                input_power_dbm
+                if index == 0
+                else output_power_dbm
+                if index == sample_count - 1
+                else input_power_dbm
+                + (output_power_dbm - input_power_dbm) * (index / (sample_count - 1))
+                for index in range(sample_count)
+            )
+        )
     return ConstantAttenuationResult.model_validate(values)
 
 
@@ -92,6 +121,21 @@ def test_manifest_serializes_deterministically_as_json_arrays() -> None:
     assert json.loads(first.model_dump_json()) == payload
 
 
+def test_result_coerces_sample_collections_to_immutable_tuples() -> None:
+    result = make_result(
+        distance_samples_km=[0.0, 12.5],
+        power_samples_dbm=[-3.0, -5.5],
+    )
+
+    assert isinstance(result.distance_samples_km, tuple)
+    assert isinstance(result.power_samples_dbm, tuple)
+    append_method = "append"
+    with pytest.raises(AttributeError):
+        getattr(result.distance_samples_km, append_method)(13.0)
+    with pytest.raises(AttributeError):
+        getattr(result.power_samples_dbm, append_method)(-6.0)
+
+
 def test_result_has_exact_fields_and_accepts_normal_values() -> None:
     result = make_result()
 
@@ -101,6 +145,8 @@ def test_result_has_exact_fields_and_accepts_normal_values() -> None:
         "input_power_dbm",
         "section_loss_db",
         "output_power_dbm",
+        "distance_samples_km",
+        "power_samples_dbm",
         "model_manifest",
     ]
     assert result.length_km == 12.5
@@ -108,6 +154,8 @@ def test_result_has_exact_fields_and_accepts_normal_values() -> None:
     assert result.input_power_dbm == -3.0
     assert result.section_loss_db == 2.5
     assert result.output_power_dbm == -5.5
+    assert result.distance_samples_km == (0.0, 6.25, 12.5)
+    assert result.power_samples_dbm == (-3.0, -4.25, -5.5)
     assert result.model_manifest == ConstantAttenuationManifest()
 
 
@@ -231,6 +279,56 @@ def test_result_accepts_output_below_input_power() -> None:
     assert result.output_power_dbm < result.input_power_dbm
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "error_type"),
+    [
+        ("distance_samples_km", (0.0,), "sample_series_length_mismatch"),
+        ("distance_samples_km", (0.0, 13.0, 12.5), "sample_distance_out_of_bounds"),
+        ("distance_samples_km", (0.0, 0.0, 12.5), "sample_distances_not_strictly_increasing"),
+        ("distance_samples_km", (1.0, 6.25, 12.5), "sample_distance_start_mismatch"),
+        ("distance_samples_km", (0.0, 6.25, 12.0), "sample_distance_end_mismatch"),
+        ("power_samples_dbm", (-3.0,), "sample_series_length_mismatch"),
+        ("power_samples_dbm", (-3.0, -5.5), "sample_series_length_mismatch"),
+        ("power_samples_dbm", (-2.0, -4.0, -5.5), "sample_power_start_mismatch"),
+        ("power_samples_dbm", (-3.0, -5.0, -5.0), "sample_power_end_mismatch"),
+        ("power_samples_dbm", (-3.0, -6.0, -5.5), "sample_power_increases"),
+    ],
+)
+def test_result_rejects_invalid_sample_series(
+    field: str, value: tuple[float, ...], error_type: str
+) -> None:
+    values = valid_result_values()
+    values[field] = value
+    with pytest.raises(ValidationError) as exc_info:
+        ConstantAttenuationResult.model_validate(values)
+
+    assert exc_info.value.errors()[0]["type"] == error_type
+
+
+def test_result_rejects_non_finite_sample_values() -> None:
+    invalid_values = {
+        "distance_samples_km": (0.0, math.nan, 12.5),
+        "power_samples_dbm": (-3.0, math.nan, -5.5),
+    }
+    for field, value in invalid_values.items():
+        with pytest.raises(ValidationError) as exc_info:
+            make_result(**{field: value})
+
+        assert exc_info.value.errors()[0]["type"] == "finite_number"
+
+
+def test_result_requires_single_input_sample_for_zero_length() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        make_result(
+            length_km=0.0,
+            output_power_dbm=-3.0,
+            distance_samples_km=(0.0, 0.0),
+            power_samples_dbm=(-3.0, -3.0),
+        )
+
+    assert exc_info.value.errors()[0]["type"] == "zero_length_sample_series_invalid"
+
+
 def test_result_does_not_cross_enforce_attenuation_or_power_balance_formulas() -> None:
     result = make_result(
         length_km=4.0,
@@ -254,6 +352,8 @@ def test_result_json_schema_is_explicit_and_references_manifest() -> None:
         "input_power_dbm",
         "section_loss_db",
         "output_power_dbm",
+        "distance_samples_km",
+        "power_samples_dbm",
         "model_manifest",
     ]
     assert schema["required"] == [
@@ -262,6 +362,8 @@ def test_result_json_schema_is_explicit_and_references_manifest() -> None:
         "input_power_dbm",
         "section_loss_db",
         "output_power_dbm",
+        "distance_samples_km",
+        "power_samples_dbm",
         "model_manifest",
     ]
     assert schema["additionalProperties"] is False
@@ -279,6 +381,11 @@ def test_result_json_schema_is_explicit_and_references_manifest() -> None:
         assert schema["properties"][field]["minimum"] == 0
     for field in ("input_power_dbm", "output_power_dbm"):
         assert "minimum" not in schema["properties"][field]
+
+    for field in ("distance_samples_km", "power_samples_dbm"):
+        assert schema["properties"][field]["items"] == {"type": "number"}
+        assert schema["properties"][field]["minItems"] == 1
+        assert schema["properties"][field]["maxItems"] == 65
 
     assert schema["properties"]["model_manifest"]["$ref"] == ("#/$defs/ConstantAttenuationManifest")
 

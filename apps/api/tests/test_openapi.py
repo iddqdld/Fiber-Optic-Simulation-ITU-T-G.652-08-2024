@@ -37,6 +37,30 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
     assert "value" not in schemas["SimulationResult"]["properties"]
 
 
+def test_constant_attenuation_result_publishes_bounded_power_samples() -> None:
+    result = main.app.openapi()["components"]["schemas"]["ConstantAttenuationResult"]
+
+    assert result["properties"]["distance_samples_km"] == {
+        "items": {"type": "number"},
+        "maxItems": 65,
+        "minItems": 1,
+        "title": "Distance Samples Km",
+        "type": "array",
+    }
+    assert result["properties"]["power_samples_dbm"] == {
+        "items": {"type": "number"},
+        "maxItems": 65,
+        "minItems": 1,
+        "title": "Power Samples Dbm",
+        "type": "array",
+    }
+    assert result["required"][-3:] == [
+        "distance_samples_km",
+        "power_samples_dbm",
+        "model_manifest",
+    ]
+
+
 def test_guidance_request_schema_has_exact_required_positive_fields() -> None:
     guidance_schema = main.app.openapi()["components"]["schemas"]["GuidanceRequest"]
 

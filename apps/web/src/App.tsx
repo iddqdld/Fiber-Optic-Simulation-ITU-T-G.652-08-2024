@@ -19,6 +19,11 @@ import {
 } from './FibreGeometryView'
 import { Level1Preview } from './Level1Preview'
 import { RadialIntensityPlot } from './RadialIntensityPlot'
+import { PowerDistancePlot } from './PowerDistancePlot'
+import {
+  isValidPowerDistanceData,
+  type PowerDistanceData,
+} from './powerDistancePlot'
 
 type PreviewRequest =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
@@ -346,6 +351,26 @@ function isPulseBroadeningResult(
   )
 }
 
+function isAttenuationResult(
+  value: unknown,
+): value is PreviewResult['attenuation'] {
+  if (!isRecord(value) || !isRecord(value.model_manifest)) {
+    return false
+  }
+
+  return isValidPowerDistanceData({
+    lengthKm: value.length_km,
+    attenuationDbPerKm: value.attenuation_db_per_km,
+    inputPowerDbm: value.input_power_dbm,
+    sectionLossDb: value.section_loss_db,
+    outputPowerDbm: value.output_power_dbm,
+    distanceSamplesKm: value.distance_samples_km,
+    powerSamplesDbm: value.power_samples_dbm,
+    modelId: value.model_manifest.model_id,
+    modelVersion: value.model_manifest.model_version,
+  })
+}
+
 function isPreviewResult(value: unknown): value is PreviewResult {
   if (!isRecord(value)) {
     return false
@@ -371,6 +396,8 @@ function isPreviewResult(value: unknown): value is PreviewResult {
   if (
     !isGroupDelayResult(value.group_delay) ||
     !isPulseBroadeningResult(value.pulse_broadening) ||
+    !isAttenuationResult(value.attenuation) ||
+    value.attenuation.length_km !== value.group_delay.length_km ||
     value.group_delay.length_km !== value.pulse_broadening.length_km
   ) {
     return false
@@ -381,9 +408,6 @@ function isPreviewResult(value: unknown): value is PreviewResult {
       guidance.mode_regime === 'multimode') &&
     isFiniteNumber(guidance.v_number_dimensionless) &&
     isFiniteNumber(guidance.numerical_aperture_dimensionless) &&
-    isRecord(value.attenuation) &&
-    isFiniteNumber(value.attenuation.section_loss_db) &&
-    isFiniteNumber(value.attenuation.output_power_dbm) &&
     isModeProfileResult(value.mode_profile) &&
     isRecord(value.model_manifest) &&
     value.model_manifest.model_id === 'level1_single_section_simulation' &&
@@ -392,6 +416,22 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     value.warnings.every(isPreviewWarning) &&
     isPreviewStandardsChecks(value.standards_checks)
   )
+}
+
+function toPowerDistanceData(
+  value: PreviewResult['attenuation'],
+): PowerDistanceData {
+  return {
+    lengthKm: value.length_km,
+    attenuationDbPerKm: value.attenuation_db_per_km,
+    inputPowerDbm: value.input_power_dbm,
+    sectionLossDb: value.section_loss_db,
+    outputPowerDbm: value.output_power_dbm,
+    distanceSamplesKm: value.distance_samples_km,
+    powerSamplesDbm: value.power_samples_dbm,
+    modelId: value.model_manifest.model_id,
+    modelVersion: value.model_manifest.model_version,
+  }
 }
 
 function toModeProfileData(value: ModeProfileResult): ModeProfileData {
@@ -429,6 +469,7 @@ type VisualizationData = {
   rayGuidance: RayGuidance
   modeProfile: ModeProfileData
   pulseAnimation: PulseAnimationData
+  attenuation: PowerDistanceData
 }
 
 function App() {
@@ -492,6 +533,7 @@ function App() {
     const request = parsed.request
     const timer = window.setTimeout(() => {
       const fetchPreview = async () => {
+        setVisualizationData(null)
         setPreviewStatus(
           resultRef.current === null ? 'Loading preview…' : 'Updating preview…',
         )
@@ -538,6 +580,7 @@ function App() {
             },
             modeProfile: toModeProfileData(body.mode_profile),
             pulseAnimation: toPulseAnimationData(body),
+            attenuation: toPowerDistanceData(body.attenuation),
           })
           setServiceError(null)
           setPreviewStatus('Preview ready')
@@ -631,6 +674,7 @@ function App() {
       <RadialIntensityPlot
         modeProfile={visualizationData?.modeProfile ?? null}
       />
+      <PowerDistancePlot attenuation={visualizationData?.attenuation ?? null} />
     </main>
   )
 }

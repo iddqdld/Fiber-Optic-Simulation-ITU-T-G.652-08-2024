@@ -73,6 +73,11 @@ def test_normal_analytical_vector_returns_exact_result_and_manifest() -> None:
         input_power_dbm=-3.0,
         section_loss_db=2.5,
         output_power_dbm=-5.5,
+        distance_samples_km=tuple(12.5 * (index / 64) for index in range(65)),
+        power_samples_dbm=tuple(
+            -3.0 if index == 0 else -5.5 if index == 64 else -3.0 - 0.2 * (12.5 * (index / 64))
+            for index in range(65)
+        ),
         model_manifest=ConstantAttenuationManifest(),
     )
     assert type(result.model_manifest) is ConstantAttenuationManifest
@@ -102,6 +107,12 @@ def test_zero_length_or_coefficient_preserves_input_and_has_positive_zero_loss(
     assert result.input_power_dbm == request.input_power_dbm
     assert_positive_zero(result.section_loss_db)
     assert result.output_power_dbm == request.input_power_dbm
+    if request.length_km == 0.0:
+        assert result.distance_samples_km == (0.0,)
+        assert result.power_samples_dbm == (request.input_power_dbm,)
+    else:
+        assert len(result.distance_samples_km) == 65
+        assert len(result.power_samples_dbm) == 65
 
 
 @pytest.mark.parametrize("input_power_dbm", [7.5, 0.0, -7.5])
@@ -135,6 +146,43 @@ def test_nonzero_reference_vectors_match_analytical_values(
 
     assert result.section_loss_db == pytest.approx(loss, rel=1e-14, abs=1e-15)
     assert result.output_power_dbm == pytest.approx(output, rel=1e-14, abs=1e-15)
+
+
+def test_positive_length_returns_evenly_parameterized_finite_samples() -> None:
+    result = calculate_constant_attenuation(make_request(12.5, 0.2, -3.0))
+
+    assert len(result.distance_samples_km) == 65
+    assert result.distance_samples_km[0] == 0.0
+    assert result.distance_samples_km[-1] == result.length_km
+    assert all(
+        previous < current
+        for previous, current in zip(
+            result.distance_samples_km, result.distance_samples_km[1:], strict=False
+        )
+    )
+    assert result.power_samples_dbm[0] == result.input_power_dbm
+    assert result.power_samples_dbm[-1] == result.output_power_dbm
+    assert all(
+        previous >= current
+        for previous, current in zip(
+            result.power_samples_dbm, result.power_samples_dbm[1:], strict=False
+        )
+    )
+    assert all(math.isfinite(value) for value in result.distance_samples_km)
+    assert all(math.isfinite(value) for value in result.power_samples_dbm)
+    for distance_km, power_dbm in zip(
+        result.distance_samples_km[1:-1], result.power_samples_dbm[1:-1], strict=True
+    ):
+        assert power_dbm == -3.0 - (0.2 * distance_km)
+
+
+def test_positive_subnormal_length_deduplicates_distance_candidates() -> None:
+    length_km = math.nextafter(0.0, 1.0)
+
+    result = calculate_constant_attenuation(make_request(length_km, 0.5, -3.25))
+
+    assert result.distance_samples_km == (0.0, length_km)
+    assert result.power_samples_dbm == (-3.25, -3.25)
 
 
 def test_loss_is_additive_in_db_and_sequential_sections_match_full_section() -> None:

@@ -16,6 +16,7 @@ import type {
 import App from './App'
 import type { ModeProfileData } from './FibreGeometryView'
 import type { PulseAnimationData } from './FibreGeometryView'
+import type { PowerDistanceData } from './powerDistancePlot'
 
 type GeometryProps = {
   coreRadiusUm: number | null
@@ -94,6 +95,24 @@ vi.mock('./RadialIntensityPlot', () => ({
       {modeProfile === null
         ? 'null'
         : `Grid: ${modeProfile.gridPoints} x ${modeProfile.gridPoints} · Endpoints: x ${modeProfile.xUm[0]}..${modeProfile.xUm.at(-1)} µm, y ${modeProfile.yUm[0]}..${modeProfile.yUm.at(-1)} µm · Center intensity: ${modeProfile.normalizedIntensity[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Radius: ${modeProfile.modeFieldRadiusUm} µm · Model: ${modeProfile.modelId} ${modeProfile.modelVersion} · Normalization: ${modeProfile.normalizationConvention} · Radius convention: ${modeProfile.radiusConvention}`}
+    </section>
+  ),
+}))
+
+type PowerDistancePlotProps = {
+  attenuation: PowerDistanceData | null
+}
+
+vi.mock('./PowerDistancePlot', () => ({
+  PowerDistancePlot: ({ attenuation }: PowerDistancePlotProps) => (
+    <section
+      role="region"
+      aria-label="Power versus distance"
+      data-testid="power-distance-plot"
+    >
+      {attenuation === null
+        ? 'null'
+        : `Length: ${attenuation.lengthKm} km · Coefficient: ${attenuation.attenuationDbPerKm} dB/km · Input: ${attenuation.inputPowerDbm} dBm · Loss: ${attenuation.sectionLossDb} dB · Output: ${attenuation.outputPowerDbm} dBm · Distances: ${attenuation.distanceSamplesKm.join(',')} · Powers: ${attenuation.powerSamplesDbm.join(',')} · Model: ${attenuation.modelId} ${attenuation.modelVersion}`}
     </section>
   ),
 }))
@@ -252,8 +271,10 @@ const customResult = {
   },
   attenuation: {
     attenuation_db_per_km: 0.2,
+    distance_samples_km: [0, 3, 6.5, 12.5],
     input_power_dbm: -3,
     length_km: 12.5,
+    power_samples_dbm: [-3, -3.6, -4.3, -5.5],
     section_loss_db: 2.5,
     output_power_dbm: -5.5,
     model_manifest: attenuationManifest,
@@ -295,6 +316,14 @@ const customResult = {
 
 const zeroLengthResult = {
   ...customResult,
+  attenuation: {
+    ...customResult.attenuation,
+    length_km: 0,
+    section_loss_db: 0,
+    output_power_dbm: -3,
+    distance_samples_km: [0],
+    power_samples_dbm: [-3],
+  },
   group_delay: {
     ...customResult.group_delay,
     group_delay_ps: 0,
@@ -487,6 +516,10 @@ function modeProfileOutput() {
 
 function radialIntensityPlotOutput() {
   return screen.getByTestId('radial-intensity-plot')
+}
+
+function powerDistancePlotOutput() {
+  return screen.getByTestId('power-distance-plot')
 }
 
 function pulseAnimationOutput() {
@@ -845,12 +878,14 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(powerDistancePlotOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(powerDistancePlotOutput()).toHaveTextContent('null')
 
     await act(async () => {
       first.resolve(jsonResponse(customResult))
@@ -874,11 +909,25 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent(
       'Radius convention: 1/e_field_radius',
     )
+    expect(powerDistancePlotOutput()).toHaveTextContent('Length: 12.5 km')
+    expect(powerDistancePlotOutput()).toHaveTextContent(
+      'Coefficient: 0.2 dB/km',
+    )
+    expect(powerDistancePlotOutput()).toHaveTextContent(
+      'Distances: 0,3,6.5,12.5',
+    )
+    expect(powerDistancePlotOutput()).toHaveTextContent(
+      'Powers: -3,-3.6,-4.3,-5.5',
+    )
+    expect(powerDistancePlotOutput()).toHaveTextContent(
+      'Model: constant_fibre_attenuation 1.0.0',
+    )
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Broadening: 42.5 ps')
     expect(pulseAnimationOutput()).toHaveTextContent(
       'Output pulse: 49.30770730829005 ps',
     )
+    expect(powerDistancePlotOutput()).toHaveTextContent('Output: -5.5 dBm')
     expect(pulseAnimationOutput()).toHaveTextContent('Length: 12.5 km')
     expect(pulseAnimationOutput()).toHaveTextContent(
       'Group delay: 61209011.468860894 ps',
@@ -964,12 +1013,14 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(powerDistancePlotOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(powerDistancePlotOutput()).toHaveTextContent('null')
 
     await act(async () => {
       second.resolve(
@@ -1016,6 +1067,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(powerDistancePlotOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
@@ -1093,6 +1145,9 @@ describe('Level 1 preview state and results', () => {
     expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 25 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Length: 0 km')
     expect(pulseAnimationOutput()).toHaveTextContent('Group delay: 0 ps')
+    expect(powerDistancePlotOutput()).toHaveTextContent('Length: 0 km')
+    expect(powerDistancePlotOutput()).toHaveTextContent('Distances: 0')
+    expect(powerDistancePlotOutput()).toHaveTextContent('Powers: -3')
   })
 
   const malformedModeProfiles: Array<[string, unknown]> = [
@@ -1226,10 +1281,196 @@ describe('Level 1 preview state and results', () => {
       expect(radialIntensityPlotOutput()).toHaveTextContent('null')
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
       expect(pulseAnimationOutput()).toHaveTextContent('null')
+      expect(powerDistancePlotOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(
         screen.getByRole('region', { name: 'Level 1 preview' }),
       ).toBeVisible()
+      expect(previewCalls(fetchMock)).toHaveLength(2)
+    },
+  )
+
+  const malformedAttenuationResults: Array<[string, unknown]> = [
+    [
+      'a nonfinite attenuation coefficient',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          attenuation_db_per_km: Number.NaN,
+        },
+      },
+    ],
+    [
+      'a negative attenuation length',
+      {
+        ...customResult,
+        attenuation: { ...customResult.attenuation, length_km: -1 },
+      },
+    ],
+    [
+      'a negative section loss',
+      {
+        ...customResult,
+        attenuation: { ...customResult.attenuation, section_loss_db: -1 },
+      },
+    ],
+    [
+      'an output power above input power',
+      {
+        ...customResult,
+        attenuation: { ...customResult.attenuation, output_power_dbm: -2 },
+      },
+    ],
+    [
+      'the wrong attenuation model',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          model_manifest: {
+            ...attenuationManifest,
+            model_id: 'wrong_model',
+          },
+        },
+      },
+    ],
+    [
+      'the wrong attenuation model version',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          model_manifest: {
+            ...attenuationManifest,
+            model_version: '2.0.0',
+          },
+        },
+      },
+    ],
+    [
+      'unequal sample array lengths',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          power_samples_dbm:
+            customResult.attenuation.power_samples_dbm.slice(1),
+        },
+      },
+    ],
+    [
+      'an empty sample array',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          distance_samples_km: [],
+          power_samples_dbm: [],
+        },
+      },
+    ],
+    [
+      'a nonfinite distance sample',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          distance_samples_km: [0, Number.NaN, 12.5],
+          power_samples_dbm: [-3, -4, -5.5],
+        },
+      },
+    ],
+    [
+      'a distance endpoint mismatch',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          distance_samples_km: [0, 3, 6.5, 12],
+        },
+      },
+    ],
+    [
+      'a non-increasing distance sample',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          distance_samples_km: [0, 6.5, 3, 12.5],
+        },
+      },
+    ],
+    [
+      'a power start mismatch',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          power_samples_dbm: [-2.9, -3.6, -4.3, -5.5],
+        },
+      },
+    ],
+    [
+      'a power end mismatch',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          power_samples_dbm: [-3, -3.6, -4.3, -5.4],
+        },
+      },
+    ],
+    [
+      'an increasing power sample',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          power_samples_dbm: [-3, -3.6, -3.4, -5.5],
+        },
+      },
+    ],
+    [
+      'an invalid zero-length sample series',
+      {
+        ...customResult,
+        attenuation: {
+          ...customResult.attenuation,
+          length_km: 0,
+          distance_samples_km: [0, 0],
+          power_samples_dbm: [-3, -3],
+        },
+      },
+    ],
+  ]
+
+  test.each(malformedAttenuationResults)(
+    'rejects %s attenuation data without using it',
+    async (_description, malformedResult) => {
+      vi.useFakeTimers()
+      const fetchMock = mockFetch({
+        preview: [
+          jsonResponse(customResult),
+          directJsonResponse(malformedResult),
+        ],
+      })
+
+      render(<App />)
+      await settleDebounce()
+      expect(powerDistancePlotOutput()).toHaveTextContent('Length: 12.5 km')
+
+      fireEvent.change(numberInput(/Core radius/i), {
+        target: { value: '4.2' },
+      })
+      await settleDebounce()
+
+      expect(powerDistancePlotOutput()).toHaveTextContent('null')
+      expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+      expect(modeProfileOutput()).toHaveTextContent('null')
+      expect(radialIntensityPlotOutput()).toHaveTextContent('null')
+      expect(pulseAnimationOutput()).toHaveTextContent('null')
+      expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(previewCalls(fetchMock)).toHaveLength(2)
     },
   )
@@ -1462,6 +1703,7 @@ describe('Level 1 preview state and results', () => {
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
       expect(modeProfileOutput()).toHaveTextContent('null')
       expect(radialIntensityPlotOutput()).toHaveTextContent('null')
+      expect(powerDistancePlotOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(
         screen.getByRole('region', { name: 'Level 1 preview' }),
@@ -1494,6 +1736,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(powerDistancePlotOutput()).toHaveTextContent('null')
     expect(
       screen.getByText(
         'Mode count estimate is unavailable below the validity threshold.',
@@ -1507,6 +1750,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
     expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
+    expect(powerDistancePlotOutput()).toHaveTextContent('Output: -5.5 dBm')
     expect(screen.getByRole('status')).toHaveTextContent('Preview ready')
   })
 
