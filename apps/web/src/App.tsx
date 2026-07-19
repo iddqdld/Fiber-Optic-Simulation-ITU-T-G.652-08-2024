@@ -20,10 +20,12 @@ import {
 import { Level1Preview } from './Level1Preview'
 import { RadialIntensityPlot } from './RadialIntensityPlot'
 import { PowerDistancePlot } from './PowerDistancePlot'
+import { PulseComparisonPlot } from './PulseComparisonPlot'
 import {
   isValidPowerDistanceData,
   type PowerDistanceData,
 } from './powerDistancePlot'
+import type { PulseComparisonData } from './pulseComparisonPlot'
 
 type PreviewRequest =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
@@ -330,8 +332,12 @@ function isPulseBroadeningResult(
 ): value is PreviewResult['pulse_broadening'] {
   if (
     !isRecord(value) ||
+    !isFiniteNumber(value.dispersion_ps_per_nm_km) ||
+    !isFiniteNumber(value.spectral_width_fwhm_nm) ||
+    value.spectral_width_fwhm_nm < 0 ||
     !isFiniteNumber(value.input_pulse_fwhm_ps) ||
     value.input_pulse_fwhm_ps <= 0 ||
+    !isFiniteNumber(value.accumulated_dispersion_ps_per_nm) ||
     !isFiniteNumber(value.output_pulse_fwhm_ps) ||
     value.output_pulse_fwhm_ps < value.input_pulse_fwhm_ps ||
     !isFiniteNumber(value.dispersion_broadening_fwhm_ps) ||
@@ -465,10 +471,28 @@ function toPulseAnimationData(value: PreviewResult): PulseAnimationData {
   }
 }
 
+function toPulseComparisonData(
+  value: PreviewResult['pulse_broadening'],
+): PulseComparisonData {
+  return {
+    lengthKm: value.length_km,
+    dispersionPsPerNmKm: value.dispersion_ps_per_nm_km,
+    spectralWidthFwhmNm: value.spectral_width_fwhm_nm,
+    inputPulseFwhmPs: value.input_pulse_fwhm_ps,
+    accumulatedDispersionPsPerNm: value.accumulated_dispersion_ps_per_nm,
+    dispersionBroadeningFwhmPs: value.dispersion_broadening_fwhm_ps,
+    outputPulseFwhmPs: value.output_pulse_fwhm_ps,
+    modelId: value.model_manifest.model_id,
+    modelVersion: value.model_manifest.model_version,
+    widthConvention: value.model_manifest.width_convention,
+  }
+}
+
 type VisualizationData = {
   rayGuidance: RayGuidance
   modeProfile: ModeProfileData
   pulseAnimation: PulseAnimationData
+  pulseComparison: PulseComparisonData
   attenuation: PowerDistanceData
 }
 
@@ -580,6 +604,7 @@ function App() {
             },
             modeProfile: toModeProfileData(body.mode_profile),
             pulseAnimation: toPulseAnimationData(body),
+            pulseComparison: toPulseComparisonData(body.pulse_broadening),
             attenuation: toPowerDistanceData(body.attenuation),
           })
           setServiceError(null)
@@ -675,6 +700,7 @@ function App() {
         modeProfile={visualizationData?.modeProfile ?? null}
       />
       <PowerDistancePlot attenuation={visualizationData?.attenuation ?? null} />
+      <PulseComparisonPlot pulse={visualizationData?.pulseComparison ?? null} />
     </main>
   )
 }

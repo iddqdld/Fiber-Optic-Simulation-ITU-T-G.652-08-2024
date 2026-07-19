@@ -17,6 +17,7 @@ import App from './App'
 import type { ModeProfileData } from './FibreGeometryView'
 import type { PulseAnimationData } from './FibreGeometryView'
 import type { PowerDistanceData } from './powerDistancePlot'
+import type { PulseComparisonData } from './pulseComparisonPlot'
 
 type GeometryProps = {
   coreRadiusUm: number | null
@@ -113,6 +114,24 @@ vi.mock('./PowerDistancePlot', () => ({
       {attenuation === null
         ? 'null'
         : `Length: ${attenuation.lengthKm} km · Coefficient: ${attenuation.attenuationDbPerKm} dB/km · Input: ${attenuation.inputPowerDbm} dBm · Loss: ${attenuation.sectionLossDb} dB · Output: ${attenuation.outputPowerDbm} dBm · Distances: ${attenuation.distanceSamplesKm.join(',')} · Powers: ${attenuation.powerSamplesDbm.join(',')} · Model: ${attenuation.modelId} ${attenuation.modelVersion}`}
+    </section>
+  ),
+}))
+
+type PulseComparisonPlotProps = {
+  pulse: PulseComparisonData | null
+}
+
+vi.mock('./PulseComparisonPlot', () => ({
+  PulseComparisonPlot: ({ pulse }: PulseComparisonPlotProps) => (
+    <section
+      role="region"
+      aria-label="Pulse comparison plot"
+      data-testid="pulse-comparison-plot"
+    >
+      {pulse === null
+        ? 'null'
+        : `Length: ${pulse.lengthKm} km · Dispersion: ${pulse.dispersionPsPerNmKm} ps/(nm·km) · Spectral width: ${pulse.spectralWidthFwhmNm} nm · Input pulse: ${pulse.inputPulseFwhmPs} ps · Accumulated dispersion: ${pulse.accumulatedDispersionPsPerNm} ps/nm · Broadening: ${pulse.dispersionBroadeningFwhmPs} ps · Output pulse: ${pulse.outputPulseFwhmPs} ps · Model: ${pulse.modelId} ${pulse.modelVersion} · Width: ${pulse.widthConvention}`}
     </section>
   ),
 }))
@@ -331,6 +350,7 @@ const zeroLengthResult = {
   },
   pulse_broadening: {
     ...customResult.pulse_broadening,
+    accumulated_dispersion_ps_per_nm: 0,
     dispersion_broadening_fwhm_ps: 0,
     output_pulse_fwhm_ps: 25,
     length_km: 0,
@@ -522,8 +542,21 @@ function powerDistancePlotOutput() {
   return screen.getByTestId('power-distance-plot')
 }
 
+function pulseComparisonPlotOutput() {
+  return screen.getByTestId('pulse-comparison-plot')
+}
+
 function pulseAnimationOutput() {
   return screen.getByTestId('pulse-animation')
+}
+
+function expectAllVisualizationConsumersToBeNull() {
+  expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+  expect(modeProfileOutput()).toHaveTextContent('null')
+  expect(radialIntensityPlotOutput()).toHaveTextContent('null')
+  expect(pulseAnimationOutput()).toHaveTextContent('null')
+  expect(powerDistancePlotOutput()).toHaveTextContent('null')
+  expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 }
 
 afterEach(() => {
@@ -879,6 +912,7 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
@@ -886,6 +920,7 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 
     await act(async () => {
       first.resolve(jsonResponse(customResult))
@@ -941,6 +976,25 @@ describe('Level 1 preview state and results', () => {
       'Delay model: constant_group_index_delay',
     )
     expect(pulseAnimationOutput()).toHaveTextContent('Delay version: 1.0.0')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Length: 12.5 km')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Dispersion: 17 ps/(nm·km)',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Spectral width: 0.2 nm',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Input pulse: 25 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Accumulated dispersion: 212.5 ps/nm',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Broadening: 42.5 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Model: first_order_chromatic_pulse_broadening 1.0.0',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Width: fwhm')
   })
 
   test('propagates the validated 65-point mode profile in camelCase', async () => {
@@ -1005,6 +1059,9 @@ describe('Level 1 preview state and results', () => {
     expect(pulseAnimationOutput()).toHaveTextContent(
       'Output pulse: 49.30770730829005 ps',
     )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
 
     fireEvent.change(numberInput(/Core refractive index/i), {
       target: { value: '1.48' },
@@ -1014,6 +1071,7 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
@@ -1021,6 +1079,7 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 
     await act(async () => {
       second.resolve(
@@ -1046,6 +1105,9 @@ describe('Level 1 preview state and results', () => {
     expect(pulseAnimationOutput()).toHaveTextContent(
       'Output pulse: 49.30770730829005 ps',
     )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
   })
 
   test('clears ray guidance for invalid edits without scheduling a request', async () => {
@@ -1068,6 +1130,7 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
@@ -1109,6 +1172,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
@@ -1117,6 +1181,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Preview service rejected the request.',
     )
@@ -1127,6 +1192,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Unable to reach the preview service.',
     )
@@ -1145,9 +1211,44 @@ describe('Level 1 preview state and results', () => {
     expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 25 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Length: 0 km')
     expect(pulseAnimationOutput()).toHaveTextContent('Group delay: 0 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Length: 0 km')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Broadening: 0 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Output pulse: 25 ps')
     expect(powerDistancePlotOutput()).toHaveTextContent('Length: 0 km')
     expect(powerDistancePlotOutput()).toHaveTextContent('Distances: 0')
     expect(powerDistancePlotOutput()).toHaveTextContent('Powers: -3')
+  })
+
+  test('accepts signed dispersion values without recalculating pulse physics', async () => {
+    vi.useFakeTimers()
+    const signedDispersionResult = {
+      ...customResult,
+      pulse_broadening: {
+        ...customResult.pulse_broadening,
+        dispersion_ps_per_nm_km: -17,
+        spectral_width_fwhm_nm: 0,
+        input_pulse_fwhm_ps: 25,
+        accumulated_dispersion_ps_per_nm: -212.5,
+        dispersion_broadening_fwhm_ps: 0,
+        output_pulse_fwhm_ps: 25,
+      },
+    }
+    mockFetch({ preview: [jsonResponse(signedDispersionResult)] })
+
+    render(<App />)
+    await settleDebounce()
+
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Dispersion: -17 ps/(nm·km)',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Spectral width: 0 nm',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Accumulated dispersion: -212.5 ps/nm',
+    )
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Broadening: 0 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Output pulse: 25 ps')
   })
 
   const malformedModeProfiles: Array<[string, unknown]> = [
@@ -1282,6 +1383,7 @@ describe('Level 1 preview state and results', () => {
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
       expect(pulseAnimationOutput()).toHaveTextContent('null')
       expect(powerDistancePlotOutput()).toHaveTextContent('null')
+      expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(
         screen.getByRole('region', { name: 'Level 1 preview' }),
@@ -1476,6 +1578,56 @@ describe('Level 1 preview state and results', () => {
   )
 
   const malformedVisualizationResults: Array<[string, unknown]> = [
+    [
+      'a nonfinite dispersion coefficient',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          dispersion_ps_per_nm_km: Number.NaN,
+        },
+      },
+    ],
+    [
+      'an infinite dispersion coefficient',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          dispersion_ps_per_nm_km: Number.POSITIVE_INFINITY,
+        },
+      },
+    ],
+    [
+      'a negative spectral width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          spectral_width_fwhm_nm: -1,
+        },
+      },
+    ],
+    [
+      'a nonfinite spectral width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          spectral_width_fwhm_nm: Number.POSITIVE_INFINITY,
+        },
+      },
+    ],
+    [
+      'a nonfinite accumulated dispersion',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          accumulated_dispersion_ps_per_nm: Number.NaN,
+        },
+      },
+    ],
     [
       'a zero input pulse width',
       {
@@ -1704,6 +1856,7 @@ describe('Level 1 preview state and results', () => {
       expect(modeProfileOutput()).toHaveTextContent('null')
       expect(radialIntensityPlotOutput()).toHaveTextContent('null')
       expect(powerDistancePlotOutput()).toHaveTextContent('null')
+      expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(
         screen.getByRole('region', { name: 'Level 1 preview' }),
@@ -1737,6 +1890,8 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
+    expectAllVisualizationConsumersToBeNull()
     expect(
       screen.getByText(
         'Mode count estimate is unavailable below the validity threshold.',
@@ -1751,6 +1906,9 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(powerDistancePlotOutput()).toHaveTextContent('Output: -5.5 dBm')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
     expect(screen.getByRole('status')).toHaveTextContent('Preview ready')
   })
 
@@ -1784,6 +1942,7 @@ describe('Level 1 preview state and results', () => {
     expect(radialIntensityPlotOutput()).toHaveTextContent('Grid: 65 x 65')
     expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 50 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Output pulse: 50 ps')
     expect(
       screen.getByRole('region', { name: 'Level 1 preview' }),
     ).toHaveTextContent('No warnings.')
@@ -1811,6 +1970,10 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
     expect(radialIntensityPlotOutput()).toHaveTextContent('Radius: 4.4 µm')
     expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 50 ps')
+    expect(pulseComparisonPlotOutput()).toHaveTextContent('Output pulse: 50 ps')
+    expect(pulseComparisonPlotOutput()).not.toHaveTextContent(
+      'Output pulse: 999 ps',
+    )
   })
 
   test('renders exact summary units, model metadata, and warnings', async () => {
