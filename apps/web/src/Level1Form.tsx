@@ -1,3 +1,5 @@
+import { useState, type ReactNode } from 'react'
+
 import type { operations } from '../../../packages/shared_schemas/generated/api'
 
 type PreviewRequest =
@@ -59,6 +61,16 @@ type NumericInputProps = {
   step?: number | 'any'
 }
 
+type InspectorSectionId = 'preset' | 'fibre' | 'source' | 'section' | 'sampling'
+
+type InspectorSectionProps = {
+  id: InspectorSectionId
+  title: string
+  expanded: boolean
+  onToggle: () => void
+  children: ReactNode
+}
+
 function NumericInput({
   id,
   label,
@@ -70,7 +82,7 @@ function NumericInput({
   step = 'any',
 }: NumericInputProps) {
   return (
-    <div className="form-field">
+    <div className="form-field level1-inspector-field">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
@@ -87,6 +99,47 @@ function NumericInput({
   )
 }
 
+function InspectorSection({
+  id,
+  title,
+  expanded,
+  onToggle,
+  children,
+}: InspectorSectionProps) {
+  const headingId = `level1-inspector-${id}-heading`
+  const panelId = `level1-inspector-${id}-panel`
+
+  return (
+    <section
+      className="level1-inspector-section"
+      role="group"
+      aria-labelledby={headingId}
+    >
+      <h3 id={headingId} className="level1-inspector-section-heading">
+        <button
+          className="level1-inspector-section-toggle"
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+        >
+          <span>{title}</span>
+          <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+        </button>
+      </h3>
+      <div
+        id={panelId}
+        className="level1-inspector-section-panel"
+        role="region"
+        aria-labelledby={headingId}
+        hidden={!expanded}
+      >
+        {children}
+      </div>
+    </section>
+  )
+}
+
 export function Level1Form({
   values,
   error,
@@ -94,211 +147,264 @@ export function Level1Form({
   onPresetChange,
   onCableApplicationChange,
 }: Level1FormProps) {
+  const [expandedSections, setExpandedSections] = useState<
+    Set<InspectorSectionId>
+  >(() => new Set(['preset', 'fibre']))
+
+  const toggleSection = (section: InspectorSectionId) => {
+    setExpandedSections((current) => {
+      const next = new Set(current)
+
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+
+      return next
+    })
+  }
+
   return (
     <section
-      className="calculator-card"
+      className="level1-inspector calculator-card"
       aria-labelledby="level1-configuration-title"
       aria-label="Level 1 configuration"
     >
       <h2 id="level1-configuration-title">Level 1 configuration</h2>
-      <form onSubmit={(event) => event.preventDefault()}>
-        <div className="form-field">
-          <label htmlFor="fibre-preset">Fibre preset</label>
-          <select
-            id="fibre-preset"
-            name="preset"
-            value={values.preset}
-            onChange={(event) =>
-              onPresetChange(event.currentTarget.value as Preset)
-            }
+      <form
+        className="level1-inspector-form"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <div className="level1-inspector-accordion">
+          <InspectorSection
+            id="preset"
+            title="Preset"
+            expanded={expandedSections.has('preset')}
+            onToggle={() => toggleSection('preset')}
           >
-            <option value="custom">Custom fibre</option>
-            <option value="g652d">ITU-T G.652.D</option>
-          </select>
-        </div>
-
-        {values.preset === 'custom' ? (
-          <p className="model-note">Custom fibre: standards checks are off.</p>
-        ) : (
-          <p className="model-note">
-            G.652.D uses represented informative simulation defaults of 1550 nm
-            wavelength, 0.275 dB/km attenuation, and 17 ps/(nm·km) dispersion.
-            Other entered fibre, source, section, sampling, and
-            cable-application assumptions are retained.
-          </p>
-        )}
-
-        <fieldset>
-          <legend>Fibre</legend>
-          <div className="form-grid">
-            <NumericInput
-              id="n-core"
-              name="n_core"
-              label="Core refractive index (dimensionless)"
-              value={values.n_core}
-              min={Number.MIN_VALUE}
-              onChange={(value) => onNumericFieldChange('n_core', value)}
-            />
-            <NumericInput
-              id="n-cladding"
-              name="n_cladding"
-              label="Cladding refractive index (dimensionless)"
-              value={values.n_cladding}
-              min={Number.MIN_VALUE}
-              onChange={(value) => onNumericFieldChange('n_cladding', value)}
-            />
-            <NumericInput
-              id="core-radius"
-              name="core_radius_um"
-              label="Core radius (µm)"
-              value={values.core_radius_um}
-              min={Number.MIN_VALUE}
-              onChange={(value) =>
-                onNumericFieldChange('core_radius_um', value)
-              }
-            />
-            <NumericInput
-              id="mode-field-radius"
-              name="mode_field_radius_um"
-              label="Mode-field radius (µm)"
-              value={values.mode_field_radius_um}
-              min={Number.MIN_VALUE}
-              onChange={(value) =>
-                onNumericFieldChange('mode_field_radius_um', value)
-              }
-            />
-            <NumericInput
-              id="attenuation"
-              name="attenuation_db_per_km"
-              label="Attenuation (dB/km)"
-              value={values.attenuation_db_per_km}
-              min={0}
-              onChange={(value) =>
-                onNumericFieldChange('attenuation_db_per_km', value)
-              }
-            />
-            <NumericInput
-              id="dispersion"
-              name="dispersion_ps_per_nm_km"
-              label="Dispersion (ps/(nm km))"
-              value={values.dispersion_ps_per_nm_km}
-              onChange={(value) =>
-                onNumericFieldChange('dispersion_ps_per_nm_km', value)
-              }
-            />
-            <NumericInput
-              id="group-index"
-              name="group_index_dimensionless"
-              label="Group index (dimensionless)"
-              value={values.group_index_dimensionless}
-              min={Number.MIN_VALUE}
-              onChange={(value) =>
-                onNumericFieldChange('group_index_dimensionless', value)
-              }
-            />
-            <div className="form-field">
-              <label htmlFor="cable-application">Cable application</label>
+            <div className="form-field level1-inspector-field">
+              <label htmlFor="fibre-preset">Fibre preset</label>
               <select
-                id="cable-application"
-                name="cable_application"
-                value={values.cable_application}
+                id="fibre-preset"
+                name="preset"
+                value={values.preset}
                 onChange={(event) =>
-                  onCableApplicationChange(
-                    event.currentTarget.value as CableApplication,
-                  )
+                  onPresetChange(event.currentTarget.value as Preset)
                 }
               >
-                <option value="standard_cable">Standard cable</option>
-                <option value="short_jumper">Short jumper</option>
-                <option value="indoor_cable">Indoor cable</option>
-                <option value="drop_cable">Drop cable</option>
+                <option value="custom">Custom fibre</option>
+                <option value="g652d">ITU-T G.652.D</option>
               </select>
             </div>
-          </div>
-        </fieldset>
 
-        <fieldset>
-          <legend>Source</legend>
-          <div className="form-grid">
-            <NumericInput
-              id="wavelength"
-              name="wavelength_nm"
-              label="Wavelength (nm)"
-              value={values.wavelength_nm}
-              min={Number.MIN_VALUE}
-              onChange={(value) => onNumericFieldChange('wavelength_nm', value)}
-            />
-            <NumericInput
-              id="input-power"
-              name="input_power_dbm"
-              label="Input power (dBm)"
-              value={values.input_power_dbm}
-              onChange={(value) =>
-                onNumericFieldChange('input_power_dbm', value)
-              }
-            />
-            <NumericInput
-              id="spectral-width"
-              name="spectral_width_fwhm_nm"
-              label="Spectral width FWHM (nm)"
-              value={values.spectral_width_fwhm_nm}
-              min={0}
-              onChange={(value) =>
-                onNumericFieldChange('spectral_width_fwhm_nm', value)
-              }
-            />
-            <NumericInput
-              id="input-pulse"
-              name="input_pulse_fwhm_ps"
-              label="Input pulse FWHM (ps)"
-              value={values.input_pulse_fwhm_ps}
-              min={Number.MIN_VALUE}
-              onChange={(value) =>
-                onNumericFieldChange('input_pulse_fwhm_ps', value)
-              }
-            />
-          </div>
-        </fieldset>
+            {values.preset === 'custom' ? (
+              <p className="model-note level1-inspector-model-note">
+                Custom fibre: standards checks are off.
+              </p>
+            ) : (
+              <p className="model-note level1-inspector-model-note">
+                G.652.D uses represented informative simulation defaults of 1550
+                nm wavelength, 0.275 dB/km attenuation, and 17 ps/(nm·km)
+                dispersion. Other entered fibre, source, section, sampling, and
+                cable-application assumptions are retained.
+              </p>
+            )}
+          </InspectorSection>
 
-        <fieldset>
-          <legend>Section</legend>
-          <div className="form-grid">
-            <NumericInput
-              id="length"
-              name="length_km"
-              label="Section length (km)"
-              value={values.length_km}
-              min={0}
-              onChange={(value) => onNumericFieldChange('length_km', value)}
-            />
-          </div>
-        </fieldset>
+          <InspectorSection
+            id="fibre"
+            title="Fibre"
+            expanded={expandedSections.has('fibre')}
+            onToggle={() => toggleSection('fibre')}
+          >
+            <div className="form-grid level1-inspector-grid">
+              <NumericInput
+                id="n-core"
+                name="n_core"
+                label="Core refractive index (dimensionless)"
+                value={values.n_core}
+                min={Number.MIN_VALUE}
+                onChange={(value) => onNumericFieldChange('n_core', value)}
+              />
+              <NumericInput
+                id="n-cladding"
+                name="n_cladding"
+                label="Cladding refractive index (dimensionless)"
+                value={values.n_cladding}
+                min={Number.MIN_VALUE}
+                onChange={(value) => onNumericFieldChange('n_cladding', value)}
+              />
+              <NumericInput
+                id="core-radius"
+                name="core_radius_um"
+                label="Core radius (µm)"
+                value={values.core_radius_um}
+                min={Number.MIN_VALUE}
+                onChange={(value) =>
+                  onNumericFieldChange('core_radius_um', value)
+                }
+              />
+              <NumericInput
+                id="mode-field-radius"
+                name="mode_field_radius_um"
+                label="Mode-field radius (µm)"
+                value={values.mode_field_radius_um}
+                min={Number.MIN_VALUE}
+                onChange={(value) =>
+                  onNumericFieldChange('mode_field_radius_um', value)
+                }
+              />
+              <NumericInput
+                id="group-index"
+                name="group_index_dimensionless"
+                label="Group index (dimensionless)"
+                value={values.group_index_dimensionless}
+                min={Number.MIN_VALUE}
+                onChange={(value) =>
+                  onNumericFieldChange('group_index_dimensionless', value)
+                }
+              />
+            </div>
+          </InspectorSection>
 
-        <fieldset>
-          <legend>Sampling</legend>
-          <div className="form-grid">
-            <NumericInput
-              id="grid-half-width"
-              name="grid_half_width_um"
-              label="Grid half-width (µm)"
-              value={values.grid_half_width_um}
-              min={Number.MIN_VALUE}
-              onChange={(value) =>
-                onNumericFieldChange('grid_half_width_um', value)
-              }
-            />
-            <NumericInput
-              id="grid-points"
-              name="grid_points"
-              label="Grid points (count)"
-              value={values.grid_points}
-              min={3}
-              max={65}
-              step={1}
-              onChange={(value) => onNumericFieldChange('grid_points', value)}
-            />
-          </div>
-        </fieldset>
+          <InspectorSection
+            id="source"
+            title="Source"
+            expanded={expandedSections.has('source')}
+            onToggle={() => toggleSection('source')}
+          >
+            <div className="form-grid level1-inspector-grid">
+              <NumericInput
+                id="wavelength"
+                name="wavelength_nm"
+                label="Wavelength (nm)"
+                value={values.wavelength_nm}
+                min={Number.MIN_VALUE}
+                onChange={(value) =>
+                  onNumericFieldChange('wavelength_nm', value)
+                }
+              />
+              <NumericInput
+                id="input-power"
+                name="input_power_dbm"
+                label="Input power (dBm)"
+                value={values.input_power_dbm}
+                onChange={(value) =>
+                  onNumericFieldChange('input_power_dbm', value)
+                }
+              />
+              <NumericInput
+                id="spectral-width"
+                name="spectral_width_fwhm_nm"
+                label="Spectral width FWHM (nm)"
+                value={values.spectral_width_fwhm_nm}
+                min={0}
+                onChange={(value) =>
+                  onNumericFieldChange('spectral_width_fwhm_nm', value)
+                }
+              />
+              <NumericInput
+                id="input-pulse"
+                name="input_pulse_fwhm_ps"
+                label="Input pulse FWHM (ps)"
+                value={values.input_pulse_fwhm_ps}
+                min={Number.MIN_VALUE}
+                onChange={(value) =>
+                  onNumericFieldChange('input_pulse_fwhm_ps', value)
+                }
+              />
+            </div>
+          </InspectorSection>
+
+          <InspectorSection
+            id="section"
+            title="Section"
+            expanded={expandedSections.has('section')}
+            onToggle={() => toggleSection('section')}
+          >
+            <div className="form-grid level1-inspector-grid">
+              <NumericInput
+                id="length"
+                name="length_km"
+                label="Section length (km)"
+                value={values.length_km}
+                min={0}
+                onChange={(value) => onNumericFieldChange('length_km', value)}
+              />
+              <NumericInput
+                id="attenuation"
+                name="attenuation_db_per_km"
+                label="Attenuation (dB/km)"
+                value={values.attenuation_db_per_km}
+                min={0}
+                onChange={(value) =>
+                  onNumericFieldChange('attenuation_db_per_km', value)
+                }
+              />
+              <NumericInput
+                id="dispersion"
+                name="dispersion_ps_per_nm_km"
+                label="Dispersion (ps/(nm km))"
+                value={values.dispersion_ps_per_nm_km}
+                onChange={(value) =>
+                  onNumericFieldChange('dispersion_ps_per_nm_km', value)
+                }
+              />
+              <div className="form-field level1-inspector-field">
+                <label htmlFor="cable-application">Cable application</label>
+                <select
+                  id="cable-application"
+                  name="cable_application"
+                  value={values.cable_application}
+                  onChange={(event) =>
+                    onCableApplicationChange(
+                      event.currentTarget.value as CableApplication,
+                    )
+                  }
+                >
+                  <option value="standard_cable">Standard cable</option>
+                  <option value="short_jumper">Short jumper</option>
+                  <option value="indoor_cable">Indoor cable</option>
+                  <option value="drop_cable">Drop cable</option>
+                </select>
+              </div>
+            </div>
+          </InspectorSection>
+
+          <InspectorSection
+            id="sampling"
+            title="Sampling"
+            expanded={expandedSections.has('sampling')}
+            onToggle={() => toggleSection('sampling')}
+          >
+            <div className="form-grid level1-inspector-grid">
+              <NumericInput
+                id="grid-half-width"
+                name="grid_half_width_um"
+                label="Grid half-width (µm)"
+                value={values.grid_half_width_um}
+                min={Number.MIN_VALUE}
+                onChange={(value) =>
+                  onNumericFieldChange('grid_half_width_um', value)
+                }
+              />
+              <NumericInput
+                id="grid-points"
+                name="grid_points"
+                label="Grid points (count)"
+                value={values.grid_points}
+                min={3}
+                max={65}
+                step={1}
+                onChange={(value) => onNumericFieldChange('grid_points', value)}
+              />
+            </div>
+            <p className="model-note level1-inspector-model-fact" role="note">
+              Power-series sampling is backend generated; maximum 65 points.
+            </p>
+          </InspectorSection>
+        </div>
       </form>
 
       {error && (

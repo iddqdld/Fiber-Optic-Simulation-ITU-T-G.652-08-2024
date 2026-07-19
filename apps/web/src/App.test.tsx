@@ -527,26 +527,71 @@ async function settleDebounce() {
 }
 
 function numberInput(name: RegExp) {
+  const visibleInput = screen.queryByRole('spinbutton', { name })
+  if (visibleInput) {
+    return visibleInput
+  }
+
+  for (const sectionName of ['Fibre', 'Source', 'Section', 'Sampling']) {
+    const section = screen.getByRole('button', { name: sectionName })
+    if (section.getAttribute('aria-expanded') === 'false') {
+      fireEvent.click(section)
+    }
+
+    const input = screen.queryByRole('spinbutton', { name })
+    if (input) {
+      return input
+    }
+  }
+
   return screen.getByRole('spinbutton', { name })
 }
 
+function selectWorkspace(name: 'Scene' | 'Graphs') {
+  const tab = screen.getByRole('tab', { name })
+  if (tab.getAttribute('aria-selected') !== 'true') {
+    fireEvent.click(tab)
+  }
+}
+
+function selectGraph(
+  name: 'LP01 intensity' | 'Power / distance' | 'Pulse comparison',
+) {
+  selectWorkspace('Graphs')
+  const tab = screen.getByRole('tab', { name })
+  if (tab.getAttribute('aria-selected') !== 'true') {
+    fireEvent.click(tab)
+  }
+}
+
 function modeProfileOutput() {
+  selectWorkspace('Scene')
   return screen.getByTestId('mode-profile')
 }
 
 function radialIntensityPlotOutput() {
-  return screen.getByTestId('radial-intensity-plot')
+  selectGraph('LP01 intensity')
+  const output = screen.getByTestId('radial-intensity-plot')
+  selectWorkspace('Scene')
+  return output
 }
 
 function powerDistancePlotOutput() {
-  return screen.getByTestId('power-distance-plot')
+  selectGraph('Power / distance')
+  const output = screen.getByTestId('power-distance-plot')
+  selectWorkspace('Scene')
+  return output
 }
 
 function pulseComparisonPlotOutput() {
-  return screen.getByTestId('pulse-comparison-plot')
+  selectGraph('Pulse comparison')
+  const output = screen.getByTestId('pulse-comparison-plot')
+  selectWorkspace('Scene')
+  return output
 }
 
 function pulseAnimationOutput() {
+  selectWorkspace('Scene')
   return screen.getByTestId('pulse-animation')
 }
 
@@ -607,6 +652,54 @@ describe('backend health', () => {
   })
 })
 
+describe('editor UI state', () => {
+  test('does not request a preview for workspace, graph, drawer, accordion, or display changes', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialCallCount = previewCalls(fetchMock).length
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Graphs' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Power / distance' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Standards' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
+    fireEvent.change(screen.getByLabelText(/Displayed fibre length/), {
+      target: { value: '11' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Results,/ }))
+
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+    expect(screen.getByLabelText(/Displayed fibre length/)).toHaveValue('11')
+  })
+
+  test('keeps the selected workspace while a preview completes', async () => {
+    vi.useFakeTimers()
+    const preview = deferred<Response>()
+    mockFetch({ preview: [preview.promise] })
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.click(screen.getByRole('tab', { name: 'Standards' }))
+
+    await act(async () => {
+      preview.resolve(jsonResponse(customResult))
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('tab', { name: 'Standards' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Standards', level: 2 }),
+    ).toBeVisible()
+  })
+})
+
 describe('Level 1 form', () => {
   test('renders the complete accessible form with explicit units and defaults', () => {
     mockFetch()
@@ -614,7 +707,7 @@ describe('Level 1 form', () => {
     render(<App />)
 
     expect(
-      screen.getByRole('heading', { name: 'Optical Fibre Simulator' }),
+      screen.getByRole('heading', { name: 'Fibre Simulator' }),
     ).toBeVisible()
     const configuration = screen.getByRole('region', {
       name: 'Level 1 configuration',
@@ -636,6 +729,12 @@ describe('Level 1 form', () => {
     ).toBeInTheDocument()
 
     for (const groupName of ['Fibre', 'Source', 'Section', 'Sampling']) {
+      const toggle = within(configuration).getByRole('button', {
+        name: groupName,
+      })
+      if (toggle.getAttribute('aria-expanded') === 'false') {
+        fireEvent.click(toggle)
+      }
       expect(
         within(configuration).getByRole('group', { name: groupName }),
       ).toBeVisible()
@@ -2006,6 +2105,9 @@ describe('Level 1 preview state and results', () => {
     expect(preview).toHaveTextContent('49.30770730829005 ps')
     expect(preview).toHaveTextContent('level1_single_section_simulation')
     expect(preview).toHaveTextContent('1.0.0')
+    expect(preview).toHaveTextContent('Approximate')
+    expect(preview).toHaveTextContent('one uniform fibre section')
+    expect(preview).toHaveTextContent('excludes bends, splices, and connectors')
     expect(
       within(preview).getByText(
         'Mode count estimate is unavailable below the validity threshold.',

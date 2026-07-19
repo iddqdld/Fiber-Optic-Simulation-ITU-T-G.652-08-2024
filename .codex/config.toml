@@ -1,0 +1,16 @@
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+startup_timeout_sec = 20
+
+[mcp_servers.playwright]
+command = "npx"
+args = [
+  "-y",
+  "@playwright/mcp@latest",
+  "--headless",
+  "--isolated",
+  "--browser=firefox",
+]
+env = { PLAYWRIGHT_BROWSERS_PATH = "/home/iddqdld/fiber-optics/.playwright-browsers" }
+startup_timeout_sec = 30

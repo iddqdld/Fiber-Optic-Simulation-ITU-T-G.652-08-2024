@@ -16,6 +16,7 @@ import {
   PULSE_VISUAL_DURATION_SECONDS,
   type PulseAnimationData,
 } from './pulseAnimation'
+import type { VisualizationSettings } from './visualizationSettings'
 
 export type { PulseAnimationData } from './pulseAnimation'
 
@@ -42,6 +43,22 @@ const MODE_FIELD_POINT_SIZE = 0.075
 const MODE_FIELD_DISPLAY_THRESHOLD = 0.01
 const MODE_PROFILE_MODEL_ID = 'gaussian_lp01_mode_profile'
 const MODE_PROFILE_MODEL_VERSION = '1.0.0'
+
+function canRenderWebGL(): boolean {
+  if (import.meta.env.MODE === 'test') {
+    return true
+  }
+
+  if (typeof document === 'undefined') {
+    return false
+  }
+
+  try {
+    return document.createElement('canvas').getContext('webgl2') !== null
+  } catch {
+    return false
+  }
+}
 
 export type RayGuidance = {
   criticalAngleDeg: number
@@ -74,6 +91,9 @@ export type FibreGeometryViewProps = {
   rayGuidance: RayGuidance | null
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
+  visualizationSettings?: VisualizationSettings
+  onVisualizationSettingsChange?: (settings: VisualizationSettings) => void
+  showConfigurationControls?: boolean
 }
 
 export type FibreGeometrySceneProps = {
@@ -518,6 +538,7 @@ type ModeProfilePanelProps = {
   onEnabledChange: (enabled: boolean) => void
   modeProfile: ModeProfileData | null
   coreRadiusUm: number | null
+  showToggle: boolean
 }
 
 function ModeProfilePanel({
@@ -525,6 +546,7 @@ function ModeProfilePanel({
   onEnabledChange,
   modeProfile,
   coreRadiusUm,
+  showToggle,
 }: ModeProfilePanelProps) {
   const validProfile = isValidModeProfile(modeProfile)
   const available =
@@ -534,18 +556,22 @@ function ModeProfilePanel({
 
   return (
     <>
-      <div className="geometry-layer-control">
-        <label htmlFor="approximate-lp01-field-view">
-          <input
-            id="approximate-lp01-field-view"
-            type="checkbox"
-            checked={enabled}
-            aria-describedby={enabled ? 'mode-profile-explanation' : undefined}
-            onChange={(event) => onEnabledChange(event.currentTarget.checked)}
-          />
-          Approximate LP01 field
-        </label>
-      </div>
+      {showToggle && (
+        <div className="geometry-layer-control">
+          <label htmlFor="approximate-lp01-field-view">
+            <input
+              id="approximate-lp01-field-view"
+              type="checkbox"
+              checked={enabled}
+              aria-describedby={
+                enabled ? 'mode-profile-explanation' : undefined
+              }
+              onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+            />
+            Approximate LP01 field
+          </label>
+        </div>
+      )}
 
       {enabled && (
         <>
@@ -629,6 +655,7 @@ type PulseAnimationPanelProps = {
   completed: boolean
   onPlayPause: () => void
   onReset: () => void
+  showToggle: boolean
 }
 
 type PulseAnimationPlaybackState = {
@@ -649,6 +676,7 @@ function PulseAnimationPanel({
   completed,
   onPlayPause,
   onReset,
+  showToggle,
 }: PulseAnimationPanelProps) {
   const validPulseData = isValidPulseAnimationData(pulseAnimation)
   const validSectionLength =
@@ -677,20 +705,22 @@ function PulseAnimationPanel({
 
   return (
     <>
-      <div className="geometry-layer-control">
-        <label htmlFor="scaled-pulse-animation-view">
-          <input
-            id="scaled-pulse-animation-view"
-            type="checkbox"
-            checked={enabled}
-            aria-describedby={
-              enabled ? 'pulse-animation-explanation' : undefined
-            }
-            onChange={(event) => onEnabledChange(event.currentTarget.checked)}
-          />
-          Scaled pulse animation
-        </label>
-      </div>
+      {showToggle && (
+        <div className="geometry-layer-control">
+          <label htmlFor="scaled-pulse-animation-view">
+            <input
+              id="scaled-pulse-animation-view"
+              type="checkbox"
+              checked={enabled}
+              aria-describedby={
+                enabled ? 'pulse-animation-explanation' : undefined
+              }
+              onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+            />
+            Scaled pulse animation
+          </label>
+        </div>
+      )}
 
       {enabled && (
         <>
@@ -839,6 +869,7 @@ type RayGuidancePanelProps = {
   incidenceAngleDeg: number
   onIncidenceAngleChange: (angle: number) => void
   guidance: RayGuidance | null
+  showControls: boolean
 }
 
 function RayGuidancePanel({
@@ -847,6 +878,7 @@ function RayGuidancePanel({
   incidenceAngleDeg,
   onIncidenceAngleChange,
   guidance,
+  showControls,
 }: RayGuidancePanelProps) {
   const status = getRayStatus(incidenceAngleDeg, guidance)
   const validGuidance = isValidRayGuidance(guidance)
@@ -854,59 +886,63 @@ function RayGuidancePanel({
 
   return (
     <>
-      <div className="geometry-layer-control">
-        <label htmlFor="educational-ray-view">
-          <input
-            id="educational-ray-view"
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => onEnabledChange(event.currentTarget.checked)}
-          />
-          Educational ray view
-        </label>
-      </div>
+      {showControls && (
+        <div className="geometry-layer-control">
+          <label htmlFor="educational-ray-view">
+            <input
+              id="educational-ray-view"
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+            />
+            Educational ray view
+          </label>
+        </div>
+      )}
 
       {enabled && (
         <>
-          <div className="ray-controls">
-            <label htmlFor="incidence-angle">
-              Incidence angle (degrees, from the interface normal)
-            </label>
-            <input
-              id="incidence-angle"
-              type="range"
-              min={MIN_INCIDENCE_ANGLE_DEG}
-              max={MAX_INCIDENCE_ANGLE_DEG}
-              step="0.1"
-              value={incidenceAngleDeg}
-              onChange={(event) =>
-                onIncidenceAngleChange(Number(event.currentTarget.value))
-              }
-              aria-describedby="ray-angle-help ray-explanation"
-            />
-            <output
-              htmlFor="incidence-angle"
-              aria-label="Current incidence angle"
-              aria-live="polite"
-            >
-              {formatDegrees(incidenceAngleDeg)}
-            </output>
-            <button
-              className="ray-boundary-button"
-              type="button"
-              disabled={!validGuidance}
-              onClick={() => {
-                if (validGuidance) {
-                  onIncidenceAngleChange(guidance.criticalAngleDeg)
+          {showControls && (
+            <div className="ray-controls">
+              <label htmlFor="incidence-angle">
+                Incidence angle (degrees, from the interface normal)
+              </label>
+              <input
+                id="incidence-angle"
+                type="range"
+                min={MIN_INCIDENCE_ANGLE_DEG}
+                max={MAX_INCIDENCE_ANGLE_DEG}
+                step="0.1"
+                value={incidenceAngleDeg}
+                onChange={(event) =>
+                  onIncidenceAngleChange(Number(event.currentTarget.value))
                 }
-              }}
-            >
-              Set to critical angle
-            </button>
-            <p id="ray-angle-help">
-              Angle measured inside core from boundary normal.
-            </p>
-          </div>
+                aria-describedby="ray-angle-help ray-explanation"
+              />
+              <output
+                htmlFor="incidence-angle"
+                aria-label="Current incidence angle"
+                aria-live="polite"
+              >
+                {formatDegrees(incidenceAngleDeg)}
+              </output>
+              <button
+                className="ray-boundary-button"
+                type="button"
+                disabled={!validGuidance}
+                onClick={() => {
+                  if (validGuidance) {
+                    onIncidenceAngleChange(guidance.criticalAngleDeg)
+                  }
+                }}
+              >
+                Set to critical angle
+              </button>
+              <p id="ray-angle-help">
+                Angle measured inside core from boundary normal.
+              </p>
+            </div>
+          )}
 
           <dl className="ray-facts">
             <div>
@@ -1066,11 +1102,17 @@ export function FibreGeometryView({
   rayGuidance,
   modeProfile,
   pulseAnimation,
+  visualizationSettings,
+  onVisualizationSettingsChange,
+  showConfigurationControls = true,
 }: FibreGeometryViewProps) {
-  const [visualLength, setVisualLength] = useState(DEFAULT_VISUAL_LENGTH)
-  const [rayViewEnabled, setRayViewEnabled] = useState(true)
-  const [modeViewEnabled, setModeViewEnabled] = useState(true)
-  const [pulseAnimationEnabled, setPulseAnimationEnabled] = useState(true)
+  const [localVisualLength, setLocalVisualLength] = useState(
+    DEFAULT_VISUAL_LENGTH,
+  )
+  const [localRayViewEnabled, setLocalRayViewEnabled] = useState(true)
+  const [localModeViewEnabled, setLocalModeViewEnabled] = useState(true)
+  const [localPulseAnimationEnabled, setLocalPulseAnimationEnabled] =
+    useState(true)
   const [pulseAnimationPlayback, setPulseAnimationPlayback] =
     useState<PulseAnimationPlaybackState>({
       data: pulseAnimation,
@@ -1079,8 +1121,45 @@ export function FibreGeometryView({
       completed: false,
       resetSignal: 0,
     })
-  const [incidenceAngleDeg, setIncidenceAngleDeg] = useState(
+  const [localIncidenceAngleDeg, setLocalIncidenceAngleDeg] = useState(
     DEFAULT_INCIDENCE_ANGLE_DEG,
+  )
+  const [webglAvailable] = useState(canRenderWebGL)
+  const visualLength = visualizationSettings?.visualLength ?? localVisualLength
+  const rayViewEnabled =
+    visualizationSettings?.rayViewEnabled ?? localRayViewEnabled
+  const modeViewEnabled =
+    visualizationSettings?.modeViewEnabled ?? localModeViewEnabled
+  const pulseAnimationEnabled =
+    visualizationSettings?.pulseAnimationEnabled ?? localPulseAnimationEnabled
+  const incidenceAngleDeg =
+    visualizationSettings?.incidenceAngleDeg ?? localIncidenceAngleDeg
+  const updateVisualizationSetting = useCallback(
+    <Key extends keyof VisualizationSettings>(
+      key: Key,
+      value: VisualizationSettings[Key],
+    ) => {
+      if (visualizationSettings !== undefined) {
+        onVisualizationSettingsChange?.({
+          ...visualizationSettings,
+          [key]: value,
+        })
+        return
+      }
+
+      if (key === 'visualLength') {
+        setLocalVisualLength(value as number)
+      } else if (key === 'rayViewEnabled') {
+        setLocalRayViewEnabled(value as boolean)
+      } else if (key === 'modeViewEnabled') {
+        setLocalModeViewEnabled(value as boolean)
+      } else if (key === 'pulseAnimationEnabled') {
+        setLocalPulseAnimationEnabled(value as boolean)
+      } else {
+        setLocalIncidenceAngleDeg(value as number)
+      }
+    },
+    [onVisualizationSettingsChange, visualizationSettings],
   )
   const validPulseAnimationData = isValidPulseAnimationData(pulseAnimation)
   const validSectionLength =
@@ -1149,7 +1228,7 @@ export function FibreGeometryView({
 
   const handlePulseAnimationEnabledChange = useCallback(
     (enabled: boolean) => {
-      setPulseAnimationEnabled(enabled)
+      updateVisualizationSetting('pulseAnimationEnabled', enabled)
       setPulseAnimationPlayback({
         data: pulseAnimation,
         isPlaying: false,
@@ -1158,7 +1237,11 @@ export function FibreGeometryView({
         resetSignal: currentPulseAnimationPlayback.resetSignal + 1,
       })
     },
-    [currentPulseAnimationPlayback.resetSignal, pulseAnimation],
+    [
+      currentPulseAnimationPlayback.resetSignal,
+      pulseAnimation,
+      updateVisualizationSetting,
+    ],
   )
 
   return (
@@ -1180,86 +1263,105 @@ export function FibreGeometryView({
       </dl>
 
       <div className="geometry-viewport">
-        <Canvas
-          role="img"
-          aria-label="Illustrative interactive 3D fibre geometry"
-          aria-describedby="geometry-scale-note"
-          frameloop="demand"
-          dpr={[1, 1.5]}
-          camera={{ position: [10, 6, 12], fov: 42, near: 0.1, far: 100 }}
-          gl={{ antialias: true, powerPreference: 'high-performance' }}
-          fallback={
-            <p role="status">
-              3D rendering is unavailable in this browser or device.
-            </p>
-          }
-        >
-          <color attach="background" args={['#101827']} />
-          <ambientLight intensity={0.8} />
-          <directionalLight position={[5, 8, 7]} intensity={1.4} />
-          <pointLight position={[-5, -3, 4]} intensity={0.65} />
-          <FibreGeometryScene
-            coreRadiusUm={coreRadiusUm}
-            visualLengthModelUnits={visualLength}
-            rayGuidance={rayGuidance}
-            incidenceAngleDeg={incidenceAngleDeg}
-            rayViewEnabled={rayViewEnabled}
-            modeProfile={modeProfile}
-            modeViewEnabled={modeViewEnabled}
-            pulseAnimation={pulseAnimationForScene}
-            pulseAnimationEnabled={pulseAnimationEnabled}
-            pulseAnimationPlaying={currentPulseAnimationPlayback.isPlaying}
-            onPulseAnimationComplete={handlePulseAnimationComplete}
-            pulseAnimationResetSignal={
-              currentPulseAnimationPlayback.resetSignal
+        {webglAvailable ? (
+          <Canvas
+            role="img"
+            aria-label="Illustrative interactive 3D fibre geometry"
+            aria-describedby="geometry-scale-note"
+            frameloop="demand"
+            dpr={[1, 1.5]}
+            camera={{ position: [10, 6, 12], fov: 42, near: 0.1, far: 100 }}
+            gl={{ antialias: true, powerPreference: 'high-performance' }}
+            fallback={
+              <p role="status">
+                3D rendering is unavailable in this browser or device.
+              </p>
             }
-          />
-          <FibreOrbitControls />
-        </Canvas>
+          >
+            <color attach="background" args={['#101827']} />
+            <ambientLight intensity={0.8} />
+            <directionalLight position={[5, 8, 7]} intensity={1.4} />
+            <pointLight position={[-5, -3, 4]} intensity={0.65} />
+            <FibreGeometryScene
+              coreRadiusUm={coreRadiusUm}
+              visualLengthModelUnits={visualLength}
+              rayGuidance={rayGuidance}
+              incidenceAngleDeg={incidenceAngleDeg}
+              rayViewEnabled={rayViewEnabled}
+              modeProfile={modeProfile}
+              modeViewEnabled={modeViewEnabled}
+              pulseAnimation={pulseAnimationForScene}
+              pulseAnimationEnabled={pulseAnimationEnabled}
+              pulseAnimationPlaying={currentPulseAnimationPlayback.isPlaying}
+              onPulseAnimationComplete={handlePulseAnimationComplete}
+              pulseAnimationResetSignal={
+                currentPulseAnimationPlayback.resetSignal
+              }
+            />
+            <FibreOrbitControls />
+          </Canvas>
+        ) : (
+          <p className="geometry-webgl-fallback" role="status">
+            3D rendering is unavailable in this browser or device.
+          </p>
+        )}
       </div>
 
-      <div className="geometry-controls">
-        <label htmlFor="visual-fibre-length">
-          Visual fibre length (model units)
-        </label>
-        <input
-          id="visual-fibre-length"
-          type="range"
-          min={MIN_VISUAL_LENGTH}
-          max={MAX_VISUAL_LENGTH}
-          step={1}
-          value={visualLength}
-          onChange={(event) =>
-            setVisualLength(Number(event.currentTarget.value))
-          }
-          aria-describedby="visual-fibre-length-help"
-        />
-        <output
-          htmlFor="visual-fibre-length"
-          aria-label="Current visual fibre length"
-          aria-live="polite"
-        >
-          {visualLength} model units
-        </output>
-        <p id="visual-fibre-length-help">
-          Visual-only length; it changes the displayed cylinder and is not a
-          physical fibre length.
-        </p>
-      </div>
+      {showConfigurationControls && (
+        <div className="geometry-controls">
+          <label htmlFor="visual-fibre-length">
+            Visual fibre length (model units)
+          </label>
+          <input
+            id="visual-fibre-length"
+            type="range"
+            min={MIN_VISUAL_LENGTH}
+            max={MAX_VISUAL_LENGTH}
+            step={1}
+            value={visualLength}
+            onChange={(event) =>
+              updateVisualizationSetting(
+                'visualLength',
+                Number(event.currentTarget.value),
+              )
+            }
+            aria-describedby="visual-fibre-length-help"
+          />
+          <output
+            htmlFor="visual-fibre-length"
+            aria-label="Current visual fibre length"
+            aria-live="polite"
+          >
+            {visualLength} model units
+          </output>
+          <p id="visual-fibre-length-help">
+            Visual-only length; it changes the displayed cylinder and is not a
+            physical fibre length.
+          </p>
+        </div>
+      )}
 
       <RayGuidancePanel
         enabled={rayViewEnabled}
-        onEnabledChange={setRayViewEnabled}
+        onEnabledChange={(enabled) =>
+          updateVisualizationSetting('rayViewEnabled', enabled)
+        }
         incidenceAngleDeg={incidenceAngleDeg}
-        onIncidenceAngleChange={setIncidenceAngleDeg}
+        onIncidenceAngleChange={(angle) =>
+          updateVisualizationSetting('incidenceAngleDeg', angle)
+        }
         guidance={rayGuidance}
+        showControls={showConfigurationControls}
       />
 
       <ModeProfilePanel
         enabled={modeViewEnabled}
-        onEnabledChange={setModeViewEnabled}
+        onEnabledChange={(enabled) =>
+          updateVisualizationSetting('modeViewEnabled', enabled)
+        }
         modeProfile={modeProfile}
         coreRadiusUm={coreRadiusUm}
+        showToggle={showConfigurationControls}
       />
 
       <PulseAnimationPanel
@@ -1272,6 +1374,7 @@ export function FibreGeometryView({
         completed={currentPulseAnimationPlayback.completed}
         onPlayPause={handlePulseAnimationPlayPause}
         onReset={handlePulseAnimationReset}
+        showToggle={showConfigurationControls}
       />
 
       <p id="geometry-scale-note" className="geometry-note">
