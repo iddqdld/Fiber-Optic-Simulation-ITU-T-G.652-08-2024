@@ -17,6 +17,19 @@ computed output is non-finite for finite-but-extreme request values, the
 function raises the public `ConstantAttenuationCalculationError` with exact
 message `Constant attenuation calculation produced a non-finite result.`
 
+The result also contains backend-authored `distance_samples_km` and
+`power_samples_dbm` series. They are immutable finite tuples in the Python
+model and serialize as JSON arrays. The calculator considers 65 evenly
+parameterized distance candidates from zero through the section length and
+removes repeated floating-point values. Therefore each series contains 1 to
+65 paired samples. A zero-length section contains exactly one sample at
+distance `0.0` with the input power. A positive-length section starts at exact
+distance `0.0`, ends at exact `length_km`, and is strictly increasing in
+distance. Power starts at exact `input_power_dbm`, ends at exact
+`output_power_dbm`, remains finite, and is non-increasing. The result model
+validates these series invariants without independently re-evaluating the
+attenuation or power-balance formulas.
+
 `length_km` is a fibre-section length in kilometres (km). The supplied
 `attenuation_db_per_km` is a constant coefficient in decibels per kilometre
 (dB/km). `section_loss_db` is a loss in decibels (dB). `input_power_dbm` and

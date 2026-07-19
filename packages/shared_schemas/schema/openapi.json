@@ -292,6 +292,15 @@
             "title": "Attenuation Db Per Km",
             "type": "number"
           },
+          "distance_samples_km": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 65,
+            "minItems": 1,
+            "title": "Distance Samples Km",
+            "type": "array"
+          },
           "input_power_dbm": {
             "title": "Input Power Dbm",
             "type": "number"
@@ -308,6 +317,15 @@
             "title": "Output Power Dbm",
             "type": "number"
           },
+          "power_samples_dbm": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 65,
+            "minItems": 1,
+            "title": "Power Samples Dbm",
+            "type": "array"
+          },
           "section_loss_db": {
             "minimum": 0,
             "title": "Section Loss Db",
@@ -320,6 +338,8 @@
           "input_power_dbm",
           "section_loss_db",
           "output_power_dbm",
+          "distance_samples_km",
+          "power_samples_dbm",
           "model_manifest"
         ],
         "title": "ConstantAttenuationResult",

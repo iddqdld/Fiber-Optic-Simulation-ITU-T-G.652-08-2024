@@ -208,6 +208,8 @@ export interface components {
         ConstantAttenuationResult: {
             /** Attenuation Db Per Km */
             attenuation_db_per_km: number;
+            /** Distance Samples Km */
+            distance_samples_km: number[];
             /** Input Power Dbm */
             input_power_dbm: number;
             /** Length Km */
@@ -215,6 +217,8 @@ export interface components {
             model_manifest: components["schemas"]["ConstantAttenuationManifest"];
             /** Output Power Dbm */
             output_power_dbm: number;
+            /** Power Samples Dbm */
+            power_samples_dbm: number[];
             /** Section Loss Db */
             section_loss_db: number;
         };

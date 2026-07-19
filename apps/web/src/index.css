@@ -802,3 +802,206 @@ dd {
     break-inside: auto;
   }
 }
+
+.power-distance-card {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: clamp(1.1rem, 2.5vw, 1.75rem);
+  background: #fff;
+  border: 1px solid #c8d3dc;
+  border-radius: 0.7rem;
+  box-shadow: 0 0.35rem 1.4rem rgb(16 42 67 / 7%);
+}
+
+.power-distance-card h2 {
+  margin-bottom: 0.65rem;
+}
+
+.power-distance-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.power-distance-facts > div {
+  min-width: 0;
+  padding: 0.8rem;
+  background: #f4f7f9;
+  border: 1px solid #e0e7ec;
+  border-radius: 0.4rem;
+}
+
+.power-distance-model {
+  overflow-wrap: anywhere;
+}
+
+.power-distance-status,
+.power-distance-note {
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.8rem;
+  color: #526575;
+  font-weight: 700;
+  background: #f4f7f9;
+  border: 1px solid #d3dce3;
+  border-radius: 0.4rem;
+}
+
+.power-distance-figure {
+  margin: 1.25rem 0 0;
+}
+
+.power-distance-plot-wrap {
+  overflow-x: auto;
+  background: #fbfcfd;
+  border: 1px solid #d3dce3;
+  border-radius: 0.5rem;
+}
+
+.power-distance-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-width: 34rem;
+}
+
+.power-distance-grid line {
+  stroke: #dfe7ec;
+  stroke-width: 1;
+}
+
+.power-distance-ticks text {
+  fill: #526575;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.power-distance-axis {
+  stroke: #526575;
+  stroke-width: 1.5;
+}
+
+.power-distance-axis-label {
+  fill: #263f52;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.power-distance-sample-line {
+  fill: none;
+  stroke: #276c91;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.power-distance-sample-point {
+  fill: #fff;
+  stroke: #276c91;
+  stroke-width: 1.5;
+}
+
+.power-distance-figure figcaption,
+.power-distance-explanation {
+  color: #526575;
+}
+
+.power-distance-figure figcaption {
+  margin-top: 0.65rem;
+  font-size: 0.9rem;
+}
+
+.power-distance-explanation {
+  margin: 0.8rem 0 0;
+}
+
+.power-distance-details {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #d3dce3;
+}
+
+.power-distance-details summary {
+  width: fit-content;
+  color: #24445d;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.power-distance-details summary:focus-visible {
+  outline: 3px solid #72b7dc;
+  outline-offset: 3px;
+}
+
+.power-distance-details > p {
+  margin: 0.75rem 0;
+  color: #526575;
+  font-size: 0.9rem;
+}
+
+.power-distance-table-wrap {
+  overflow-x: auto;
+}
+
+.power-distance-details table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.power-distance-details caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.power-distance-details th,
+.power-distance-details td {
+  padding: 0.5rem 0.65rem;
+  text-align: right;
+  border-bottom: 1px solid #e0e7ec;
+}
+
+.power-distance-details th {
+  color: #263f52;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.power-distance-details td {
+  color: #102a43;
+}
+
+.power-distance-details td:first-child {
+  text-align: left;
+}
+
+@media (max-width: 58rem) {
+  .power-distance-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 38rem) {
+  .power-distance-card {
+    padding: 1rem;
+  }
+
+  .power-distance-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .power-distance-card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .power-distance-details[open] {
+    break-inside: auto;
+  }
+}
