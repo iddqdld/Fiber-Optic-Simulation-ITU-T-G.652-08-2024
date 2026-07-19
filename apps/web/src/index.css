@@ -1555,6 +1555,8 @@ summary:focus-visible,
   height: 100%;
   min-height: 0;
   overflow: auto;
+  scrollbar-color: #596577 #171c23;
+  scrollbar-width: thin;
 }
 
 .editor-shell-workspace-panel[hidden] {
@@ -1681,6 +1683,40 @@ summary:focus-visible,
   color: var(--editor-accent-strong);
 }
 
+.level1-inspector-section-toggle--error,
+.level1-inspector-section-toggle[data-tone='error'] {
+  color: #ffe2e5;
+  background: #4b1b23;
+  border-left: 3px solid #ff6b78;
+}
+
+.level1-inspector-section-toggle--warning,
+.level1-inspector-section-toggle[data-tone='warning'] {
+  color: #fff0b3;
+  background: #4d3a12;
+  border-left: 3px solid #ffd166;
+}
+
+.level1-inspector-section-toggle--error:hover,
+.level1-inspector-section-toggle[data-tone='error']:hover {
+  background: #61232d;
+}
+
+.level1-inspector-section-toggle--warning:hover,
+.level1-inspector-section-toggle[data-tone='warning']:hover {
+  background: #634b16;
+}
+
+.level1-inspector-section-issues {
+  margin-left: auto;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+
 .level1-inspector-section-panel {
   padding: 0.75rem;
   background: var(--editor-panel);
@@ -1720,6 +1756,72 @@ summary:focus-visible,
 .editor-shell input:hover,
 .editor-shell select:hover {
   border-color: #68768a;
+}
+
+.editor-shell .level1-inspector-field--error {
+  padding: 0.4rem;
+  background: #35151b;
+  border: 1px solid #ff6b78;
+  border-radius: 4px;
+}
+
+.editor-shell .level1-inspector-field--warning {
+  padding: 0.4rem;
+  background: #382b0d;
+  border: 1px solid #ffd166;
+  border-radius: 4px;
+}
+
+.editor-shell .level1-inspector-field--error label,
+.editor-shell .level1-inspector-field--error input,
+.editor-shell .level1-inspector-field--error select {
+  color: #ffe2e5;
+}
+
+.editor-shell .level1-inspector-field--warning label,
+.editor-shell .level1-inspector-field--warning input,
+.editor-shell .level1-inspector-field--warning select {
+  color: #fff0b3;
+}
+
+.editor-shell .level1-inspector-field--error input,
+.editor-shell .level1-inspector-field--error select {
+  background: #241015;
+  border-color: #ff6b78;
+}
+
+.editor-shell .level1-inspector-field--warning input,
+.editor-shell .level1-inspector-field--warning select {
+  background: #211a0b;
+  border-color: #ffd166;
+}
+
+.level1-inspector-issues {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.25rem 0 0;
+  padding: 0.3rem 0.45rem 0.3rem 1.5rem;
+  font-size: 0.71rem;
+  line-height: 1.35;
+}
+
+.level1-inspector-issue {
+  padding-left: 0.15rem;
+  font-weight: 650;
+}
+
+.level1-inspector-issue--error {
+  color: #ffe2e5;
+  border-left: 2px solid #ff6b78;
+}
+
+.level1-inspector-issue--warning {
+  color: #fff0b3;
+  border-left: 2px solid #ffd166;
+}
+
+.level1-inspector-issue-label {
+  font-weight: 850;
 }
 
 .level1-inspector-model-note,

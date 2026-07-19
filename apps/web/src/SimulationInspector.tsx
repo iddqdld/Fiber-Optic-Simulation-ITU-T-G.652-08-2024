@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { RayGuidance } from './FibreGeometryView'
+import type { FieldIssues } from './fieldIssues'
 import {
   Level1Form,
   type CableApplication,
@@ -14,6 +15,7 @@ import type { VisualizationSettings } from './visualizationSettings'
 type SimulationInspectorProps = {
   values: FormValues
   error: string | null
+  fieldIssues: FieldIssues
   settings: VisualizationSettings
   rayGuidance: RayGuidance | null
   onNumericFieldChange: (field: NumericFormField, value: string) => void
@@ -25,6 +27,7 @@ type SimulationInspectorProps = {
 export function SimulationInspector({
   values,
   error,
+  fieldIssues,
   settings,
   rayGuidance,
   onNumericFieldChange,
@@ -39,6 +42,7 @@ export function SimulationInspector({
       <Level1Form
         values={values}
         error={error}
+        fieldIssues={fieldIssues}
         onNumericFieldChange={onNumericFieldChange}
         onPresetChange={onPresetChange}
         onCableApplicationChange={onCableApplicationChange}

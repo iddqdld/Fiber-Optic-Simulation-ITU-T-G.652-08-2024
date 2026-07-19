@@ -44,6 +44,27 @@ function formatCheckStatus(
   return 'Fail'
 }
 
+function formatWarning(
+  warning: PreviewResult['warnings'][number],
+  result: PreviewResult,
+): string {
+  if (warning.code === 'mode_count_unavailable') {
+    const vNumber = result.guidance.v_number_dimensionless
+    const threshold =
+      result.guidance.model_manifest.mode_count_min_v_dimensionless
+
+    return `Approximate mode count is unavailable because the calculated V-number (${vNumber}) is below the model validity threshold of ${threshold}. V-number is derived from the refractive indices, core radius, and wavelength; it is not a separate input.`
+  }
+
+  if (warning.code === 'air_acceptance_angle_unavailable') {
+    const numericalAperture = result.guidance.numerical_aperture_dimensionless
+
+    return `Air acceptance angle is unavailable because the calculated numerical aperture (${numericalAperture}) exceeds the air-coupling limit of 1. Numerical aperture is derived from the core and cladding refractive indices; it is not a separate input.`
+  }
+
+  return warning.message
+}
+
 export function Level1Preview({ result }: Level1PreviewProps) {
   return (
     <section
@@ -162,7 +183,7 @@ export function Level1Preview({ result }: Level1PreviewProps) {
           <ul>
             {result.warnings.map((warning) => (
               <li key={`${warning.code}-${warning.message}`}>
-                {warning.message}
+                {formatWarning(warning, result)}
               </li>
             ))}
           </ul>

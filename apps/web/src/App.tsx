@@ -21,6 +21,7 @@ import {
   type PreviewStateTone,
   type WorkspaceId,
 } from './EditorShell'
+import { getFieldIssues } from './fieldIssues'
 import { GraphWorkspace } from './GraphWorkspace'
 import type { GraphWorkspaceId } from './graphWorkspace'
 import { Level1Preview } from './Level1Preview'
@@ -508,6 +509,52 @@ function defaultResultDrawerOpen(): boolean {
     : window.matchMedia('(min-width: 1400px)').matches
 }
 
+function resultMatchesRequest(
+  request: PreviewRequest | null,
+  result: PreviewResult | null,
+): boolean {
+  if (request === null || result === null) {
+    return false
+  }
+
+  const configuration = result.configuration
+  if (
+    !isRecord(configuration) ||
+    !isRecord(configuration.fibre) ||
+    !isRecord(configuration.source) ||
+    !isRecord(configuration.section) ||
+    !isRecord(configuration.sampling)
+  ) {
+    return false
+  }
+
+  return (
+    request.preset === configuration.preset &&
+    request.fibre.n_core === configuration.fibre.n_core &&
+    request.fibre.n_cladding === configuration.fibre.n_cladding &&
+    request.fibre.core_radius_um === configuration.fibre.core_radius_um &&
+    request.fibre.mode_field_radius_um ===
+      configuration.fibre.mode_field_radius_um &&
+    request.fibre.attenuation_db_per_km ===
+      configuration.fibre.attenuation_db_per_km &&
+    request.fibre.dispersion_ps_per_nm_km ===
+      configuration.fibre.dispersion_ps_per_nm_km &&
+    request.fibre.group_index_dimensionless ===
+      configuration.fibre.group_index_dimensionless &&
+    request.fibre.cable_application === configuration.fibre.cable_application &&
+    request.source.wavelength_nm === configuration.source.wavelength_nm &&
+    request.source.input_power_dbm === configuration.source.input_power_dbm &&
+    request.source.spectral_width_fwhm_nm ===
+      configuration.source.spectral_width_fwhm_nm &&
+    request.source.input_pulse_fwhm_ps ===
+      configuration.source.input_pulse_fwhm_ps &&
+    request.section.length_km === configuration.section.length_km &&
+    request.sampling.grid_half_width_um ===
+      configuration.sampling.grid_half_width_um &&
+    request.sampling.grid_points === configuration.sampling.grid_points
+  )
+}
+
 function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
@@ -531,6 +578,10 @@ function App() {
   const formValidation = parseFormValues(formValues)
   const geometryValues = getGeometryValues(formValues)
   const error = formValidation.error ?? serviceError
+  const fieldIssues = getFieldIssues(
+    formValues,
+    resultMatchesRequest(formValidation.request, result) ? result : null,
+  )
 
   const clearVisualizationData = () => {
     previewSequence.current += 1
@@ -744,6 +795,7 @@ function App() {
     <SimulationInspector
       values={formValues}
       error={error}
+      fieldIssues={fieldIssues}
       settings={visualizationSettings}
       rayGuidance={visualizationData?.rayGuidance ?? null}
       onNumericFieldChange={updateNumericField}

@@ -919,6 +919,76 @@ describe('Level 1 form', () => {
     expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
   })
 
+  test('keeps derived mode-count warnings in Results and applies local field errors immediately', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [jsonResponse(customResult)] })
+
+    render(<App />)
+    await settleDebounce()
+
+    const preview = screen.getByRole('region', { name: 'Level 1 preview' })
+    const warningsHeading = within(preview).getByRole('heading', {
+      name: 'Warnings',
+    })
+    const warnings = warningsHeading.closest('section')
+
+    expect(warnings).not.toBeNull()
+    const warningItems = within(warnings as HTMLElement).getAllByRole(
+      'listitem',
+    )
+    expect(warningItems).toHaveLength(1)
+    expect(warningItems[0]).toHaveTextContent(/V-number/i)
+
+    const contributingInputs = [
+      numberInput(/Core refractive index/i),
+      numberInput(/Cladding refractive index/i),
+      numberInput(/Core radius/i),
+      numberInput(/Wavelength/i),
+    ]
+
+    for (const input of contributingInputs) {
+      const field = input.closest('.level1-inspector-field')
+
+      expect(field).not.toBeNull()
+      expect(field).not.toHaveAttribute('data-tone', 'warning')
+      expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    }
+
+    expect(screen.getByRole('button', { name: 'Fibre' })).not.toHaveAttribute(
+      'data-tone',
+      'warning',
+    )
+    expect(screen.getByRole('button', { name: 'Source' })).not.toHaveAttribute(
+      'data-tone',
+      'warning',
+    )
+
+    const coreInput = contributingInputs[0]
+    const coreField = coreInput.closest('.level1-inspector-field')
+    const fibreSection = coreInput.closest('.level1-inspector-section')
+
+    expect(coreField).not.toBeNull()
+    expect(fibreSection).not.toBeNull()
+
+    fireEvent.change(coreInput, { target: { value: '0' } })
+
+    expect(coreField).toHaveAttribute('data-tone', 'error')
+    expect(fibreSection).toHaveAttribute('data-tone', 'error')
+    expect(coreInput).toHaveAttribute('aria-invalid', 'true')
+    expect(
+      within(coreField as HTMLElement).getByText('Must be greater than 0.'),
+    ).toBeVisible()
+    expect(
+      within(coreField as HTMLElement).getByText(
+        'Must satisfy n_core > n_cladding.',
+      ),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Fibre' })).toHaveAttribute(
+      'data-tone',
+      'error',
+    )
+  })
+
   test('previews the inclusive G.652.D wavelength boundaries only', async () => {
     vi.useFakeTimers()
     const fetchMock = mockFetch()
@@ -1991,11 +2061,20 @@ describe('Level 1 preview state and results', () => {
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
     expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
     expectAllVisualizationConsumersToBeNull()
-    expect(
-      screen.getByText(
-        'Mode count estimate is unavailable below the validity threshold.',
-      ),
-    ).toBeVisible()
+    const preview = screen.getByRole('region', { name: 'Level 1 preview' })
+    const warningsHeading = within(preview).getByRole('heading', {
+      name: 'Warnings',
+    })
+    const warnings = warningsHeading.closest('section')
+
+    expect(warnings).not.toBeNull()
+    const warningItems = within(warnings as HTMLElement).getAllByRole(
+      'listitem',
+    )
+    expect(warningItems).toHaveLength(1)
+    expect(warningItems[0]).toHaveTextContent(/V-number/i)
+    expect(warningItems[0]).toHaveTextContent(/derived/i)
+    expect(warningItems[0]).toHaveTextContent(/not a separate input/i)
 
     await act(async () => {
       second.resolve(jsonResponse({ ...customResult, warnings: [] }))
@@ -2075,7 +2154,7 @@ describe('Level 1 preview state and results', () => {
     )
   })
 
-  test('renders exact summary units, model metadata, and warnings', async () => {
+  test('renders exact summary units, model metadata, and explains the derived mode-count warning', async () => {
     vi.useFakeTimers()
     mockFetch({ preview: [jsonResponse(customResult)] })
 
@@ -2108,11 +2187,19 @@ describe('Level 1 preview state and results', () => {
     expect(preview).toHaveTextContent('Approximate')
     expect(preview).toHaveTextContent('one uniform fibre section')
     expect(preview).toHaveTextContent('excludes bends, splices, and connectors')
-    expect(
-      within(preview).getByText(
-        'Mode count estimate is unavailable below the validity threshold.',
-      ),
-    ).toBeVisible()
+    const warningsHeading = within(preview).getByRole('heading', {
+      name: 'Warnings',
+    })
+    const warnings = warningsHeading.closest('section')
+
+    expect(warnings).not.toBeNull()
+    const warningItems = within(warnings as HTMLElement).getAllByRole(
+      'listitem',
+    )
+    expect(warningItems).toHaveLength(1)
+    expect(warningItems[0]).toHaveTextContent(/V-number/i)
+    expect(warningItems[0]).toHaveTextContent(/derived/i)
+    expect(warningItems[0]).toHaveTextContent(/not a separate input/i)
   })
 
   test('shows custom standards checks as off and G.652.D checks compactly', async () => {

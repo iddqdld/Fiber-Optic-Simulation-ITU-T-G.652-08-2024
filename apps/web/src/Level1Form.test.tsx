@@ -6,6 +6,7 @@ import {
   type FormValues,
   type NumericFormField,
 } from './Level1Form'
+import type { FieldIssues } from './fieldIssues'
 
 const values: FormValues = {
   preset: 'custom',
@@ -26,7 +27,7 @@ const values: FormValues = {
   grid_points: '65',
 }
 
-function renderForm() {
+function renderForm(fieldIssues: FieldIssues = {}) {
   const onNumericFieldChange =
     vi.fn<(field: NumericFormField, value: string) => void>()
   const onPresetChange = vi.fn()
@@ -36,6 +37,7 @@ function renderForm() {
     <Level1Form
       values={values}
       error={null}
+      fieldIssues={fieldIssues}
       onNumericFieldChange={onNumericFieldChange}
       onPresetChange={onPresetChange}
       onCableApplicationChange={onCableApplicationChange}
@@ -141,5 +143,104 @@ describe('Level1Form inspector accordion', () => {
     expect(callbacks.onCableApplicationChange).toHaveBeenCalledWith(
       'short_jumper',
     )
+  })
+
+  test('presents error and warning issues on controls and wrappers', () => {
+    renderForm({
+      n_core: [{ tone: 'error', message: 'Must be greater than cladding.' }],
+      wavelength_nm: [
+        { tone: 'warning', message: 'Mode count is unavailable.' },
+      ],
+      cable_application: [
+        { tone: 'warning', message: 'Check the selected cable application.' },
+        { tone: 'warning', message: 'Attenuation range is limited.' },
+      ],
+    })
+
+    const coreInput = screen.getByLabelText(
+      'Core refractive index (dimensionless)',
+    )
+    expect(coreInput).toHaveAttribute('aria-invalid', 'true')
+    expect(coreInput).toHaveAttribute('aria-describedby', 'n-core-issues')
+    expect(coreInput.closest('.level1-inspector-field')).toHaveAttribute(
+      'data-tone',
+      'error',
+    )
+    expect(coreInput.closest('.level1-inspector-field')).toHaveClass(
+      'level1-inspector-field--error',
+    )
+    expect(screen.getByText('Must be greater than cladding.')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
+    const wavelengthInput = screen.getByLabelText('Wavelength (nm)')
+    expect(wavelengthInput).not.toHaveAttribute('aria-invalid', 'true')
+    expect(wavelengthInput).toHaveAttribute(
+      'aria-describedby',
+      'wavelength-issues',
+    )
+    expect(wavelengthInput.closest('.level1-inspector-field')).toHaveAttribute(
+      'data-tone',
+      'warning',
+    )
+    expect(screen.getByText('Mode count is unavailable.')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Section' }))
+    const cableSelect = screen.getByLabelText('Cable application')
+    expect(cableSelect).not.toHaveAttribute('aria-invalid', 'true')
+    expect(cableSelect).toHaveAttribute(
+      'aria-describedby',
+      'cable-application-issues',
+    )
+    expect(cableSelect.closest('.level1-inspector-field')).toHaveAttribute(
+      'data-tone',
+      'warning',
+    )
+    expect(
+      screen.getByText('Check the selected cable application.'),
+    ).toBeVisible()
+    expect(screen.getByText('Attenuation range is limited.')).toBeVisible()
+  })
+
+  test('marks issue-bearing accordion headers without changing their names', () => {
+    renderForm({
+      n_core: [{ tone: 'error', message: 'Core issue.' }],
+      wavelength_nm: [{ tone: 'warning', message: 'Wavelength issue.' }],
+      cable_application: [
+        { tone: 'warning', message: 'Cable issue one.' },
+        { tone: 'warning', message: 'Cable issue two.' },
+      ],
+    })
+
+    const fibreButton = screen.getByRole('button', { name: 'Fibre' })
+    expect(fibreButton).toHaveAttribute('data-tone', 'error')
+    expect(fibreButton).toHaveAttribute(
+      'aria-describedby',
+      'level1-inspector-fibre-heading-issues',
+    )
+    expect(screen.getByText('Error: 1 issue')).toBeVisible()
+
+    const sourceButton = screen.getByRole('button', { name: 'Source' })
+    expect(sourceButton).toHaveAttribute('data-tone', 'warning')
+    expect(sourceButton).toHaveAttribute(
+      'aria-describedby',
+      'level1-inspector-source-heading-issues',
+    )
+    expect(screen.getByText('Warning: 1 issue')).toBeVisible()
+
+    const sectionButton = screen.getByRole('button', { name: 'Section' })
+    expect(sectionButton).toHaveAttribute('data-tone', 'warning')
+    expect(screen.getByText('Warning: 2 issues')).toBeVisible()
+
+    for (const sectionName of [
+      'Preset',
+      'Fibre',
+      'Source',
+      'Section',
+      'Sampling',
+    ]) {
+      expect(
+        screen.getByRole('button', { name: sectionName }),
+      ).toBeInTheDocument()
+    }
   })
 })
