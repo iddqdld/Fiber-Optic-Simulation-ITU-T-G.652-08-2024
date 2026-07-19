@@ -80,6 +80,24 @@ vi.mock('./FibreGeometryView', () => ({
   ),
 }))
 
+type RadialIntensityPlotProps = {
+  modeProfile: ModeProfileData | null
+}
+
+vi.mock('./RadialIntensityPlot', () => ({
+  RadialIntensityPlot: ({ modeProfile }: RadialIntensityPlotProps) => (
+    <section
+      role="region"
+      aria-label="Radial intensity plot"
+      data-testid="radial-intensity-plot"
+    >
+      {modeProfile === null
+        ? 'null'
+        : `Grid: ${modeProfile.gridPoints} x ${modeProfile.gridPoints} · Endpoints: x ${modeProfile.xUm[0]}..${modeProfile.xUm.at(-1)} µm, y ${modeProfile.yUm[0]}..${modeProfile.yUm.at(-1)} µm · Center intensity: ${modeProfile.normalizedIntensity[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Radius: ${modeProfile.modeFieldRadiusUm} µm · Model: ${modeProfile.modelId} ${modeProfile.modelVersion} · Normalization: ${modeProfile.normalizationConvention} · Radius convention: ${modeProfile.radiusConvention}`}
+    </section>
+  ),
+}))
+
 type Level1Request =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
 type Level1Result =
@@ -467,6 +485,10 @@ function modeProfileOutput() {
   return screen.getByTestId('mode-profile')
 }
 
+function radialIntensityPlotOutput() {
+  return screen.getByTestId('radial-intensity-plot')
+}
+
 function pulseAnimationOutput() {
   return screen.getByTestId('pulse-animation')
 }
@@ -821,11 +843,13 @@ describe('Level 1 preview state and results', () => {
     render(<App />)
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await act(async () => {
@@ -836,6 +860,20 @@ describe('Level 1 preview state and results', () => {
       '85.27298324998428° · ideal_circular_step_index_guidance · 1.0.0',
     )
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Grid: 65 x 65')
+    expect(radialIntensityPlotOutput()).toHaveTextContent(
+      'Endpoints: x -15..15 µm, y -15..15 µm',
+    )
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
+    expect(radialIntensityPlotOutput()).toHaveTextContent(
+      'Model: gaussian_lp01_mode_profile 1.0.0',
+    )
+    expect(radialIntensityPlotOutput()).toHaveTextContent(
+      'Normalization: unit_peak_field_and_intensity',
+    )
+    expect(radialIntensityPlotOutput()).toHaveTextContent(
+      'Radius convention: 1/e_field_radius',
+    )
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Broadening: 42.5 ps')
     expect(pulseAnimationOutput()).toHaveTextContent(
@@ -914,6 +952,7 @@ describe('Level 1 preview state and results', () => {
       '85.27298324998428°',
     )
     expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Grid: 65 x 65')
     expect(pulseAnimationOutput()).toHaveTextContent(
       'Output pulse: 49.30770730829005 ps',
     )
@@ -923,11 +962,13 @@ describe('Level 1 preview state and results', () => {
     })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await act(async () => {
@@ -950,6 +991,7 @@ describe('Level 1 preview state and results', () => {
       '81.83568244780919° · ideal_circular_step_index_guidance · 1.0.0',
     )
     expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
     expect(pulseAnimationOutput()).toHaveTextContent(
       'Output pulse: 49.30770730829005 ps',
     )
@@ -972,6 +1014,7 @@ describe('Level 1 preview state and results', () => {
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '0' } })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await settleDebounce()
@@ -1005,12 +1048,14 @@ describe('Level 1 preview state and results', () => {
       '85.27298324998428°',
     )
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.2' } })
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
 
@@ -1018,6 +1063,7 @@ describe('Level 1 preview state and results', () => {
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Preview service rejected the request.',
@@ -1027,6 +1073,7 @@ describe('Level 1 preview state and results', () => {
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Unable to reach the preview service.',
@@ -1176,6 +1223,7 @@ describe('Level 1 preview state and results', () => {
       await settleDebounce()
 
       expect(modeProfileOutput()).toHaveTextContent('null')
+      expect(radialIntensityPlotOutput()).toHaveTextContent('null')
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
       expect(pulseAnimationOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
@@ -1413,6 +1461,7 @@ describe('Level 1 preview state and results', () => {
       expect(pulseAnimationOutput()).toHaveTextContent('null')
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
       expect(modeProfileOutput()).toHaveTextContent('null')
+      expect(radialIntensityPlotOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(
         screen.getByRole('region', { name: 'Level 1 preview' }),
@@ -1443,6 +1492,7 @@ describe('Level 1 preview state and results', () => {
     await settleDebounce()
     expect(screen.getByRole('status')).toHaveTextContent('Updating preview…')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(
       screen.getByText(
@@ -1455,6 +1505,7 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(screen.getByRole('status')).toHaveTextContent('Preview ready')
   })
@@ -1474,6 +1525,7 @@ describe('Level 1 preview state and results', () => {
       second.resolve(
         jsonResponse({
           ...customResult,
+          mode_profile: buildModeProfile({ modeFieldRadiusUm: 4.4 }),
           pulse_broadening: {
             ...customResult.pulse_broadening,
             output_pulse_fwhm_ps: 50,
@@ -1484,6 +1536,8 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Radius: 4.4 µm')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Grid: 65 x 65')
     expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 50 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(
@@ -1494,6 +1548,7 @@ describe('Level 1 preview state and results', () => {
       first.resolve(
         jsonResponse({
           ...customResult,
+          mode_profile: buildModeProfile({ modeFieldRadiusUm: 4.9 }),
           pulse_broadening: {
             ...customResult.pulse_broadening,
             output_pulse_fwhm_ps: 999,
@@ -1510,6 +1565,7 @@ describe('Level 1 preview state and results', () => {
     })
     expect(screen.queryByText('Stale response warning')).not.toBeInTheDocument()
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(radialIntensityPlotOutput()).toHaveTextContent('Radius: 4.4 µm')
     expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 50 ps')
   })
 

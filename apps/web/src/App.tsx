@@ -18,6 +18,7 @@ import {
   type RayGuidance,
 } from './FibreGeometryView'
 import { Level1Preview } from './Level1Preview'
+import { RadialIntensityPlot } from './RadialIntensityPlot'
 
 type PreviewRequest =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
@@ -627,6 +628,9 @@ function App() {
         />
         {result && <Level1Preview result={result} />}
       </div>
+      <RadialIntensityPlot
+        modeProfile={visualizationData?.modeProfile ?? null}
+      />
     </main>
   )
 }

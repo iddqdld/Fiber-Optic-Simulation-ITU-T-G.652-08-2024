@@ -53,8 +53,8 @@ export function Level1Preview({ result }: Level1PreviewProps) {
     >
       <h2 id="level1-preview-title">Level 1 preview</h2>
       <p className="model-note">
-        One uniform fibre section; plots and detailed standards information are
-        outside this preview.
+        This card is the numerical summary for one uniform fibre section;
+        scientific plots are presented separately.
       </p>
 
       <dl className="results-grid">
