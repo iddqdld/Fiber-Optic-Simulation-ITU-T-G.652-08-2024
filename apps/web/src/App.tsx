@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import type {
   components,
   operations,
 } from '../../../packages/shared_schemas/generated/api'
 import {
-  Level1Form,
   type CableApplication,
   type FormValues,
   type NumericFormField,
@@ -17,10 +16,17 @@ import {
   type PulseAnimationData,
   type RayGuidance,
 } from './FibreGeometryView'
+import {
+  EditorShell,
+  type PreviewStateTone,
+  type WorkspaceId,
+} from './EditorShell'
+import { GraphWorkspace } from './GraphWorkspace'
+import type { GraphWorkspaceId } from './graphWorkspace'
 import { Level1Preview } from './Level1Preview'
-import { RadialIntensityPlot } from './RadialIntensityPlot'
-import { PowerDistancePlot } from './PowerDistancePlot'
-import { PulseComparisonPlot } from './PulseComparisonPlot'
+import { SimulationInspector } from './SimulationInspector'
+import { StandardsWorkspace } from './StandardsWorkspace'
+import { defaultVisualizationSettings } from './visualizationSettings'
 import {
   isValidPowerDistanceData,
   type PowerDistanceData,
@@ -496,6 +502,12 @@ type VisualizationData = {
   attenuation: PowerDistanceData
 }
 
+function defaultResultDrawerOpen(): boolean {
+  return typeof window.matchMedia !== 'function'
+    ? true
+    : window.matchMedia('(min-width: 1400px)').matches
+}
+
 function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
@@ -504,6 +516,16 @@ function App() {
   const [visualizationData, setVisualizationData] =
     useState<VisualizationData | null>(null)
   const [serviceError, setServiceError] = useState<string | null>(null)
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>('scene')
+  const [activeGraph, setActiveGraph] = useState<GraphWorkspaceId>(
+    'lp01-radial-intensity',
+  )
+  const [resultDrawerOpen, setResultDrawerOpen] = useState(
+    defaultResultDrawerOpen,
+  )
+  const [visualizationSettings, setVisualizationSettings] = useState(
+    defaultVisualizationSettings,
+  )
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
@@ -665,43 +687,96 @@ function App() {
     setFormValues((current) => ({ ...current, cable_application: value }))
   }
 
-  return (
-    <main>
-      <h1>Optical Fibre Simulator</h1>
-      <p>Configure one fibre section and get an immediate Level 1 preview.</p>
-      <p
-        className="backend-status"
-        role="status"
-        aria-label="Backend status"
-        aria-live="polite"
-      >
-        {backendStatus} ·{' '}
-        {formValidation.error !== null ? 'Preview paused.' : previewStatus}
-      </p>
+  const displayPreviewStatus =
+    formValidation.error !== null ? 'Validation issue' : previewStatus
+  const previewStateTone: PreviewStateTone =
+    formValidation.error !== null
+      ? 'warning'
+      : serviceError !== null
+        ? 'error'
+        : previewStatus === 'Preview ready'
+          ? 'success'
+          : previewStatus.includes('Loading') ||
+              previewStatus.includes('Updating') ||
+              previewStatus.includes('scheduled')
+            ? 'info'
+            : 'neutral'
+  const backendHealthy = backendStatus === 'Backend available'
+  const warningCount = result?.warnings.length ?? 0
+  const modelLabel = result
+    ? `${result.model_manifest.model_id} · ${result.model_manifest.model_version}`
+    : 'Level 1 single-section model'
 
-      <Level1Form
-        values={formValues}
-        error={error}
-        onNumericFieldChange={updateNumericField}
-        onPresetChange={updatePreset}
-        onCableApplicationChange={updateCableApplication}
-      />
-      <div className="preview-column">
+  let workspace: ReactNode
+
+  if (activeWorkspace === 'scene') {
+    workspace = (
+      <div className="scene-workspace">
         <FibreGeometryView
           coreRadiusUm={geometryValues.coreRadiusUm}
           sectionLengthKm={geometryValues.sectionLengthKm}
           rayGuidance={visualizationData?.rayGuidance ?? null}
           modeProfile={visualizationData?.modeProfile ?? null}
           pulseAnimation={visualizationData?.pulseAnimation ?? null}
+          visualizationSettings={visualizationSettings}
+          onVisualizationSettingsChange={setVisualizationSettings}
+          showConfigurationControls={false}
         />
-        {result && <Level1Preview result={result} />}
       </div>
-      <RadialIntensityPlot
+    )
+  } else if (activeWorkspace === 'graphs') {
+    workspace = (
+      <GraphWorkspace
+        activeGraph={activeGraph}
+        onActiveGraphChange={setActiveGraph}
         modeProfile={visualizationData?.modeProfile ?? null}
+        attenuation={visualizationData?.attenuation ?? null}
+        pulseComparison={visualizationData?.pulseComparison ?? null}
       />
-      <PowerDistancePlot attenuation={visualizationData?.attenuation ?? null} />
-      <PulseComparisonPlot pulse={visualizationData?.pulseComparison ?? null} />
-    </main>
+    )
+  } else if (activeWorkspace === 'standards') {
+    workspace = (
+      <StandardsWorkspace standardsChecks={result?.standards_checks ?? null} />
+    )
+  }
+
+  const inspector = (
+    <SimulationInspector
+      values={formValues}
+      error={error}
+      settings={visualizationSettings}
+      rayGuidance={visualizationData?.rayGuidance ?? null}
+      onNumericFieldChange={updateNumericField}
+      onPresetChange={updatePreset}
+      onCableApplicationChange={updateCableApplication}
+      onSettingsChange={setVisualizationSettings}
+    />
+  )
+
+  const resultDrawer = result ? (
+    <Level1Preview result={result} />
+  ) : (
+    <p className="result-drawer-empty">
+      A validated numerical preview will appear here.
+    </p>
+  )
+
+  return (
+    <EditorShell
+      activeWorkspace={activeWorkspace}
+      onWorkspaceChange={setActiveWorkspace}
+      previewStateLabel={displayPreviewStatus}
+      previewStateTone={previewStateTone}
+      backendLabel={backendStatus}
+      backendHealthy={backendHealthy}
+      warningCount={warningCount}
+      resultDrawerOpen={resultDrawerOpen}
+      onResultDrawerToggle={() => setResultDrawerOpen((open) => !open)}
+      modelLabel={modelLabel}
+      inspector={inspector}
+      workspace={workspace}
+      resultDrawer={resultDrawer}
+    />
   )
 }
 

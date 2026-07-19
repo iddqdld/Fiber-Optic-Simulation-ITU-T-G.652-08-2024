@@ -117,7 +117,27 @@ export function Level1Preview({ result }: Level1PreviewProps) {
           <dt>Model version</dt>
           <dd>{result.model_manifest.model_version}</dd>
         </div>
+        <div>
+          <dt>Model status</dt>
+          <dd>Approximate</dd>
+        </div>
       </dl>
+
+      <details className="model-scope-disclosure">
+        <summary>Model assumptions and limitations</summary>
+        <h3>Assumptions</h3>
+        <ul>
+          {result.model_manifest.assumptions.map((assumption) => (
+            <li key={assumption}>{assumption}</li>
+          ))}
+        </ul>
+        <h3>Limitations</h3>
+        <ul>
+          {result.model_manifest.limitations.map((limitation) => (
+            <li key={limitation}>{limitation}</li>
+          ))}
+        </ul>
+      </details>
 
       {isG652DStandardsChecks(result.standards_checks) ? (
         <section
