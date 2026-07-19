@@ -14,6 +14,7 @@ import {
 import {
   FibreGeometryView,
   type ModeProfileData,
+  type PulseAnimationData,
   type RayGuidance,
 } from './FibreGeometryView'
 import { Level1Preview } from './Level1Preview'
@@ -298,6 +299,52 @@ function isModeProfileResult(value: unknown): value is ModeProfileResult {
   )
 }
 
+function isGroupDelayResult(
+  value: unknown,
+): value is PreviewResult['group_delay'] {
+  if (
+    !isRecord(value) ||
+    !isFiniteNumber(value.group_delay_ps) ||
+    value.group_delay_ps < 0 ||
+    !isFiniteNumber(value.length_km) ||
+    value.length_km < 0 ||
+    !isRecord(value.model_manifest)
+  ) {
+    return false
+  }
+
+  return (
+    value.model_manifest.model_id === 'constant_group_index_delay' &&
+    value.model_manifest.model_version === '1.0.0'
+  )
+}
+
+function isPulseBroadeningResult(
+  value: unknown,
+): value is PreviewResult['pulse_broadening'] {
+  if (
+    !isRecord(value) ||
+    !isFiniteNumber(value.input_pulse_fwhm_ps) ||
+    value.input_pulse_fwhm_ps <= 0 ||
+    !isFiniteNumber(value.output_pulse_fwhm_ps) ||
+    value.output_pulse_fwhm_ps < value.input_pulse_fwhm_ps ||
+    !isFiniteNumber(value.dispersion_broadening_fwhm_ps) ||
+    value.dispersion_broadening_fwhm_ps < 0 ||
+    !isFiniteNumber(value.length_km) ||
+    value.length_km < 0 ||
+    !isRecord(value.model_manifest)
+  ) {
+    return false
+  }
+
+  return (
+    value.model_manifest.model_id ===
+      'first_order_chromatic_pulse_broadening' &&
+    value.model_manifest.model_version === '1.0.0' &&
+    value.model_manifest.width_convention === 'fwhm'
+  )
+}
+
 function isPreviewResult(value: unknown): value is PreviewResult {
   if (!isRecord(value)) {
     return false
@@ -320,6 +367,14 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     return false
   }
 
+  if (
+    !isGroupDelayResult(value.group_delay) ||
+    !isPulseBroadeningResult(value.pulse_broadening) ||
+    value.group_delay.length_km !== value.pulse_broadening.length_km
+  ) {
+    return false
+  }
+
   return (
     (guidance.mode_regime === 'single_mode' ||
       guidance.mode_regime === 'multimode') &&
@@ -328,11 +383,6 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     isRecord(value.attenuation) &&
     isFiniteNumber(value.attenuation.section_loss_db) &&
     isFiniteNumber(value.attenuation.output_power_dbm) &&
-    isRecord(value.group_delay) &&
-    isFiniteNumber(value.group_delay.group_delay_ps) &&
-    isRecord(value.pulse_broadening) &&
-    isFiniteNumber(value.pulse_broadening.input_pulse_fwhm_ps) &&
-    isFiniteNumber(value.pulse_broadening.output_pulse_fwhm_ps) &&
     isModeProfileResult(value.mode_profile) &&
     isRecord(value.model_manifest) &&
     value.model_manifest.model_id === 'level1_single_section_simulation' &&
@@ -358,9 +408,26 @@ function toModeProfileData(value: ModeProfileResult): ModeProfileData {
   }
 }
 
+function toPulseAnimationData(value: PreviewResult): PulseAnimationData {
+  return {
+    inputPulseFwhmPs: value.pulse_broadening.input_pulse_fwhm_ps,
+    outputPulseFwhmPs: value.pulse_broadening.output_pulse_fwhm_ps,
+    dispersionBroadeningFwhmPs:
+      value.pulse_broadening.dispersion_broadening_fwhm_ps,
+    sectionLengthKm: value.pulse_broadening.length_km,
+    groupDelayPs: value.group_delay.group_delay_ps,
+    modelId: value.pulse_broadening.model_manifest.model_id,
+    modelVersion: value.pulse_broadening.model_manifest.model_version,
+    widthConvention: value.pulse_broadening.model_manifest.width_convention,
+    delayModelId: value.group_delay.model_manifest.model_id,
+    delayModelVersion: value.group_delay.model_manifest.model_version,
+  }
+}
+
 type VisualizationData = {
   rayGuidance: RayGuidance
   modeProfile: ModeProfileData
+  pulseAnimation: PulseAnimationData
 }
 
 function App() {
@@ -469,6 +536,7 @@ function App() {
               modelVersion: body.guidance.model_manifest.model_version,
             },
             modeProfile: toModeProfileData(body.mode_profile),
+            pulseAnimation: toPulseAnimationData(body),
           })
           setServiceError(null)
           setPreviewStatus('Preview ready')
@@ -555,6 +623,7 @@ function App() {
           sectionLengthKm={geometryValues.sectionLengthKm}
           rayGuidance={visualizationData?.rayGuidance ?? null}
           modeProfile={visualizationData?.modeProfile ?? null}
+          pulseAnimation={visualizationData?.pulseAnimation ?? null}
         />
         {result && <Level1Preview result={result} />}
       </div>

@@ -280,8 +280,43 @@ select:focus-visible {
   opacity: 0.72;
 }
 
+.pulse-animation-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.pulse-animation-button {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.7rem;
+  color: #24445d;
+  font: inherit;
+  font-weight: 700;
+  background: #eef4f7;
+  border: 1px solid #9bb6c5;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.pulse-animation-button:hover:not(:disabled) {
+  border-color: #476b83;
+}
+
+.pulse-animation-button:focus-visible {
+  outline: 3px solid #72b7dc;
+  outline-offset: 2px;
+}
+
+.pulse-animation-button:disabled {
+  color: #71808d;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .ray-facts,
-.mode-facts {
+.mode-facts,
+.pulse-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
@@ -289,7 +324,8 @@ select:focus-visible {
 }
 
 .ray-facts > div,
-.mode-facts > div {
+.mode-facts > div,
+.pulse-facts > div {
   min-width: 0;
   padding: 0.8rem;
   background: #f4f7f9;
@@ -349,6 +385,37 @@ select:focus-visible {
 .mode-profile-explanation {
   margin: 0.8rem 0 0;
   color: #526575;
+}
+
+.pulse-animation-status {
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.8rem;
+  color: #24445d;
+  font-weight: 700;
+  background: #eef4f7;
+  border: 1px solid #b8cdd8;
+  border-radius: 0.4rem;
+}
+
+.pulse-animation-status[data-state='playing'] {
+  color: #205847;
+  background: #edf7f2;
+  border-color: #a7d1bc;
+}
+
+.pulse-animation-status[data-state='unavailable'] {
+  color: #526575;
+  background: #f4f7f9;
+  border-color: #d3dce3;
+}
+
+.pulse-animation-explanation {
+  margin: 0.8rem 0 0;
+  color: #526575;
+}
+
+.pulse-animation-model {
+  overflow-wrap: anywhere;
 }
 
 .ray-model,
@@ -492,6 +559,7 @@ dd {
   .geometry-facts,
   .ray-facts,
   .mode-facts,
+  .pulse-facts,
   .results-grid,
   .model-details {
     grid-template-columns: 1fr;

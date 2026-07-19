@@ -15,6 +15,7 @@ import type {
 } from '../../../packages/shared_schemas/generated/api'
 import App from './App'
 import type { ModeProfileData } from './FibreGeometryView'
+import type { PulseAnimationData } from './FibreGeometryView'
 
 type GeometryProps = {
   coreRadiusUm: number | null
@@ -25,6 +26,7 @@ type GeometryProps = {
     modelVersion: string
   } | null
   modeProfile: ModeProfileData | null
+  pulseAnimation: PulseAnimationData | null
 }
 
 vi.mock('./FibreGeometryView', () => ({
@@ -33,6 +35,7 @@ vi.mock('./FibreGeometryView', () => ({
     sectionLengthKm,
     rayGuidance,
     modeProfile,
+    pulseAnimation,
   }: GeometryProps) => (
     <section role="region" aria-label="3D fibre geometry">
       <p>
@@ -51,6 +54,27 @@ vi.mock('./FibreGeometryView', () => ({
         {modeProfile === null
           ? 'null'
           : `Grid: ${modeProfile.gridPoints} x ${modeProfile.gridPoints} · Extent: x ${modeProfile.xUm[0]}..${modeProfile.xUm.at(-1)} µm, y ${modeProfile.yUm[0]}..${modeProfile.yUm.at(-1)} µm · Center intensity: ${modeProfile.normalizedIntensity[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Radius: ${modeProfile.modeFieldRadiusUm} µm · Model: ${modeProfile.modelId} ${modeProfile.modelVersion} · Normalization: ${modeProfile.normalizationConvention} · Radius convention: ${modeProfile.radiusConvention}`}
+      </p>
+      <p aria-label="Pulse animation" data-testid="pulse-animation">
+        {pulseAnimation === null ? (
+          'null'
+        ) : (
+          <>
+            <span>Input pulse: {pulseAnimation.inputPulseFwhmPs} ps</span>
+            <span>
+              {' '}
+              Broadening: {pulseAnimation.dispersionBroadeningFwhmPs} ps
+            </span>
+            <span> Output pulse: {pulseAnimation.outputPulseFwhmPs} ps</span>
+            <span> Length: {pulseAnimation.sectionLengthKm} km</span>
+            <span> Group delay: {pulseAnimation.groupDelayPs} ps</span>
+            <span> Pulse model: {pulseAnimation.modelId}</span>
+            <span> Pulse version: {pulseAnimation.modelVersion}</span>
+            <span> Width: {pulseAnimation.widthConvention}</span>
+            <span> Delay model: {pulseAnimation.delayModelId}</span>
+            <span> Delay version: {pulseAnimation.delayModelVersion}</span>
+          </>
+        )}
       </p>
     </section>
   ),
@@ -251,6 +275,21 @@ const customResult = {
   ],
 } satisfies Level1Result
 
+const zeroLengthResult = {
+  ...customResult,
+  group_delay: {
+    ...customResult.group_delay,
+    group_delay_ps: 0,
+    length_km: 0,
+  },
+  pulse_broadening: {
+    ...customResult.pulse_broadening,
+    dispersion_broadening_fwhm_ps: 0,
+    output_pulse_fwhm_ps: 25,
+    length_km: 0,
+  },
+} satisfies Level1Result
+
 const g652dPreset = {
   model_id: 'itu_t_g652d_preset',
   model_version: '1.0.0',
@@ -341,6 +380,14 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
+function directJsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as Response
+}
+
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   const promise = new Promise<T>((resolvePromise) => {
@@ -418,6 +465,10 @@ function numberInput(name: RegExp) {
 
 function modeProfileOutput() {
   return screen.getByTestId('mode-profile')
+}
+
+function pulseAnimationOutput() {
+  return screen.getByTestId('pulse-animation')
 }
 
 afterEach(() => {
@@ -770,10 +821,12 @@ describe('Level 1 preview state and results', () => {
     render(<App />)
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await act(async () => {
       first.resolve(jsonResponse(customResult))
@@ -783,6 +836,24 @@ describe('Level 1 preview state and results', () => {
       '85.27298324998428° · ideal_circular_step_index_guidance · 1.0.0',
     )
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
+    expect(pulseAnimationOutput()).toHaveTextContent('Broadening: 42.5 ps')
+    expect(pulseAnimationOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
+    expect(pulseAnimationOutput()).toHaveTextContent('Length: 12.5 km')
+    expect(pulseAnimationOutput()).toHaveTextContent(
+      'Group delay: 61209011.468860894 ps',
+    )
+    expect(pulseAnimationOutput()).toHaveTextContent(
+      'Pulse model: first_order_chromatic_pulse_broadening',
+    )
+    expect(pulseAnimationOutput()).toHaveTextContent('Pulse version: 1.0.0')
+    expect(pulseAnimationOutput()).toHaveTextContent('Width: fwhm')
+    expect(pulseAnimationOutput()).toHaveTextContent(
+      'Delay model: constant_group_index_delay',
+    )
+    expect(pulseAnimationOutput()).toHaveTextContent('Delay version: 1.0.0')
   })
 
   test('propagates the validated 65-point mode profile in camelCase', async () => {
@@ -843,16 +914,21 @@ describe('Level 1 preview state and results', () => {
       '85.27298324998428°',
     )
     expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
+    expect(pulseAnimationOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
 
     fireEvent.change(numberInput(/Core refractive index/i), {
       target: { value: '1.48' },
     })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await act(async () => {
       second.resolve(
@@ -874,6 +950,9 @@ describe('Level 1 preview state and results', () => {
       '81.83568244780919° · ideal_circular_step_index_guidance · 1.0.0',
     )
     expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
+    expect(pulseAnimationOutput()).toHaveTextContent(
+      'Output pulse: 49.30770730829005 ps',
+    )
   })
 
   test('clears ray guidance for invalid edits without scheduling a request', async () => {
@@ -893,6 +972,7 @@ describe('Level 1 preview state and results', () => {
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '0' } })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
 
     await settleDebounce()
     expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
@@ -925,17 +1005,20 @@ describe('Level 1 preview state and results', () => {
       '85.27298324998428°',
     )
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.2' } })
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
 
     fireEvent.change(numberInput(/Core radius/i), { target: { value: '4.3' } })
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Preview service rejected the request.',
     )
@@ -944,10 +1027,25 @@ describe('Level 1 preview state and results', () => {
     await settleDebounce()
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Unable to reach the preview service.',
     )
     expect(previewCalls(fetchMock)).toHaveLength(4)
+  })
+
+  test('passes a valid zero-length result to the view layer', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [jsonResponse(zeroLengthResult)] })
+
+    render(<App />)
+    await settleDebounce()
+
+    expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
+    expect(pulseAnimationOutput()).toHaveTextContent('Broadening: 0 ps')
+    expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 25 ps')
+    expect(pulseAnimationOutput()).toHaveTextContent('Length: 0 km')
+    expect(pulseAnimationOutput()).toHaveTextContent('Group delay: 0 ps')
   })
 
   const malformedModeProfiles: Array<[string, unknown]> = [
@@ -1079,6 +1177,242 @@ describe('Level 1 preview state and results', () => {
 
       expect(modeProfileOutput()).toHaveTextContent('null')
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+      expect(pulseAnimationOutput()).toHaveTextContent('null')
+      expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
+      expect(
+        screen.getByRole('region', { name: 'Level 1 preview' }),
+      ).toBeVisible()
+      expect(previewCalls(fetchMock)).toHaveLength(2)
+    },
+  )
+
+  const malformedVisualizationResults: Array<[string, unknown]> = [
+    [
+      'a zero input pulse width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          input_pulse_fwhm_ps: 0,
+        },
+      },
+    ],
+    [
+      'a negative input pulse width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          input_pulse_fwhm_ps: -1,
+        },
+      },
+    ],
+    [
+      'a nonfinite input pulse width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          input_pulse_fwhm_ps: Number.NaN,
+        },
+      },
+    ],
+    [
+      'a zero output pulse width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          output_pulse_fwhm_ps: 0,
+        },
+      },
+    ],
+    [
+      'a negative output pulse width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          output_pulse_fwhm_ps: -1,
+        },
+      },
+    ],
+    [
+      'a nonfinite output pulse width',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          output_pulse_fwhm_ps: Number.POSITIVE_INFINITY,
+        },
+      },
+    ],
+    [
+      'an output pulse narrower than its input',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          output_pulse_fwhm_ps: 24,
+        },
+      },
+    ],
+    [
+      'a negative dispersion broadening',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          dispersion_broadening_fwhm_ps: -1,
+        },
+      },
+    ],
+    [
+      'a nonfinite dispersion broadening',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          dispersion_broadening_fwhm_ps: Number.NaN,
+        },
+      },
+    ],
+    [
+      'a negative pulse section length',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          length_km: -1,
+        },
+      },
+    ],
+    [
+      'a nonfinite pulse section length',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          length_km: Number.NaN,
+        },
+      },
+    ],
+    [
+      'a negative group-delay section length',
+      {
+        ...customResult,
+        group_delay: { ...customResult.group_delay, length_km: -1 },
+      },
+    ],
+    [
+      'a nonfinite group-delay section length',
+      {
+        ...customResult,
+        group_delay: {
+          ...customResult.group_delay,
+          length_km: Number.POSITIVE_INFINITY,
+        },
+      },
+    ],
+    [
+      'a negative group delay',
+      {
+        ...customResult,
+        group_delay: { ...customResult.group_delay, group_delay_ps: -1 },
+      },
+    ],
+    [
+      'a nonfinite group delay',
+      {
+        ...customResult,
+        group_delay: {
+          ...customResult.group_delay,
+          group_delay_ps: Number.NaN,
+        },
+      },
+    ],
+    [
+      'mismatched result lengths',
+      {
+        ...customResult,
+        group_delay: { ...customResult.group_delay, length_km: 12 },
+      },
+    ],
+    [
+      'the wrong pulse model',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          model_manifest: { ...pulseManifest, model_id: 'wrong_model' },
+        },
+      },
+    ],
+    [
+      'the wrong pulse model version',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          model_manifest: { ...pulseManifest, model_version: '2.0.0' },
+        },
+      },
+    ],
+    [
+      'the wrong pulse width convention',
+      {
+        ...customResult,
+        pulse_broadening: {
+          ...customResult.pulse_broadening,
+          model_manifest: { ...pulseManifest, width_convention: 'sigma' },
+        },
+      },
+    ],
+    [
+      'the wrong delay model',
+      {
+        ...customResult,
+        group_delay: {
+          ...customResult.group_delay,
+          model_manifest: { ...groupDelayManifest, model_id: 'wrong_model' },
+        },
+      },
+    ],
+    [
+      'the wrong delay model version',
+      {
+        ...customResult,
+        group_delay: {
+          ...customResult.group_delay,
+          model_manifest: { ...groupDelayManifest, model_version: '2.0.0' },
+        },
+      },
+    ],
+  ]
+
+  test.each(malformedVisualizationResults)(
+    'rejects %s visualization data without using it',
+    async (_description, malformedResult) => {
+      vi.useFakeTimers()
+      const fetchMock = mockFetch({
+        preview: [
+          jsonResponse(customResult),
+          directJsonResponse(malformedResult),
+        ],
+      })
+
+      render(<App />)
+      await settleDebounce()
+      expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
+
+      fireEvent.change(numberInput(/Core radius/i), {
+        target: { value: '4.2' },
+      })
+      await settleDebounce()
+
+      expect(pulseAnimationOutput()).toHaveTextContent('null')
+      expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+      expect(modeProfileOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
       expect(
         screen.getByRole('region', { name: 'Level 1 preview' }),
@@ -1109,6 +1443,7 @@ describe('Level 1 preview state and results', () => {
     await settleDebounce()
     expect(screen.getByRole('status')).toHaveTextContent('Updating preview…')
     expect(modeProfileOutput()).toHaveTextContent('null')
+    expect(pulseAnimationOutput()).toHaveTextContent('null')
     expect(
       screen.getByText(
         'Mode count estimate is unavailable below the validity threshold.',
@@ -1120,6 +1455,7 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(screen.getByRole('status')).toHaveTextContent('Preview ready')
   })
 
@@ -1135,10 +1471,21 @@ describe('Level 1 preview state and results', () => {
     await settleDebounce()
 
     await act(async () => {
-      second.resolve(jsonResponse({ ...customResult, warnings: [] }))
+      second.resolve(
+        jsonResponse({
+          ...customResult,
+          pulse_broadening: {
+            ...customResult.pulse_broadening,
+            output_pulse_fwhm_ps: 50,
+          },
+          warnings: [],
+        }),
+      )
       await Promise.resolve()
     })
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 50 ps')
+    expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(
       screen.getByRole('region', { name: 'Level 1 preview' }),
     ).toHaveTextContent('No warnings.')
@@ -1147,6 +1494,10 @@ describe('Level 1 preview state and results', () => {
       first.resolve(
         jsonResponse({
           ...customResult,
+          pulse_broadening: {
+            ...customResult.pulse_broadening,
+            output_pulse_fwhm_ps: 999,
+          },
           warnings: [
             {
               ...customResult.warnings[0],
@@ -1159,6 +1510,7 @@ describe('Level 1 preview state and results', () => {
     })
     expect(screen.queryByText('Stale response warning')).not.toBeInTheDocument()
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(pulseAnimationOutput()).toHaveTextContent('Output pulse: 50 ps')
   })
 
   test('renders exact summary units, model metadata, and warnings', async () => {
