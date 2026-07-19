@@ -1,6 +1,23 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+
+import { PulseAnimationLayer } from './PulseAnimationLayer'
+import {
+  getPulseAnimationUnavailableReason,
+  isValidPulseAnimationData,
+  PULSE_MAX_VISUAL_WIDTH_RATIO,
+  PULSE_VISUAL_DURATION_SECONDS,
+  type PulseAnimationData,
+} from './pulseAnimation'
+
+export type { PulseAnimationData } from './pulseAnimation'
 
 const DEFAULT_VISUAL_LENGTH = 8
 const MIN_VISUAL_LENGTH = 4
@@ -56,6 +73,7 @@ export type FibreGeometryViewProps = {
   sectionLengthKm: number | null
   rayGuidance: RayGuidance | null
   modeProfile: ModeProfileData | null
+  pulseAnimation: PulseAnimationData | null
 }
 
 export type FibreGeometrySceneProps = {
@@ -66,6 +84,11 @@ export type FibreGeometrySceneProps = {
   rayViewEnabled?: boolean
   modeProfile?: ModeProfileData | null
   modeViewEnabled?: boolean
+  pulseAnimation?: PulseAnimationData | null
+  pulseAnimationEnabled?: boolean
+  pulseAnimationPlaying?: boolean
+  onPulseAnimationComplete?: () => void
+  pulseAnimationResetSignal?: number
 }
 
 type RayPoint = [number, number, number]
@@ -596,6 +619,197 @@ function ModeProfilePanel({
   )
 }
 
+type PulseAnimationPanelProps = {
+  enabled: boolean
+  onEnabledChange: (enabled: boolean) => void
+  pulseAnimation: PulseAnimationData | null
+  sectionLengthKm: number | null
+  isPlaying: boolean
+  started: boolean
+  completed: boolean
+  onPlayPause: () => void
+  onReset: () => void
+}
+
+type PulseAnimationPlaybackState = {
+  data: PulseAnimationData | null
+  isPlaying: boolean
+  started: boolean
+  completed: boolean
+  resetSignal: number
+}
+
+function PulseAnimationPanel({
+  enabled,
+  onEnabledChange,
+  pulseAnimation,
+  sectionLengthKm,
+  isPlaying,
+  started,
+  completed,
+  onPlayPause,
+  onReset,
+}: PulseAnimationPanelProps) {
+  const validPulseData = isValidPulseAnimationData(pulseAnimation)
+  const validSectionLength =
+    sectionLengthKm !== null &&
+    Number.isFinite(sectionLengthKm) &&
+    sectionLengthKm > 0
+  const matchingSectionLength =
+    validPulseData &&
+    validSectionLength &&
+    pulseAnimation.sectionLengthKm === sectionLengthKm
+  const available = validPulseData && matchingSectionLength
+  const unavailableReason = !validPulseData
+    ? getPulseAnimationUnavailableReason(pulseAnimation)
+    : !validSectionLength
+      ? 'a finite positive physical section length is required'
+      : 'the animation and current form section lengths must match'
+  const statusText = !available
+    ? 'Unavailable and not moving.'
+    : isPlaying
+      ? 'Playing: visual transit in progress.'
+      : completed
+        ? 'Paused at output.'
+        : started
+          ? 'Paused in transit.'
+          : 'Paused at entrance.'
+
+  return (
+    <>
+      <div className="geometry-layer-control">
+        <label htmlFor="scaled-pulse-animation-view">
+          <input
+            id="scaled-pulse-animation-view"
+            type="checkbox"
+            checked={enabled}
+            aria-describedby={
+              enabled ? 'pulse-animation-explanation' : undefined
+            }
+            onChange={(event) => onEnabledChange(event.currentTarget.checked)}
+          />
+          Scaled pulse animation
+        </label>
+      </div>
+
+      {enabled && (
+        <>
+          {!available && (
+            <p
+              className="pulse-animation-status"
+              data-state="unavailable"
+              role="status"
+            >
+              Scaled pulse animation unavailable: {unavailableReason}. No pulse
+              geometry is rendered and it is not moving.
+            </p>
+          )}
+
+          {available && (
+            <>
+              <div className="pulse-animation-controls">
+                <button
+                  className="pulse-animation-button"
+                  type="button"
+                  disabled={!available}
+                  onClick={onPlayPause}
+                >
+                  {isPlaying ? 'Pause' : completed ? 'Restart' : 'Play'}
+                </button>
+                <button
+                  className="pulse-animation-button"
+                  type="button"
+                  disabled={!available}
+                  onClick={onReset}
+                >
+                  Reset/Restart
+                </button>
+              </div>
+
+              <p
+                className="pulse-animation-status"
+                data-state={
+                  isPlaying
+                    ? 'playing'
+                    : completed
+                      ? 'output'
+                      : started
+                        ? 'paused'
+                        : 'entrance'
+                }
+                role="status"
+                aria-live="polite"
+              >
+                {statusText}
+              </p>
+
+              <dl className="pulse-facts">
+                <div>
+                  <dt>Input FWHM</dt>
+                  <dd>{pulseAnimation.inputPulseFwhmPs} ps</dd>
+                </div>
+                <div>
+                  <dt>Output FWHM</dt>
+                  <dd>{pulseAnimation.outputPulseFwhmPs} ps</dd>
+                </div>
+                <div>
+                  <dt>Dispersion broadening FWHM</dt>
+                  <dd>{pulseAnimation.dispersionBroadeningFwhmPs} ps</dd>
+                </div>
+                <div>
+                  <dt>Physical section length</dt>
+                  <dd>{pulseAnimation.sectionLengthKm} km</dd>
+                </div>
+                <div>
+                  <dt>Physical group delay</dt>
+                  <dd>{pulseAnimation.groupDelayPs} ps</dd>
+                </div>
+                <div>
+                  <dt>Visual transit duration</dt>
+                  <dd>{PULSE_VISUAL_DURATION_SECONDS} s</dd>
+                </div>
+                <div>
+                  <dt>Approximate model</dt>
+                  <dd className="pulse-animation-model">
+                    {pulseAnimation.modelId} ({pulseAnimation.modelVersion})
+                  </dd>
+                </div>
+                <div>
+                  <dt>Delay model id/version</dt>
+                  <dd className="pulse-animation-model">
+                    {pulseAnimation.delayModelId} (
+                    {pulseAnimation.delayModelVersion})
+                  </dd>
+                </div>
+                <div>
+                  <dt>FWHM convention</dt>
+                  <dd>{pulseAnimation.widthConvention}</dd>
+                </div>
+              </dl>
+            </>
+          )}
+
+          <p
+            id="pulse-animation-explanation"
+            className="pulse-animation-explanation"
+          >
+            <strong>Animation time is scaled</strong>. Playback is one-shot and
+            starts paused. The visual transit duration, position, and
+            longitudinal envelope width are scaled/normalized for this
+            schematic. Temporal FWHM is not a physical spatial pulse length. The
+            envelope width between the exact backend input and output endpoints
+            is a visual-only interpolation, not a physics-derived intermediate
+            pulse-width series. The visual width ratio is capped at{' '}
+            {PULSE_MAX_VISUAL_WIDTH_RATIO}× for readability. Brightness and
+            color do not encode power or attenuation. No chirp, higher-order
+            dispersion, nonlinear effects, or full-wave propagation is shown.
+          </p>
+        </>
+      )}
+    </>
+  )
+}
+
 function getRayStatusText(
   status: RayStatus,
   incidenceAngleDeg: number,
@@ -765,14 +979,23 @@ export function FibreGeometryScene({
   rayViewEnabled = false,
   modeProfile = null,
   modeViewEnabled = true,
+  pulseAnimation = null,
+  pulseAnimationEnabled = true,
+  pulseAnimationPlaying = false,
+  onPulseAnimationComplete = () => {},
+  pulseAnimationResetSignal = 0,
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
   const modeFieldGeometry = modeViewEnabled
     ? getModeFieldGeometry(modeProfile, coreRadiusUm)
     : null
+  const pulseAnimationData =
+    pulseAnimationEnabled && isValidPulseAnimationData(pulseAnimation)
+      ? pulseAnimation
+      : null
   const coreMaterialProps =
-    rayViewEnabled || modeFieldGeometry !== null
+    rayViewEnabled || modeFieldGeometry !== null || pulseAnimationData !== null
       ? { transparent: true, opacity: 0.42, depthWrite: false }
       : {}
 
@@ -824,6 +1047,15 @@ export function FibreGeometryScene({
       {modeFieldGeometry !== null && (
         <ApproximateLP01FieldLayer geometry={modeFieldGeometry} />
       )}
+      {pulseAnimationData !== null && (
+        <PulseAnimationLayer
+          key={pulseAnimationResetSignal}
+          data={pulseAnimationData}
+          visualLength={visualLength}
+          isPlaying={pulseAnimationPlaying}
+          onComplete={onPulseAnimationComplete}
+        />
+      )}
     </group>
   )
 }
@@ -833,12 +1065,100 @@ export function FibreGeometryView({
   sectionLengthKm,
   rayGuidance,
   modeProfile,
+  pulseAnimation,
 }: FibreGeometryViewProps) {
   const [visualLength, setVisualLength] = useState(DEFAULT_VISUAL_LENGTH)
   const [rayViewEnabled, setRayViewEnabled] = useState(true)
   const [modeViewEnabled, setModeViewEnabled] = useState(true)
+  const [pulseAnimationEnabled, setPulseAnimationEnabled] = useState(true)
+  const [pulseAnimationPlayback, setPulseAnimationPlayback] =
+    useState<PulseAnimationPlaybackState>({
+      data: pulseAnimation,
+      isPlaying: false,
+      started: false,
+      completed: false,
+      resetSignal: 0,
+    })
   const [incidenceAngleDeg, setIncidenceAngleDeg] = useState(
     DEFAULT_INCIDENCE_ANGLE_DEG,
+  )
+  const validPulseAnimationData = isValidPulseAnimationData(pulseAnimation)
+  const validSectionLength =
+    sectionLengthKm !== null &&
+    Number.isFinite(sectionLengthKm) &&
+    sectionLengthKm > 0
+  const matchingPulseSectionLength =
+    validPulseAnimationData &&
+    validSectionLength &&
+    pulseAnimation.sectionLengthKm === sectionLengthKm
+  const pulseAnimationForScene =
+    validPulseAnimationData && matchingPulseSectionLength
+      ? pulseAnimation
+      : null
+  const pulseAnimationAvailable = pulseAnimationForScene !== null
+  const currentPulseAnimationPlayback = useMemo(
+    () =>
+      pulseAnimationPlayback.data === pulseAnimation
+        ? pulseAnimationPlayback
+        : {
+            data: pulseAnimation,
+            isPlaying: false,
+            started: false,
+            completed: false,
+            resetSignal: pulseAnimationPlayback.resetSignal + 1,
+          },
+    [pulseAnimation, pulseAnimationPlayback],
+  )
+
+  const handlePulseAnimationComplete = useCallback(() => {
+    setPulseAnimationPlayback({
+      data: pulseAnimation,
+      isPlaying: false,
+      started: true,
+      completed: true,
+      resetSignal: currentPulseAnimationPlayback.resetSignal,
+    })
+  }, [currentPulseAnimationPlayback.resetSignal, pulseAnimation])
+
+  const handlePulseAnimationPlayPause = useCallback(() => {
+    if (!pulseAnimationAvailable) {
+      return
+    }
+
+    setPulseAnimationPlayback({
+      ...currentPulseAnimationPlayback,
+      data: pulseAnimation,
+      isPlaying: !currentPulseAnimationPlayback.isPlaying,
+      started: true,
+      completed: false,
+      resetSignal:
+        currentPulseAnimationPlayback.resetSignal +
+        (currentPulseAnimationPlayback.completed ? 1 : 0),
+    })
+  }, [currentPulseAnimationPlayback, pulseAnimation, pulseAnimationAvailable])
+
+  const handlePulseAnimationReset = useCallback(() => {
+    setPulseAnimationPlayback({
+      data: pulseAnimation,
+      isPlaying: false,
+      started: false,
+      completed: false,
+      resetSignal: currentPulseAnimationPlayback.resetSignal + 1,
+    })
+  }, [currentPulseAnimationPlayback.resetSignal, pulseAnimation])
+
+  const handlePulseAnimationEnabledChange = useCallback(
+    (enabled: boolean) => {
+      setPulseAnimationEnabled(enabled)
+      setPulseAnimationPlayback({
+        data: pulseAnimation,
+        isPlaying: false,
+        started: false,
+        completed: false,
+        resetSignal: currentPulseAnimationPlayback.resetSignal + 1,
+      })
+    },
+    [currentPulseAnimationPlayback.resetSignal, pulseAnimation],
   )
 
   return (
@@ -886,6 +1206,13 @@ export function FibreGeometryView({
             rayViewEnabled={rayViewEnabled}
             modeProfile={modeProfile}
             modeViewEnabled={modeViewEnabled}
+            pulseAnimation={pulseAnimationForScene}
+            pulseAnimationEnabled={pulseAnimationEnabled}
+            pulseAnimationPlaying={currentPulseAnimationPlayback.isPlaying}
+            onPulseAnimationComplete={handlePulseAnimationComplete}
+            pulseAnimationResetSignal={
+              currentPulseAnimationPlayback.resetSignal
+            }
           />
           <FibreOrbitControls />
         </Canvas>
@@ -933,6 +1260,18 @@ export function FibreGeometryView({
         onEnabledChange={setModeViewEnabled}
         modeProfile={modeProfile}
         coreRadiusUm={coreRadiusUm}
+      />
+
+      <PulseAnimationPanel
+        enabled={pulseAnimationEnabled}
+        onEnabledChange={handlePulseAnimationEnabledChange}
+        pulseAnimation={pulseAnimation}
+        sectionLengthKm={sectionLengthKm}
+        isPlaying={currentPulseAnimationPlayback.isPlaying}
+        started={currentPulseAnimationPlayback.started}
+        completed={currentPulseAnimationPlayback.completed}
+        onPlayPause={handlePulseAnimationPlayPause}
+        onReset={handlePulseAnimationReset}
       />
 
       <p id="geometry-scale-note" className="geometry-note">

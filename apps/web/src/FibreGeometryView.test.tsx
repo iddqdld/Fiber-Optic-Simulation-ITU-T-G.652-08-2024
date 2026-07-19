@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -12,6 +13,7 @@ import {
   within,
 } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
+import { useFrame, useThree } from '@react-three/fiber'
 
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({
@@ -31,18 +33,31 @@ vi.mock('@react-three/fiber', () => ({
       aria-label={ariaLabel}
     />
   ),
-  useThree: vi.fn(),
+  useFrame: vi.fn(),
+  useThree: vi.fn(() => ({ invalidate: vi.fn() })),
 }))
 
 import {
   FibreGeometryScene,
   FibreGeometryView,
   type ModeProfileData,
+  type PulseAnimationData,
   type RayGuidance,
 } from './FibreGeometryView'
+import {
+  PULSE_MAX_VISUAL_WIDTH_RATIO,
+  PULSE_VISUAL_DURATION_SECONDS,
+  getPulseAnimationProgress,
+  getPulseAnimationVisualTransform,
+  getPulseVisualWidthRatio,
+  isValidPulseAnimationData,
+  shouldInvalidatePulseAnimationFrame,
+} from './pulseAnimation'
+import { PulseAnimationRuntime } from './PulseAnimationLayer'
 
 type SceneElementProps = {
   args?: unknown[]
+  blending?: unknown
   color?: string
   children?: ReactNode
   depthWrite?: boolean
@@ -54,6 +69,7 @@ type SceneElementProps = {
   itemSize?: number
   position?: unknown
   rotation?: unknown
+  scale?: unknown
   toneMapped?: boolean
   transparent?: boolean
   size?: number
@@ -101,6 +117,9 @@ function sceneElements(
     rayViewEnabled?: boolean
     modeProfile?: ModeProfileData | null
     modeViewEnabled?: boolean
+    pulseAnimation?: PulseAnimationData | null
+    pulseAnimationEnabled?: boolean
+    pulseAnimationPlaying?: boolean
   } = {},
 ) {
   const scene = FibreGeometryScene({
@@ -138,6 +157,19 @@ const modeProfile = {
   normalizationConvention: 'unit_peak_field_and_intensity',
   radiusConvention: '1/e_field_radius',
 } satisfies ModeProfileData
+
+const pulseAnimation = {
+  inputPulseFwhmPs: 25,
+  outputPulseFwhmPs: 49.30770730829005,
+  dispersionBroadeningFwhmPs: 42.5,
+  sectionLengthKm: 12.5,
+  groupDelayPs: 61209011.468860894,
+  modelId: 'first_order_chromatic_pulse_broadening',
+  modelVersion: '1.0.0',
+  widthConvention: 'fwhm',
+  delayModelId: 'constant_group_index_delay',
+  delayModelVersion: '1.0.0',
+} satisfies PulseAnimationData
 
 afterEach(() => {
   cleanup()
@@ -350,6 +382,234 @@ describe('FibreGeometryScene', () => {
   })
 })
 
+describe('pulse animation mapping', () => {
+  test('uses a fixed four-second visual transit with clamped entrance, midpoint, and output transforms', () => {
+    expect(PULSE_VISUAL_DURATION_SECONDS).toBe(4)
+    expect(getPulseAnimationProgress(-1)).toBe(0)
+    expect(getPulseAnimationProgress(0)).toBe(0)
+    expect(getPulseAnimationProgress(2)).toBe(0.5)
+    expect(getPulseAnimationProgress(4)).toBe(1)
+    expect(getPulseAnimationProgress(8)).toBe(1)
+    expect(shouldInvalidatePulseAnimationFrame(false, 0.5)).toBe(false)
+    expect(shouldInvalidatePulseAnimationFrame(true, 0.5)).toBe(true)
+    expect(shouldInvalidatePulseAnimationFrame(true, 1)).toBe(false)
+
+    const entrance = getPulseAnimationVisualTransform(pulseAnimation, 8, 0)
+    const midpoint = getPulseAnimationVisualTransform(pulseAnimation, 8, 0.5)
+    const output = getPulseAnimationVisualTransform(pulseAnimation, 8, 1)
+    const expectedOutputRatio =
+      pulseAnimation.outputPulseFwhmPs / pulseAnimation.inputPulseFwhmPs
+
+    expect(entrance).toMatchObject({
+      progress: 0,
+      positionX: -4,
+      visualWidthRatio: 1,
+    })
+    expect(midpoint.positionX).toBe(0)
+    expect(midpoint.visualWidthRatio).toBeCloseTo(
+      1 + (expectedOutputRatio - 1) / 2,
+    )
+    expect(output).toMatchObject({
+      progress: 1,
+      positionX: 4,
+      visualWidthRatio: expectedOutputRatio,
+    })
+    expect(
+      getPulseAnimationVisualTransform(pulseAnimation, 8, 2).positionX,
+    ).toBe(4)
+  })
+
+  test('caps only the visual width ratio and validates exact backend manifests', () => {
+    const veryBroadPulse = {
+      ...pulseAnimation,
+      outputPulseFwhmPs: pulseAnimation.inputPulseFwhmPs * 20,
+    }
+
+    expect(getPulseVisualWidthRatio(veryBroadPulse, 1)).toBe(
+      PULSE_MAX_VISUAL_WIDTH_RATIO,
+    )
+    expect(getPulseVisualWidthRatio(veryBroadPulse, 0.5)).toBe(
+      (1 + PULSE_MAX_VISUAL_WIDTH_RATIO) / 2,
+    )
+    expect(isValidPulseAnimationData(pulseAnimation)).toBe(true)
+    expect(
+      isValidPulseAnimationData({
+        ...pulseAnimation,
+        sectionLengthKm: 0,
+      }),
+    ).toBe(false)
+    expect(
+      isValidPulseAnimationData({
+        ...pulseAnimation,
+        delayModelId: 'wrong-delay-model',
+      }),
+    ).toBe(false)
+    expect(
+      isValidPulseAnimationData({
+        ...pulseAnimation,
+        outputPulseFwhmPs: pulseAnimation.inputPulseFwhmPs - 1,
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('pulse animation scene layer', () => {
+  test('declares an additive translucent envelope and makes the core translucent', () => {
+    const scene = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      pulseAnimation,
+      pulseAnimationEnabled: true,
+    })
+    const layer = findSceneElement(scene, 'pulse-animation-layer')
+    const envelope = findSceneElement(scene, 'pulse-envelope')
+    const material = findSceneElement(scene, 'pulse-envelope-material')
+    const coreMaterial = findSceneElement(scene, 'solid-core-material')
+
+    expect(layer.props.name).toBe('pulse-animation-layer')
+    expect(envelope.props).toMatchObject({
+      position: [-4, 0, 0],
+      scale: [0.55, 0.74, 0.74],
+    })
+    expect(material.props).toMatchObject({
+      color: '#75e6ff',
+      transparent: true,
+      opacity: 0.58,
+      blending: expect.any(Number),
+      depthWrite: false,
+      depthTest: false,
+    })
+    expect(coreMaterial.props).toMatchObject({
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    })
+  })
+
+  test('omits the pulse geometry when the layer is disabled or data is unavailable', () => {
+    const disabled = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      pulseAnimation,
+      pulseAnimationEnabled: false,
+    })
+    const unavailable = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      pulseAnimation: { ...pulseAnimation, groupDelayPs: 0 },
+    })
+
+    expect(() => findSceneElement(disabled, 'pulse-envelope')).toThrow()
+    expect(() => findSceneElement(unavailable, 'pulse-envelope')).toThrow()
+    expect(
+      findSceneElement(disabled, 'solid-core-material').props,
+    ).not.toHaveProperty('transparent')
+    expect(
+      findSceneElement(unavailable, 'solid-core-material').props,
+    ).not.toHaveProperty('transparent')
+  })
+})
+
+describe('pulse animation runtime', () => {
+  test('starts idle, pauses without advancing, resumes, and completes only once', () => {
+    let frameCallback: Parameters<typeof useFrame>[0] | null = null
+    const invalidate = vi.fn()
+    const positionSet = vi.fn()
+    const scaleSet = vi.fn()
+    const onComplete = vi.fn()
+    const threeState = {
+      invalidate,
+      scene: {
+        getObjectByName: () => ({
+          position: { set: positionSet },
+          scale: { set: scaleSet },
+        }),
+      },
+    }
+
+    vi.mocked(useFrame).mockImplementation((callback) => {
+      frameCallback = callback
+      return null
+    })
+    vi.mocked(useThree).mockImplementation(() => threeState as never)
+
+    const { rerender } = render(
+      <PulseAnimationRuntime
+        data={pulseAnimation}
+        visualLength={8}
+        isPlaying={false}
+        onComplete={onComplete}
+      />,
+    )
+
+    expect(frameCallback).not.toBeNull()
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(positionSet).toHaveBeenLastCalledWith(-4, 0, 0)
+
+    rerender(
+      <PulseAnimationRuntime
+        data={pulseAnimation}
+        visualLength={8}
+        isPlaying
+        onComplete={onComplete}
+      />,
+    )
+    expect(invalidate).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      frameCallback?.({} as never, 2)
+    })
+    expect(positionSet).toHaveBeenLastCalledWith(0, 0, 0)
+    expect(scaleSet).toHaveBeenLastCalledWith(
+      0.55 *
+        (1 +
+          (pulseAnimation.outputPulseFwhmPs / pulseAnimation.inputPulseFwhmPs -
+            1) /
+            2),
+      0.74,
+      0.74,
+    )
+    expect(invalidate).toHaveBeenCalledTimes(2)
+
+    rerender(
+      <PulseAnimationRuntime
+        data={pulseAnimation}
+        visualLength={8}
+        isPlaying={false}
+        onComplete={onComplete}
+      />,
+    )
+    const positionCallCount = positionSet.mock.calls.length
+    act(() => {
+      frameCallback?.({} as never, 1)
+    })
+    expect(positionSet).toHaveBeenCalledTimes(positionCallCount)
+
+    rerender(
+      <PulseAnimationRuntime
+        data={pulseAnimation}
+        visualLength={8}
+        isPlaying
+        onComplete={onComplete}
+      />,
+    )
+    expect(invalidate).toHaveBeenCalledTimes(3)
+
+    act(() => {
+      frameCallback?.({} as never, 2)
+    })
+    expect(positionSet).toHaveBeenLastCalledWith(4, 0, 0)
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledTimes(3)
+
+    act(() => {
+      frameCallback?.({} as never, 1)
+    })
+    expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(invalidate).toHaveBeenCalledTimes(3)
+  })
+})
+
 describe('FibreGeometryView', () => {
   const guidance: RayGuidance = {
     criticalAngleDeg: 80,
@@ -364,6 +624,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={guidance}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -396,6 +657,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={null}
         rayGuidance={null}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -422,6 +684,155 @@ describe('FibreGeometryView', () => {
     ).toBeInTheDocument()
   })
 
+  test('shows the paused scaled pulse layer, exact physical facts, controls, and disclosures', () => {
+    const { container } = render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={null}
+        modeProfile={null}
+        pulseAnimation={pulseAnimation}
+      />,
+    )
+
+    const toggle = screen.getByLabelText('Scaled pulse animation')
+    expect(toggle).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Reset/Restart' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Paused at entrance.')).toBeInTheDocument()
+    expect(screen.getByText('Animation time is scaled')).toBeInTheDocument()
+    expect(screen.getByText('25 ps')).toBeInTheDocument()
+    expect(screen.getByText('49.30770730829005 ps')).toBeInTheDocument()
+    expect(screen.getByText('42.5 ps')).toBeInTheDocument()
+    expect(
+      within(container.querySelector('.pulse-facts') as HTMLElement).getByText(
+        '12.5 km',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('61209011.468860894 ps')).toBeInTheDocument()
+    expect(screen.getByText('4 s')).toBeInTheDocument()
+    expect(
+      screen.getByText(/first_order_chromatic_pulse_broadening/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/constant_group_index_delay/)).toBeInTheDocument()
+    expect(screen.getByText('fwhm')).toBeInTheDocument()
+
+    const explanation = container.querySelector('.pulse-animation-explanation')
+    expect(explanation).toHaveTextContent('visual-only interpolation')
+    expect(explanation).toHaveTextContent(
+      'not a physics-derived intermediate pulse-width series',
+    )
+    expect(explanation).toHaveTextContent(
+      'Temporal FWHM is not a physical spatial pulse length',
+    )
+    expect(explanation).toHaveTextContent('do not encode power or attenuation')
+    expect(explanation).toHaveTextContent('No chirp')
+    expect(explanation).toHaveTextContent('higher-order')
+    expect(explanation).toHaveTextContent('nonlinear')
+    expect(explanation).toHaveTextContent('full-wave propagation')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Playing: visual transit in progress.'),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    expect(screen.getByText('Paused in transit.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset/Restart' }))
+    expect(screen.getByText('Paused at entrance.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(toggle).not.toBeChecked()
+    expect(
+      screen.queryByText('Animation time is scaled'),
+    ).not.toBeInTheDocument()
+  })
+
+  test('reports a non-moving unavailable state for invalid pulse data', () => {
+    const { container } = render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={null}
+        modeProfile={null}
+        pulseAnimation={{ ...pulseAnimation, groupDelayPs: 0 }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Scaled pulse animation')).toBeChecked()
+    expect(
+      container.querySelector('.pulse-animation-status'),
+    ).toHaveTextContent('Scaled pulse animation unavailable')
+    expect(
+      container.querySelector('.pulse-animation-status'),
+    ).toHaveTextContent('No pulse geometry is rendered and it is not moving')
+    expect(screen.getByText('Animation time is scaled')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Play' }),
+    ).not.toBeInTheDocument()
+  })
+
+  test('resets playback for a replacement preview and after layer toggling', () => {
+    const { rerender } = render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={null}
+        modeProfile={null}
+        pulseAnimation={pulseAnimation}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument()
+
+    rerender(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={null}
+        modeProfile={null}
+        pulseAnimation={{ ...pulseAnimation }}
+      />,
+    )
+    expect(screen.getByText('Paused at entrance.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+    const toggle = screen.getByLabelText('Scaled pulse animation')
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+
+    expect(screen.getByText('Paused at entrance.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument()
+  })
+
+  test('keeps the animation unavailable when the preview length is stale', () => {
+    const { container } = render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={10}
+        rayGuidance={null}
+        modeProfile={null}
+        pulseAnimation={pulseAnimation}
+      />,
+    )
+
+    expect(
+      container.querySelector('.pulse-animation-status'),
+    ).toHaveTextContent('animation and current form section lengths must match')
+    expect(
+      screen.queryByRole('button', { name: 'Play' }),
+    ).not.toBeInTheDocument()
+  })
+
   test('shows field facts, conventions, explanation, and an independent toggle', () => {
     const { container } = render(
       <FibreGeometryView
@@ -429,6 +840,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={null}
         modeProfile={modeProfile}
+        pulseAnimation={null}
       />,
     )
 
@@ -497,6 +909,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={null}
         modeProfile={malformed}
+        pulseAnimation={null}
       />,
     )
 
@@ -515,6 +928,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={guidance}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -554,6 +968,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={guidance}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -588,6 +1003,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={preciseGuidance}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -612,6 +1028,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={guidance}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -642,6 +1059,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={null}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
@@ -667,6 +1085,7 @@ describe('FibreGeometryView', () => {
           modelVersion: '1.0.0',
         }}
         modeProfile={null}
+        pulseAnimation={null}
       />,
     )
 
