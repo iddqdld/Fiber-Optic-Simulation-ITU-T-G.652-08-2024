@@ -5,6 +5,7 @@ import type { FieldIssues } from './fieldIssues'
 import {
   Level1Form,
   type CableApplication,
+  type FieldBoundaries,
   type FormValues,
   type NumericFormField,
   type Preset,
@@ -16,6 +17,7 @@ type SimulationInspectorProps = {
   values: FormValues
   error: string | null
   fieldIssues: FieldIssues
+  fieldBoundaries: FieldBoundaries
   settings: VisualizationSettings
   rayGuidance: RayGuidance | null
   onNumericFieldChange: (field: NumericFormField, value: string) => void
@@ -28,6 +30,7 @@ export function SimulationInspector({
   values,
   error,
   fieldIssues,
+  fieldBoundaries,
   settings,
   rayGuidance,
   onNumericFieldChange,
@@ -43,6 +46,7 @@ export function SimulationInspector({
         values={values}
         error={error}
         fieldIssues={fieldIssues}
+        fieldBoundaries={fieldBoundaries}
         onNumericFieldChange={onNumericFieldChange}
         onPresetChange={onPresetChange}
         onCableApplicationChange={onCableApplicationChange}

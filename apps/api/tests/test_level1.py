@@ -108,6 +108,23 @@ async def test_custom_preview_returns_exact_physics_result_without_standards_det
         "dispersion": None,
         "attenuation": None,
     }
+    assert len(response.json()["parameter_boundaries"]) == 16
+    assert {boundary["field"] for boundary in response.json()["parameter_boundaries"]} == {
+        "n_core",
+        "n_cladding",
+        "core_radius_um",
+        "mode_field_radius_um",
+        "attenuation_db_per_km",
+        "dispersion_ps_per_nm_km",
+        "group_index_dimensionless",
+        "wavelength_nm",
+        "input_power_dbm",
+        "spectral_width_fwhm_nm",
+        "input_pulse_fwhm_ps",
+        "length_km",
+        "grid_half_width_um",
+        "grid_points",
+    }
 
 
 async def test_g652d_preview_returns_exact_result_with_preset_checks_and_statuses(
@@ -127,6 +144,7 @@ async def test_g652d_preview_returns_exact_result_with_preset_checks_and_statuse
     assert body["standards_checks"]["dispersion"]["status"] == "pass"
     assert body["standards_checks"]["attenuation"]["status"] == "pass"
     assert body["warnings"] == json.loads(expected.model_dump_json())["warnings"]
+    assert len(body["parameter_boundaries"]) == 19
 
 
 async def test_repeated_valid_preview_requests_are_deterministic(

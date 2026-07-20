@@ -6,6 +6,7 @@ import type {
 } from '../../../packages/shared_schemas/generated/api'
 import {
   type CableApplication,
+  type FieldBoundaries,
   type FormValues,
   type NumericFormField,
   type Preset,
@@ -41,6 +42,7 @@ type PreviewResult =
 type HealthResponse = components['schemas']['HealthResponse']
 type ErrorResponse = components['schemas']['ErrorResponse']
 type PreviewWarning = PreviewResult['warnings'][number]
+type PreviewBoundary = PreviewResult['parameter_boundaries'][number]
 type ModeProfileResult = PreviewResult['mode_profile']
 type StandardsChecks = PreviewResult['standards_checks']
 type AttenuationCheck = NonNullable<StandardsChecks['attenuation']>
@@ -68,6 +70,22 @@ const initialFormValues: FormValues = {
 const INVALID_CONFIGURATION = 'Invalid configuration. Check the entered values.'
 const PREVIEW_FAILED = 'Preview failed.'
 const PREVIEW_UNREACHABLE = 'Unable to reach the preview service.'
+const numericFormFields = [
+  'n_core',
+  'n_cladding',
+  'core_radius_um',
+  'mode_field_radius_um',
+  'attenuation_db_per_km',
+  'dispersion_ps_per_nm_km',
+  'group_index_dimensionless',
+  'wavelength_nm',
+  'input_power_dbm',
+  'spectral_width_fwhm_nm',
+  'input_pulse_fwhm_ps',
+  'length_km',
+  'grid_half_width_um',
+  'grid_points',
+] as const satisfies readonly NumericFormField[]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -75,6 +93,70 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isNumericFormField(value: unknown): value is NumericFormField {
+  return (
+    typeof value === 'string' &&
+    numericFormFields.includes(value as NumericFormField)
+  )
+}
+
+function isPreviewBoundary(value: unknown): value is PreviewBoundary {
+  return (
+    isRecord(value) &&
+    isNumericFormField(value.field) &&
+    (value.kind === 'input' ||
+      value.kind === 'model' ||
+      value.kind === 'standard') &&
+    typeof value.label === 'string' &&
+    value.label.trim().length > 0 &&
+    typeof value.range_text === 'string' &&
+    value.range_text.trim().length > 0 &&
+    Array.isArray(value.depends_on) &&
+    value.depends_on.every(isNumericFormField) &&
+    typeof value.source_model_id === 'string' &&
+    value.source_model_id.trim().length > 0
+  )
+}
+
+function isPreviewBoundaries(
+  value: unknown,
+): value is PreviewResult['parameter_boundaries'] {
+  if (!Array.isArray(value) || !value.every(isPreviewBoundary)) {
+    return false
+  }
+
+  const inputFields = new Set<NumericFormField>()
+
+  for (const boundary of value) {
+    if (boundary.kind === 'input') {
+      inputFields.add(boundary.field)
+    }
+  }
+
+  return numericFormFields.every((field) => inputFields.has(field))
+}
+
+function toFieldBoundaries(
+  boundaries: PreviewResult['parameter_boundaries'],
+): FieldBoundaries {
+  const grouped: FieldBoundaries = {}
+
+  for (const boundary of boundaries) {
+    grouped[boundary.field] = [
+      ...(grouped[boundary.field] ?? []),
+      {
+        kind: boundary.kind,
+        label: boundary.label,
+        rangeText: boundary.range_text,
+        dependsOn: boundary.depends_on,
+        sourceModelId: boundary.source_model_id,
+      },
+    ]
+  }
+
+  return grouped
 }
 
 function isFiniteNumberArray(
@@ -427,7 +509,8 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     value.model_manifest.model_version === '1.0.0' &&
     Array.isArray(value.warnings) &&
     value.warnings.every(isPreviewWarning) &&
-    isPreviewStandardsChecks(value.standards_checks)
+    isPreviewStandardsChecks(value.standards_checks) &&
+    isPreviewBoundaries(value.parameter_boundaries)
   )
 }
 
@@ -578,10 +661,14 @@ function App() {
   const formValidation = parseFormValues(formValues)
   const geometryValues = getGeometryValues(formValues)
   const error = formValidation.error ?? serviceError
-  const fieldIssues = getFieldIssues(
-    formValues,
-    resultMatchesRequest(formValidation.request, result) ? result : null,
-  )
+  const matchingResult = resultMatchesRequest(formValidation.request, result)
+    ? result
+    : null
+  const fieldIssues = getFieldIssues(formValues, matchingResult)
+  const fieldBoundaries =
+    matchingResult === null
+      ? {}
+      : toFieldBoundaries(matchingResult.parameter_boundaries)
 
   const clearVisualizationData = () => {
     previewSequence.current += 1
@@ -796,6 +883,7 @@ function App() {
       values={formValues}
       error={error}
       fieldIssues={fieldIssues}
+      fieldBoundaries={fieldBoundaries}
       settings={visualizationSettings}
       rayGuidance={visualizationData?.rayGuidance ?? null}
       onNumericFieldChange={updateNumericField}

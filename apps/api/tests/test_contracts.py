@@ -20,6 +20,8 @@ from pydantic import TypeAdapter, ValidationError
 from fibre_sim.guidance import GuidanceRequest
 from fibre_sim.level1 import (
     Level1FibreConfig,
+    Level1ParameterBoundary,
+    Level1ParameterField,
     Level1SamplingConfig,
     Level1SectionConfig,
     Level1SimulationManifest,
@@ -196,6 +198,26 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
     assert violations == []
 
 
+def test_level1_parameter_boundary_is_public_and_registered_with_enum_values() -> None:
+    assert Level1ParameterBoundary in main.CONTRACT_MODELS
+    assert [field.value for field in Level1ParameterField] == [
+        "n_core",
+        "n_cladding",
+        "core_radius_um",
+        "mode_field_radius_um",
+        "attenuation_db_per_km",
+        "dispersion_ps_per_nm_km",
+        "group_index_dimensionless",
+        "wavelength_nm",
+        "input_power_dbm",
+        "spectral_width_fwhm_nm",
+        "input_pulse_fwhm_ps",
+        "length_km",
+        "grid_half_width_um",
+        "grid_points",
+    ]
+
+
 def test_level1_models_are_registered_and_unit_checked() -> None:
     level1_models = (
         Level1FibreConfig,
@@ -206,6 +228,7 @@ def test_level1_models_are_registered_and_unit_checked() -> None:
         Level1StandardsChecks,
         Level1Warning,
         Level1SimulationManifest,
+        Level1ParameterBoundary,
         Level1SimulationResult,
     )
 

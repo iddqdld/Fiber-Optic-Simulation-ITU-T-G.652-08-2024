@@ -1076,6 +1076,11 @@ export interface components {
          * @enum {string}
          */
         IndexProfile: "STEP" | "GRADED" | "CUSTOM";
+        /**
+         * Level1BoundaryKind
+         * @enum {string}
+         */
+        Level1BoundaryKind: "input" | "model" | "standard";
         /** Level1FibreConfig */
         Level1FibreConfig: {
             /** Attenuation Db Per Km */
@@ -1099,6 +1104,24 @@ export interface components {
          * @enum {string}
          */
         Level1FibrePreset: "custom" | "g652d";
+        /** Level1ParameterBoundary */
+        Level1ParameterBoundary: {
+            /** Depends On */
+            depends_on: components["schemas"]["Level1ParameterField"][];
+            field: components["schemas"]["Level1ParameterField"];
+            kind: components["schemas"]["Level1BoundaryKind"];
+            /** Label */
+            label: string;
+            /** Range Text */
+            range_text: string;
+            /** Source Model Id */
+            source_model_id: string;
+        };
+        /**
+         * Level1ParameterField
+         * @enum {string}
+         */
+        Level1ParameterField: "n_core" | "n_cladding" | "core_radius_um" | "mode_field_radius_um" | "attenuation_db_per_km" | "dispersion_ps_per_nm_km" | "group_index_dimensionless" | "wavelength_nm" | "input_power_dbm" | "spectral_width_fwhm_nm" | "input_pulse_fwhm_ps" | "length_km" | "grid_half_width_um" | "grid_points";
         /** Level1SamplingConfig */
         Level1SamplingConfig: {
             /** Grid Half Width Um */
@@ -1167,6 +1190,8 @@ export interface components {
             guidance: components["schemas"]["GuidanceResult"];
             mode_profile: components["schemas"]["GaussianModeProfileResult"];
             model_manifest: components["schemas"]["Level1SimulationManifest"];
+            /** Parameter Boundaries */
+            parameter_boundaries: components["schemas"]["Level1ParameterBoundary"][];
             pulse_broadening: components["schemas"]["ChromaticPulseBroadeningResult"];
             standards_checks: components["schemas"]["Level1StandardsChecks"];
             /** Warnings */

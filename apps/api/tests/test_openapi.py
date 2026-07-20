@@ -177,6 +177,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
         "Level1SectionConfig",
         "Level1SamplingConfig",
         "Level1SimulationResult",
+        "Level1ParameterBoundary",
         "Level1StandardsChecks",
         "Level1Warning",
         "Level1SimulationManifest",
@@ -222,6 +223,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
             "group_delay",
             "pulse_broadening",
             "standards_checks",
+            "parameter_boundaries",
             "model_manifest",
         )
     } == {
@@ -232,6 +234,11 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
         "group_delay": {"$ref": "#/components/schemas/GroupDelayResult"},
         "pulse_broadening": {"$ref": "#/components/schemas/ChromaticPulseBroadeningResult"},
         "standards_checks": {"$ref": "#/components/schemas/Level1StandardsChecks"},
+        "parameter_boundaries": {
+            "items": {"$ref": "#/components/schemas/Level1ParameterBoundary"},
+            "title": "Parameter Boundaries",
+            "type": "array",
+        },
         "model_manifest": {"$ref": "#/components/schemas/Level1SimulationManifest"},
     }
     assert result["properties"]["warnings"] == {
@@ -239,6 +246,42 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
         "title": "Warnings",
         "type": "array",
     }
+
+    boundary = schemas["Level1ParameterBoundary"]
+    assert boundary["additionalProperties"] is False
+    assert set(boundary["properties"]) == {
+        "field",
+        "kind",
+        "label",
+        "range_text",
+        "depends_on",
+        "source_model_id",
+    }
+    assert boundary["required"] == [
+        "field",
+        "kind",
+        "label",
+        "range_text",
+        "depends_on",
+        "source_model_id",
+    ]
+    assert schemas["Level1ParameterField"]["enum"] == [
+        "n_core",
+        "n_cladding",
+        "core_radius_um",
+        "mode_field_radius_um",
+        "attenuation_db_per_km",
+        "dispersion_ps_per_nm_km",
+        "group_index_dimensionless",
+        "wavelength_nm",
+        "input_power_dbm",
+        "spectral_width_fwhm_nm",
+        "input_pulse_fwhm_ps",
+        "length_km",
+        "grid_half_width_um",
+        "grid_points",
+    ]
+    assert schemas["Level1BoundaryKind"]["enum"] == ["input", "model", "standard"]
 
     standards = schemas["Level1StandardsChecks"]
     for field, reference in (
