@@ -16,6 +16,7 @@ from fibre_sim.standards import (
     get_g652d_preset,
 )
 
+from .boundaries import build_level1_parameter_boundaries
 from .request import Level1FibrePreset, Level1SimulationRequest
 from .result import (
     Level1SimulationManifest,
@@ -133,6 +134,11 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
                 )
             )
 
+    parameter_boundaries = build_level1_parameter_boundaries(
+        request=request,
+        guidance=guidance,
+        standards_checks=standards_checks,
+    )
     manifest = Level1SimulationManifest(component_model_ids=tuple(component_model_ids))
     return Level1SimulationResult(
         configuration=request,
@@ -142,6 +148,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
         group_delay=group_delay,
         pulse_broadening=pulse_broadening,
         standards_checks=standards_checks,
+        parameter_boundaries=parameter_boundaries,
         warnings=tuple(warnings),
         model_manifest=manifest,
     )

@@ -164,6 +164,80 @@ const initialConfiguration = {
   sampling: { grid_half_width_um: 15, grid_points: 65 },
 } satisfies Level1Request
 
+const parameterBoundaryFields = [
+  'n_core',
+  'n_cladding',
+  'core_radius_um',
+  'mode_field_radius_um',
+  'attenuation_db_per_km',
+  'dispersion_ps_per_nm_km',
+  'group_index_dimensionless',
+  'wavelength_nm',
+  'input_power_dbm',
+  'spectral_width_fwhm_nm',
+  'input_pulse_fwhm_ps',
+  'length_km',
+  'grid_half_width_um',
+  'grid_points',
+] as const satisfies readonly components['schemas']['Level1ParameterField'][]
+
+const inputBoundaryRanges: Record<
+  components['schemas']['Level1ParameterField'],
+  string
+> = {
+  n_core:
+    'finite and > current cladding refractive index (1.465 dimensionless)',
+  n_cladding:
+    'finite, > 0, and < current core refractive index (1.47 dimensionless)',
+  core_radius_um: 'finite and > 0 µm',
+  mode_field_radius_um: 'finite and > 0 µm',
+  attenuation_db_per_km: 'finite and >= 0 dB/km',
+  dispersion_ps_per_nm_km: 'finite ps/(nm·km)',
+  group_index_dimensionless: 'finite and > 0 dimensionless',
+  wavelength_nm: 'finite and > 0 nm',
+  input_power_dbm: 'finite dBm',
+  spectral_width_fwhm_nm: 'finite and >= 0 nm (FWHM)',
+  input_pulse_fwhm_ps: 'finite and > 0 ps (FWHM)',
+  length_km: 'finite and >= 0 km',
+  grid_half_width_um: 'finite and > 0 µm',
+  grid_points: 'odd integer from 3 to 65 inclusive',
+}
+
+const inputParameterBoundaries = parameterBoundaryFields.map((field) => ({
+  field,
+  kind: 'input' as const,
+  label: 'Valid input',
+  range_text: inputBoundaryRanges[field],
+  depends_on:
+    field === 'n_core'
+      ? (['n_cladding'] as const)
+      : field === 'n_cladding'
+        ? (['n_core'] as const)
+        : [],
+  source_model_id: 'level1_input_validation',
+})) satisfies Level1Result['parameter_boundaries']
+
+const customParameterBoundaries = [
+  ...inputParameterBoundaries,
+  {
+    field: 'core_radius_um',
+    kind: 'model',
+    label: 'Ideal single-mode condition',
+    range_text:
+      '0 < core radius < 4.9 µm; strict upper bound for V-number < 2.405',
+    depends_on: ['n_core', 'n_cladding', 'wavelength_nm'],
+    source_model_id: 'ideal_circular_step_index_guidance',
+  },
+  {
+    field: 'wavelength_nm',
+    kind: 'model',
+    label: 'Ideal single-mode condition',
+    range_text: 'wavelength > 1297 nm; strict lower bound for V-number < 2.405',
+    depends_on: ['n_core', 'n_cladding', 'core_radius_um'],
+    source_model_id: 'ideal_circular_step_index_guidance',
+  },
+] satisfies Level1Result['parameter_boundaries']
+
 const simulationManifest = {
   model_id: 'level1_single_section_simulation',
   model_version: '1.0.0',
@@ -322,6 +396,7 @@ const customResult = {
     dispersion: null,
     attenuation: null,
   },
+  parameter_boundaries: customParameterBoundaries,
   warnings: [
     {
       code: 'mode_count_unavailable',
@@ -438,6 +513,33 @@ const g652dResult = {
   },
   attenuation: { ...customResult.attenuation, attenuation_db_per_km: 0.275 },
   standards_checks: g652dStandardsChecks,
+  parameter_boundaries: [
+    ...customParameterBoundaries,
+    {
+      field: 'wavelength_nm',
+      kind: 'standard',
+      label: 'G.652.D limit',
+      range_text: '1260 to 1625 nm inclusive',
+      depends_on: [],
+      source_model_id: 'itu_t_g652d_represented_preset',
+    },
+    {
+      field: 'attenuation_db_per_km',
+      kind: 'standard',
+      label: 'G.652.D limit',
+      range_text: '0 to 0.3 dB/km inclusive',
+      depends_on: ['wavelength_nm'],
+      source_model_id: 'itu_t_g652d_attenuation_limits',
+    },
+    {
+      field: 'dispersion_ps_per_nm_km',
+      kind: 'standard',
+      label: 'G.652.D limit',
+      range_text: '8 to 18 ps/(nm·km) inclusive',
+      depends_on: ['wavelength_nm'],
+      source_model_id: 'itu_t_g652d_dispersion_envelope',
+    },
+  ],
 } satisfies Level1Result
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -532,7 +634,13 @@ function numberInput(name: RegExp) {
     return visibleInput
   }
 
-  for (const sectionName of ['Fibre', 'Source', 'Section', 'Sampling']) {
+  for (const sectionName of [
+    'Fibre geometry',
+    'Fibre propagation',
+    'Optical source',
+    'Link section',
+    'Numerical sampling',
+  ]) {
     const section = screen.getByRole('button', { name: sectionName })
     if (section.getAttribute('aria-expanded') === 'false') {
       fireEvent.click(section)
@@ -665,7 +773,7 @@ describe('editor UI state', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Power / distance' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Standards' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Source' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Optical source' }))
     fireEvent.change(screen.getByLabelText(/Displayed fibre length/), {
       target: { value: '11' },
     })
@@ -728,7 +836,13 @@ describe('Level 1 form', () => {
       within(configuration).getByRole('option', { name: 'ITU-T G.652.D' }),
     ).toBeInTheDocument()
 
-    for (const groupName of ['Fibre', 'Source', 'Section', 'Sampling']) {
+    for (const groupName of [
+      'Fibre geometry',
+      'Fibre propagation',
+      'Optical source',
+      'Link section',
+      'Numerical sampling',
+    ]) {
       const toggle = within(configuration).getByRole('button', {
         name: groupName,
       })
@@ -954,14 +1068,12 @@ describe('Level 1 form', () => {
       expect(input).not.toHaveAttribute('aria-invalid', 'true')
     }
 
-    expect(screen.getByRole('button', { name: 'Fibre' })).not.toHaveAttribute(
-      'data-tone',
-      'warning',
-    )
-    expect(screen.getByRole('button', { name: 'Source' })).not.toHaveAttribute(
-      'data-tone',
-      'warning',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Fibre geometry' }),
+    ).not.toHaveAttribute('data-tone', 'warning')
+    expect(
+      screen.getByRole('button', { name: 'Optical source' }),
+    ).not.toHaveAttribute('data-tone', 'warning')
 
     const coreInput = contributingInputs[0]
     const coreField = coreInput.closest('.level1-inspector-field')
@@ -983,10 +1095,65 @@ describe('Level 1 form', () => {
         'Must satisfy n_core > n_cladding.',
       ),
     ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Fibre' })).toHaveAttribute(
-      'data-tone',
-      'error',
+    expect(
+      screen.getByRole('button', { name: 'Fibre geometry' }),
+    ).toHaveAttribute('data-tone', 'error')
+  })
+
+  test('shows boundaries from the matching preview and clears stale guidance after an edit', async () => {
+    vi.useFakeTimers()
+    mockFetch({ preview: [jsonResponse(customResult)] })
+
+    render(<App />)
+    await settleDebounce()
+
+    const coreRadius = numberInput(/Core radius/i)
+    const field = coreRadius.closest('.level1-inspector-field')
+
+    expect(field).not.toBeNull()
+    expect(
+      within(field as HTMLElement).getByText('finite and > 0 µm'),
+    ).toBeVisible()
+    expect(
+      within(field as HTMLElement).getByText(
+        '0 < core radius < 4.9 µm; strict upper bound for V-number < 2.405',
+      ),
+    ).toBeVisible()
+    expect(coreRadius).toHaveAttribute(
+      'aria-describedby',
+      'core-radius-boundaries',
     )
+
+    fireEvent.change(coreRadius, { target: { value: '4.2' } })
+
+    expect(
+      within(field as HTMLElement).queryByText('finite and > 0 µm'),
+    ).not.toBeInTheDocument()
+    expect(coreRadius).not.toHaveAttribute('aria-describedby')
+  })
+
+  test('adds G.652.D limits beside the affected fields', async () => {
+    vi.useFakeTimers()
+    mockFetch({
+      preview: [jsonResponse(customResult), jsonResponse(g652dResult)],
+    })
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.change(screen.getByRole('combobox', { name: 'Fibre preset' }), {
+      target: { value: 'g652d' },
+    })
+    await settleDebounce()
+
+    const wavelength = numberInput(/Wavelength/i)
+    const field = wavelength.closest('.level1-inspector-field')
+
+    expect(field).not.toBeNull()
+    const standardBoundary = within(field as HTMLElement)
+      .getByText('1260 to 1625 nm inclusive')
+      .closest('li')
+    expect(standardBoundary).toHaveAttribute('data-kind', 'standard')
+    expect(standardBoundary).toHaveTextContent('G.652.D')
   })
 
   test('previews the inclusive G.652.D wavelength boundaries only', async () => {
@@ -2259,6 +2426,26 @@ describe('Level 1 preview errors', () => {
   test('uses a stable generic alert for a malformed successful response', async () => {
     vi.useFakeTimers()
     mockFetch({ preview: [jsonResponse({ unexpected: true })] })
+
+    render(<App />)
+    await settleDebounce()
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
+  })
+
+  test('rejects a preview missing an input boundary', async () => {
+    vi.useFakeTimers()
+    mockFetch({
+      preview: [
+        jsonResponse({
+          ...customResult,
+          parameter_boundaries: customResult.parameter_boundaries.filter(
+            (boundary) =>
+              boundary.kind !== 'input' || boundary.field !== 'grid_points',
+          ),
+        }),
+      ],
+    })
 
     render(<App />)
     await settleDebounce()

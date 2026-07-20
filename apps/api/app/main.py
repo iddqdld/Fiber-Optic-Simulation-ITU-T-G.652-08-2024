@@ -32,6 +32,7 @@ from fibre_sim.guidance import (
 )
 from fibre_sim.level1 import (
     Level1FibreConfig,
+    Level1ParameterBoundary,
     Level1SamplingConfig,
     Level1SectionConfig,
     Level1SimulationManifest,
@@ -173,6 +174,7 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     GroupDelayResult,
     HealthResponse,
     Level1FibreConfig,
+    Level1ParameterBoundary,
     Level1SamplingConfig,
     Level1SectionConfig,
     Level1SimulationManifest,

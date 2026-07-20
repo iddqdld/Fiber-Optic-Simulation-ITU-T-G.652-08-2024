@@ -1738,6 +1738,15 @@
         "title": "IndexProfile",
         "type": "string"
       },
+      "Level1BoundaryKind": {
+        "enum": [
+          "input",
+          "model",
+          "standard"
+        ],
+        "title": "Level1BoundaryKind",
+        "type": "string"
+      },
       "Level1FibreConfig": {
         "additionalProperties": false,
         "properties": {
@@ -1798,6 +1807,69 @@
           "g652d"
         ],
         "title": "Level1FibrePreset",
+        "type": "string"
+      },
+      "Level1ParameterBoundary": {
+        "additionalProperties": false,
+        "properties": {
+          "depends_on": {
+            "items": {
+              "$ref": "#/components/schemas/Level1ParameterField"
+            },
+            "title": "Depends On",
+            "type": "array"
+          },
+          "field": {
+            "$ref": "#/components/schemas/Level1ParameterField"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Level1BoundaryKind"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "range_text": {
+            "minLength": 1,
+            "title": "Range Text",
+            "type": "string"
+          },
+          "source_model_id": {
+            "minLength": 1,
+            "title": "Source Model Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "kind",
+          "label",
+          "range_text",
+          "depends_on",
+          "source_model_id"
+        ],
+        "title": "Level1ParameterBoundary",
+        "type": "object"
+      },
+      "Level1ParameterField": {
+        "enum": [
+          "n_core",
+          "n_cladding",
+          "core_radius_um",
+          "mode_field_radius_um",
+          "attenuation_db_per_km",
+          "dispersion_ps_per_nm_km",
+          "group_index_dimensionless",
+          "wavelength_nm",
+          "input_power_dbm",
+          "spectral_width_fwhm_nm",
+          "input_pulse_fwhm_ps",
+          "length_km",
+          "grid_half_width_um",
+          "grid_points"
+        ],
+        "title": "Level1ParameterField",
         "type": "string"
       },
       "Level1SamplingConfig": {
@@ -1942,6 +2014,13 @@
           "model_manifest": {
             "$ref": "#/components/schemas/Level1SimulationManifest"
           },
+          "parameter_boundaries": {
+            "items": {
+              "$ref": "#/components/schemas/Level1ParameterBoundary"
+            },
+            "title": "Parameter Boundaries",
+            "type": "array"
+          },
           "pulse_broadening": {
             "$ref": "#/components/schemas/ChromaticPulseBroadeningResult"
           },
@@ -1964,6 +2043,7 @@
           "group_delay",
           "pulse_broadening",
           "standards_checks",
+          "parameter_boundaries",
           "warnings",
           "model_manifest"
         ],

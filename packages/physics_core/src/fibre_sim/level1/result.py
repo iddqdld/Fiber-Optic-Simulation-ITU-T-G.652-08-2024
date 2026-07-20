@@ -14,6 +14,7 @@ from fibre_sim.standards import (
     G652DPreset,
 )
 
+from .boundaries import Level1ParameterBoundary
 from .request import Level1FibrePreset, Level1SimulationRequest
 
 
@@ -90,5 +91,6 @@ class Level1SimulationResult(BaseModel):
     group_delay: GroupDelayResult
     pulse_broadening: ChromaticPulseBroadeningResult
     standards_checks: Level1StandardsChecks
+    parameter_boundaries: tuple[Level1ParameterBoundary, ...]
     warnings: tuple[Level1Warning, ...]
     model_manifest: Level1SimulationManifest
