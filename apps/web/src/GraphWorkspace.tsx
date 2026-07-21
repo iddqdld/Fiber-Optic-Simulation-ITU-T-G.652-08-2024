@@ -1,5 +1,5 @@
 import type { ModeProfileData } from './FibreGeometryView'
-import { graphDefinitions, type GraphWorkspaceId } from './graphWorkspace'
+import { graphDefinitions, type GraphWorkspaceId } from './graphWorkspaceCatalog'
 import { PowerDistancePlot } from './PowerDistancePlot'
 import { PulseComparisonPlot } from './PulseComparisonPlot'
 import { RadialIntensityPlot } from './RadialIntensityPlot'

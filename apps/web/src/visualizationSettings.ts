@@ -1,9 +1,17 @@
+import type { CameraPresetId, FibreRouteStyle } from './fibreShowcase'
+
 export type VisualizationSettings = {
   visualLength: number
   rayViewEnabled: boolean
   incidenceAngleDeg: number
   modeViewEnabled: boolean
   pulseAnimationEnabled: boolean
+  fibreRoute: FibreRouteStyle
+  cameraPreset: CameraPresetId
+  claddingVisible: boolean
+  scaleMarkersEnabled: boolean
+  powerIndicatorsEnabled: boolean
+  pulseMarkersEnabled: boolean
 }
 
 export const defaultVisualizationSettings: VisualizationSettings = {
@@ -12,6 +20,12 @@ export const defaultVisualizationSettings: VisualizationSettings = {
   incidenceAngleDeg: 86,
   modeViewEnabled: true,
   pulseAnimationEnabled: true,
+  fibreRoute: 'straight',
+  cameraPreset: 'perspective',
+  claddingVisible: true,
+  scaleMarkersEnabled: true,
+  powerIndicatorsEnabled: true,
+  pulseMarkersEnabled: true,
 }
 
 export const modeDisplayThreshold = 0.01

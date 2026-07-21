@@ -245,6 +245,15 @@ describe('FibreGeometryScene', () => {
         'educational-ray-transmission-exiting-segment',
       ),
     ).toBeTruthy()
+    expect(
+      findSceneElement(transmission.scene, 'educational-ray-leakage-point'),
+    ).toBeTruthy()
+    expect(
+      findSceneElement(
+        transmission.scene,
+        'educational-ray-leakage-marker-0',
+      ),
+    ).toBeTruthy()
   })
 
   test('keeps the Step 36 opaque core when the ray layer is disabled', () => {
@@ -319,7 +328,14 @@ describe('FibreGeometryScene', () => {
       vertexColors: true,
       transparent: true,
       depthWrite: false,
+      blending: expect.anything(),
     })
+    expect(
+      findSceneElement(scene, 'approximate-lp01-field-radius-ring'),
+    ).toBeTruthy()
+    expect(
+      findSceneElement(scene, 'approximate-lp01-field-glow'),
+    ).toBeTruthy()
     expect(coreMaterial.props).toMatchObject({
       transparent: true,
       opacity: 0.42,
@@ -675,7 +691,7 @@ describe('FibreGeometryView', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Radial dimensions are normalized for visibility. The cladding shell is illustrative because no cladding diameter is configured. Longitudinal scale is compressed and not to scale.',
+        'Radial dimensions are normalized for visibility. The cladding shell is illustrative because no cladding diameter is configured. Longitudinal scale is compressed and not to scale. Curved routes are display-only path styles; they do not change Level 1 physics.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Approximate LP01 field')).toBeChecked()
@@ -876,12 +892,11 @@ describe('FibreGeometryView', () => {
     expect(explanation).toHaveTextContent(
       'backend normalized-intensity samples',
     )
-    expect(explanation).toHaveTextContent('transverse slice')
-    expect(explanation).toHaveTextContent('normalized/unit-peak')
-    expect(explanation).toHaveTextContent('schematic')
+    expect(explanation).toHaveTextContent('heat colormap')
+    expect(explanation).toHaveTextContent('1/e field radius')
     expect(explanation).toHaveTextContent('not a physical ray path')
     expect(explanation).toHaveTextContent('not an exact step-index eigenmode')
-    expect(explanation).toHaveTextContent('full-wave solution')
+    expect(explanation).toHaveTextContent('full-wave electromagnetic solution')
     expect(explanation).toHaveTextContent(
       'Samples below 0.01, or 1% of unit peak, are omitted',
     )
@@ -988,7 +1003,7 @@ describe('FibreGeometryView', () => {
 
     fireEvent.change(incidence, { target: { value: '70' } })
     expect(status).toHaveAttribute('data-state', 'transmission')
-    expect(status).toHaveTextContent('Transmission into cladding')
+    expect(status).toHaveTextContent('Leakage into cladding')
   })
 
   test('can select the exact backend critical angle when it is between slider steps', () => {
