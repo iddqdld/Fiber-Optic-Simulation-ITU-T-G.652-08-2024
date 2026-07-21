@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { RayGuidance } from './FibreGeometryView'
+import type { MacrobendInput } from './bendMarkers'
 import type { FieldIssues } from './fieldIssues'
 import {
   Level1Form,
@@ -20,6 +21,8 @@ type SimulationInspectorProps = {
   fieldBoundaries: FieldBoundaries
   settings: VisualizationSettings
   rayGuidance: RayGuidance | null
+  sectionBends: MacrobendInput[]
+  onSectionBendsChange: (bends: MacrobendInput[]) => void
   onNumericFieldChange: (field: NumericFormField, value: string) => void
   onPresetChange: (preset: Preset) => void
   onCableApplicationChange: (application: CableApplication) => void
@@ -35,6 +38,8 @@ export function SimulationInspector({
   fieldBoundaries,
   settings,
   rayGuidance,
+  sectionBends,
+  onSectionBendsChange,
   onNumericFieldChange,
   onPresetChange,
   onCableApplicationChange,
@@ -51,6 +56,8 @@ export function SimulationInspector({
         error={error}
         fieldIssues={fieldIssues}
         fieldBoundaries={fieldBoundaries}
+        sectionBends={sectionBends}
+        onSectionBendsChange={onSectionBendsChange}
         onNumericFieldChange={onNumericFieldChange}
         onPresetChange={onPresetChange}
         onCableApplicationChange={onCableApplicationChange}

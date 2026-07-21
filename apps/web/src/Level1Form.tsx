@@ -1,6 +1,10 @@
 import { useState, type ReactNode, type DragEvent } from 'react'
 
 import type { operations } from '../../../packages/shared_schemas/generated/api'
+import {
+  estimateEducationalBendLossDb,
+  type MacrobendInput,
+} from './bendMarkers'
 import type { FieldIssue, FieldIssues } from './fieldIssues'
 import { parseAndValidateConfiguration } from './importExport'
 import {
@@ -47,6 +51,8 @@ export type Level1FormProps = {
   error: string | null
   fieldIssues: FieldIssues
   fieldBoundaries: FieldBoundaries
+  sectionBends?: MacrobendInput[]
+  onSectionBendsChange?: (bends: MacrobendInput[]) => void
   onNumericFieldChange: (field: NumericFormField, value: string) => void
   onPresetChange: (preset: Preset) => void
   onCableApplicationChange: (application: CableApplication) => void
@@ -91,6 +97,8 @@ type NumericSectionProps = {
   expanded: boolean
   onToggle: () => void
   onNumericFieldChange: Level1FormProps['onNumericFieldChange']
+  sectionBends?: MacrobendInput[]
+  onSectionBendsChange?: (bends: MacrobendInput[]) => void
 }
 
 function getIssueTone(
@@ -628,7 +636,72 @@ function LinkSection({
   expanded,
   onToggle,
   onNumericFieldChange,
+  sectionBends = [],
+  onSectionBendsChange,
 }: NumericSectionProps) {
+  const addBend = () => {
+    if (onSectionBendsChange === undefined || sectionBends.length >= 32) {
+      return
+    }
+
+    const lastPosition =
+      sectionBends.length === 0
+        ? 0
+        : sectionBends[sectionBends.length - 1].position_fraction
+    const nextPosition = Math.min(1, Number((lastPosition + 0.25).toFixed(3)))
+    const radiusMm = 15
+    const angleDeg = 90
+
+    onSectionBendsChange([
+      ...sectionBends,
+      {
+        position_fraction: nextPosition,
+        radius_mm: radiusMm,
+        angle_deg: angleDeg,
+        supplied_loss_db: estimateEducationalBendLossDb(radiusMm, angleDeg),
+      },
+    ])
+  }
+
+  const updateBend = (
+    index: number,
+    key: keyof MacrobendInput,
+    rawValue: string,
+  ) => {
+    if (onSectionBendsChange === undefined) {
+      return
+    }
+
+    const value = Number(rawValue)
+    if (!Number.isFinite(value)) {
+      return
+    }
+
+    const next = sectionBends.map((bend, bendIndex) => {
+      if (bendIndex !== index) {
+        return bend
+      }
+
+      const updated = { ...bend, [key]: value }
+      if (key === 'radius_mm' || key === 'angle_deg') {
+        updated.supplied_loss_db = estimateEducationalBendLossDb(
+          updated.radius_mm,
+          updated.angle_deg,
+        )
+      }
+      return updated
+    })
+    onSectionBendsChange(next)
+  }
+
+  const removeBend = (index: number) => {
+    if (onSectionBendsChange === undefined) {
+      return
+    }
+
+    onSectionBendsChange(sectionBends.filter((_, bendIndex) => bendIndex !== index))
+  }
+
   return (
     <InspectorSection
       id="link-section"
@@ -648,6 +721,83 @@ function LinkSection({
           fieldIssues={fieldIssues.length_km ?? []}
           onChange={(value) => onNumericFieldChange('length_km', value)}
         />
+      </div>
+
+      <div className="macrobend-editor" aria-label="Macrobends">
+        <div className="macrobend-editor-header">
+          <h4>Macrobends</h4>
+          <button type="button" onClick={addBend} disabled={sectionBends.length >= 32}>
+            Add bend
+          </button>
+        </div>
+        <p className="model-note level1-inspector-model-fact" role="note">
+          Loss remains user-supplied (backend aggregates it). Radius/angle prefill
+          an educational estimate you can edit. Positions must increase along the
+          section and appear as hotspots on the 3D route.
+        </p>
+        {sectionBends.length === 0 ? (
+          <p className="model-note">No macrobends configured.</p>
+        ) : (
+          <ul className="macrobend-list">
+            {sectionBends.map((bend, index) => (
+              <li key={`bend-row-${index}`} className="macrobend-row">
+                <label>
+                  Position
+                  <input
+                    type="number"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={bend.position_fraction}
+                    onChange={(event) =>
+                      updateBend(index, 'position_fraction', event.currentTarget.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Radius (mm)
+                  <input
+                    type="number"
+                    min={0.1}
+                    step={0.1}
+                    value={bend.radius_mm}
+                    onChange={(event) =>
+                      updateBend(index, 'radius_mm', event.currentTarget.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Angle (deg)
+                  <input
+                    type="number"
+                    min={0.1}
+                    max={360}
+                    step={1}
+                    value={bend.angle_deg}
+                    onChange={(event) =>
+                      updateBend(index, 'angle_deg', event.currentTarget.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Loss (dB)
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.001}
+                    value={bend.supplied_loss_db}
+                    onChange={(event) =>
+                      updateBend(index, 'supplied_loss_db', event.currentTarget.value)
+                    }
+                  />
+                </label>
+                <button type="button" onClick={() => removeBend(index)}>
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </InspectorSection>
   )
@@ -710,6 +860,8 @@ export function Level1Form({
   error,
   fieldIssues,
   fieldBoundaries,
+  sectionBends = [],
+  onSectionBendsChange,
   onNumericFieldChange,
   onPresetChange,
   onCableApplicationChange,
@@ -773,6 +925,8 @@ export function Level1Form({
     fieldIssues,
     fieldBoundaries,
     onNumericFieldChange,
+    sectionBends,
+    onSectionBendsChange,
   }
 
   return (

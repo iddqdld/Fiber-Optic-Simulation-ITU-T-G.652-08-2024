@@ -22,6 +22,20 @@ import {
   type CameraPresetId,
   type FibreRouteStyle,
 } from './fibreShowcase'
+import {
+  getBendMarkers,
+  type BendMarker,
+  type MacrobendInput,
+} from './bendMarkers'
+import {
+  formatModeRegimeLabel,
+  isValidModeRegimeSummary,
+  listSupportedModes,
+  MODE_REGIME_CUTOFF_V,
+  schematicModeIntensity,
+  type ModeRegimeSummary,
+  type SupportedModeId,
+} from './modeRegime'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { PulseAnimationLayer } from './PulseAnimationLayer'
 import {
@@ -109,9 +123,11 @@ export type FibreGeometryViewProps = {
   coreRadiusUm: number | null
   sectionLengthKm: number | null
   rayGuidance: RayGuidance | null
+  modeRegime?: ModeRegimeSummary | null
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
   attenuation?: PowerDistanceData | null
+  bends?: readonly MacrobendInput[] | null
   visualizationSettings?: VisualizationSettings
   onVisualizationSettingsChange?: (settings: VisualizationSettings) => void
   showConfigurationControls?: boolean
@@ -126,6 +142,7 @@ export type FibreGeometrySceneProps = {
   rayViewEnabled?: boolean
   modeProfile?: ModeProfileData | null
   modeViewEnabled?: boolean
+  selectedSchematicMode?: SupportedModeId
   pulseAnimation?: PulseAnimationData | null
   pulseAnimationEnabled?: boolean
   pulseAnimationPlaying?: boolean
@@ -136,7 +153,9 @@ export type FibreGeometrySceneProps = {
   scaleMarkersEnabled?: boolean
   powerIndicatorsEnabled?: boolean
   pulseMarkersEnabled?: boolean
+  bendMarkersEnabled?: boolean
   attenuation?: PowerDistanceData | null
+  bends?: readonly MacrobendInput[] | null
 }
 
 type RayPoint = [number, number, number]
@@ -326,6 +345,198 @@ function getModeFieldGeometry(
     intensities: intensities.slice(0, sampleIndex),
     sampleCount: sampleIndex,
   }
+}
+
+function getSchematicModeFieldGeometry(
+  modeId: SupportedModeId,
+  modeFieldRadiusUm: number,
+  coreRadiusUm: number,
+  gridHalfWidthUm: number,
+  gridPoints: number,
+): ModeFieldGeometry | null {
+  if (
+    !Number.isFinite(modeFieldRadiusUm) ||
+    modeFieldRadiusUm <= 0 ||
+    !hasValidPhysicalCoreRadius(coreRadiusUm) ||
+    !Number.isFinite(gridHalfWidthUm) ||
+    gridHalfWidthUm <= 0 ||
+    !Number.isSafeInteger(gridPoints) ||
+    gridPoints < MIN_MODE_GRID_POINTS ||
+    gridPoints % 2 === 0
+  ) {
+    return null
+  }
+
+  const normalizedCoreRadius = getNormalisedCoreRadius(coreRadiusUm)
+  const coordinateScale = normalizedCoreRadius / coreRadiusUm
+  const halfPoints = (gridPoints - 1) / 2
+  const maximumSampleCount = gridPoints * gridPoints
+  const positions = new Float32Array(maximumSampleCount * 3)
+  const colors = new Float32Array(maximumSampleCount * 3)
+  const intensities = new Float32Array(maximumSampleCount)
+  let sampleIndex = 0
+  let peak = 0
+  const raw: number[] = []
+
+  for (let rowIndex = 0; rowIndex < gridPoints; rowIndex += 1) {
+    const yUm = ((rowIndex - halfPoints) / halfPoints) * gridHalfWidthUm
+    for (let columnIndex = 0; columnIndex < gridPoints; columnIndex += 1) {
+      const xUm = ((columnIndex - halfPoints) / halfPoints) * gridHalfWidthUm
+      const intensity = schematicModeIntensity(
+        modeId,
+        xUm,
+        yUm,
+        modeFieldRadiusUm,
+      )
+      raw.push(intensity)
+      peak = Math.max(peak, intensity)
+    }
+  }
+
+  if (peak <= 0) {
+    return null
+  }
+
+  let rawIndex = 0
+  for (let rowIndex = 0; rowIndex < gridPoints; rowIndex += 1) {
+    const yUm = ((rowIndex - halfPoints) / halfPoints) * gridHalfWidthUm
+    for (let columnIndex = 0; columnIndex < gridPoints; columnIndex += 1) {
+      const xUm = ((columnIndex - halfPoints) / halfPoints) * gridHalfWidthUm
+      const intensity = raw[rawIndex] / peak
+      rawIndex += 1
+
+      if (intensity < MODE_FIELD_DISPLAY_THRESHOLD) {
+        continue
+      }
+
+      const positionOffset = sampleIndex * 3
+      const [red, green, blue] = getModeFieldColor(intensity)
+      positions[positionOffset] = 0
+      positions[positionOffset + 1] = xUm * coordinateScale
+      positions[positionOffset + 2] = yUm * coordinateScale
+      colors[positionOffset] = red
+      colors[positionOffset + 1] = green
+      colors[positionOffset + 2] = blue
+      intensities[sampleIndex] = intensity
+      sampleIndex += 1
+    }
+  }
+
+  if (sampleIndex === 0) {
+    return null
+  }
+
+  return {
+    positions: positions.slice(0, sampleIndex * 3),
+    colors: colors.slice(0, sampleIndex * 3),
+    intensities: intensities.slice(0, sampleIndex),
+    sampleCount: sampleIndex,
+  }
+}
+
+function BendHotspotLayer({ markers }: { markers: BendMarker[] }) {
+  return (
+    <group name="macrobend-hotspot-layer">
+      {markers.map((marker) => (
+        <mesh
+          key={marker.id}
+          name={marker.id}
+          position={marker.position}
+        >
+          <sphereGeometry
+            name={`${marker.id}-geometry`}
+            args={[marker.hotspotRadius, 20, 20]}
+          />
+          <meshBasicMaterial
+            name={`${marker.id}-material`}
+            color="#ff6b4a"
+            transparent
+            opacity={0.55}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function ModeRegimePanel({
+  modeRegime,
+}: {
+  modeRegime: ModeRegimeSummary | null
+}) {
+  if (!isValidModeRegimeSummary(modeRegime)) {
+    return (
+      <aside className="mode-regime-panel" aria-label="Mode regime">
+        <p role="status">Mode regime unavailable until a valid preview returns.</p>
+      </aside>
+    )
+  }
+
+  const supportedModes = listSupportedModes(modeRegime.vNumber)
+  const progress = Math.min(
+    1,
+    Math.max(0, modeRegime.vNumber / (modeRegime.cutoffV * 1.6)),
+  )
+
+  return (
+    <aside className="mode-regime-panel" aria-label="Mode regime">
+      <h3>Mode regime</h3>
+      <dl>
+        <div>
+          <dt>State</dt>
+          <dd data-testid="mode-regime-state">
+            {formatModeRegimeLabel(modeRegime.modeRegime)}
+          </dd>
+        </div>
+        <div>
+          <dt>V-number</dt>
+          <dd data-testid="mode-regime-v">{modeRegime.vNumber.toFixed(4)}</dd>
+        </div>
+        <div>
+          <dt>Ideal cutoff</dt>
+          <dd data-testid="mode-regime-cutoff">
+            V = {modeRegime.cutoffV} (LP11)
+          </dd>
+        </div>
+        <div>
+          <dt>Approx. mode count</dt>
+          <dd>
+            {modeRegime.approximateModeCount === null
+              ? 'unavailable'
+              : modeRegime.approximateModeCount}
+          </dd>
+        </div>
+      </dl>
+      <div
+        className="mode-regime-meter"
+        role="img"
+        aria-label={`V-number ${modeRegime.vNumber} relative to cutoff ${modeRegime.cutoffV}`}
+      >
+        <div className="mode-regime-meter-fill" style={{ width: `${progress * 100}%` }} />
+        <div
+          className="mode-regime-meter-cutoff"
+          style={{ left: `${(modeRegime.cutoffV / (modeRegime.cutoffV * 1.6)) * 100}%` }}
+          title={`V = ${MODE_REGIME_CUTOFF_V}`}
+        />
+      </div>
+      <p className="mode-regime-note">
+        Ideal circular step-index cutoff at V = {MODE_REGIME_CUTOFF_V}. This is
+        distinct from a measured cable cut-off wavelength.
+      </p>
+      {modeRegime.modeRegime === 'multimode' && (
+        <ul className="mode-regime-supported" aria-label="Supported mode families">
+          {supportedModes.map((mode) => (
+            <li key={mode.id} data-supported={mode.supported}>
+              {mode.label}
+              {mode.supported ? ' — supported' : ' — below cutoff'}
+            </li>
+          ))}
+        </ul>
+      )}
+    </aside>
+  )
 }
 
 function getRayStatus(
@@ -764,7 +975,7 @@ function ModeProfilePanel({
               }
               onChange={(event) => onEnabledChange(event.currentTarget.checked)}
             />
-            Approximate LP01 field
+            Approximate LP01 intensity (scalar)
           </label>
         </div>
       )}
@@ -773,7 +984,7 @@ function ModeProfilePanel({
         <>
           {!available && (
             <p className="mode-profile-status" role="status">
-              Approximate LP01 field unavailable: valid backend normalized
+              Scalar mode-field display unavailable: valid backend normalized
               intensity samples at or above the display threshold and a positive
               entered core radius are required to place this transverse slice.
             </p>
@@ -830,15 +1041,12 @@ function ModeProfilePanel({
           )}
 
           <p id="mode-profile-explanation" className="mode-profile-explanation">
-            This is a scalar, circularly symmetric Gaussian LP01 approximation
-            reconstructed from backend normalized-intensity samples (related to
-            |E|²). Intensity uses a heat colormap with additive glow; the white
-            ring marks the supplied 1/e field radius (1/e² intensity radius).
-            Samples below 0.01, or 1% of unit peak, are omitted from the display
-            for clarity without changing the backend grid or reported values.
-            This field layer is separate from the educational ray and is not a
-            physical ray path. It is not an exact step-index eigenmode or a
-            full-wave electromagnetic solution.
+            This layer shows a <strong>scalar intensity</strong> slice
+            (normalized |E|²-like samples), not a complete electromagnetic
+            vector field (Ex, Ey, Ez / Hx…). LP01 uses the backend Gaussian
+            approximation. Higher-order choices in Visualization are educational
+            schematics only: they list which LP families are above the ideal
+            cutoff, and do not claim those modes are excited by the source.
           </p>
         </>
       )}
@@ -1479,6 +1687,7 @@ export function FibreGeometryScene({
   rayViewEnabled = false,
   modeProfile = null,
   modeViewEnabled = true,
+  selectedSchematicMode = 'LP01',
   pulseAnimation = null,
   pulseAnimationEnabled = true,
   pulseAnimationPlaying = false,
@@ -1489,13 +1698,30 @@ export function FibreGeometryScene({
   scaleMarkersEnabled = false,
   powerIndicatorsEnabled = false,
   pulseMarkersEnabled = false,
+  bendMarkersEnabled = true,
   attenuation = null,
+  bends = null,
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
-  const modeFieldGeometry = modeViewEnabled
+  const useBackendLp01 =
+    modeViewEnabled &&
+    selectedSchematicMode === 'LP01' &&
+    isValidModeProfile(modeProfile)
+  const modeFieldGeometry = useBackendLp01
     ? getModeFieldGeometry(modeProfile, coreRadiusUm)
-    : null
+    : modeViewEnabled &&
+        selectedSchematicMode !== 'LP01' &&
+        isValidModeProfile(modeProfile) &&
+        hasValidPhysicalCoreRadius(coreRadiusUm)
+      ? getSchematicModeFieldGeometry(
+          selectedSchematicMode,
+          modeProfile.modeFieldRadiusUm,
+          coreRadiusUm,
+          modeProfile.gridHalfWidthUm,
+          modeProfile.gridPoints,
+        )
+      : null
   const validPulseData = isValidPulseAnimationData(pulseAnimation)
     ? pulseAnimation
     : null
@@ -1513,12 +1739,17 @@ export function FibreGeometryScene({
   const pulseMarkers = pulseMarkersEnabled
     ? getSpatialPulseMarkers(fibreRoute, visualLength, validPulseData)
     : []
+  const bendMarkers =
+    bendMarkersEnabled && bends !== null && bends !== undefined
+      ? getBendMarkers(fibreRoute, visualLength, bends)
+      : []
   const hasOverlay =
     rayViewEnabled ||
     modeFieldGeometry !== null ||
     pulseAnimationData !== null ||
     powerMarkers.length > 0 ||
-    pulseMarkers.length > 0
+    pulseMarkers.length > 0 ||
+    bendMarkers.length > 0
   const coreMaterialProps = hasOverlay
     ? { transparent: true, opacity: 0.42, depthWrite: false }
     : {}
@@ -1546,6 +1777,7 @@ export function FibreGeometryScene({
       {pulseMarkers.length > 0 && (
         <SpatialPulseMarkerLayer markers={pulseMarkers} />
       )}
+      {bendMarkers.length > 0 && <BendHotspotLayer markers={bendMarkers} />}
       <group name="schematic-overlay-frame" position={overlayOrigin}>
         {rayViewEnabled && (
           <EducationalRayLayer
@@ -1564,16 +1796,17 @@ export function FibreGeometryScene({
               coreRadiusUm={coreRadiusUm}
             />
           )}
-        {pulseAnimationData !== null && (
-          <PulseAnimationLayer
-            key={pulseAnimationResetSignal}
-            data={pulseAnimationData}
-            visualLength={visualLength}
-            isPlaying={pulseAnimationPlaying}
-            onComplete={onPulseAnimationComplete}
-          />
-        )}
       </group>
+      {pulseAnimationData !== null && (
+        <PulseAnimationLayer
+          key={pulseAnimationResetSignal}
+          data={pulseAnimationData}
+          visualLength={visualLength}
+          isPlaying={pulseAnimationPlaying}
+          onComplete={onPulseAnimationComplete}
+          fibreRoute={fibreRoute}
+        />
+      )}
     </group>
   )
 }
@@ -1720,8 +1953,8 @@ function FibreShowcaseLegend({
           </li>
         )}
         <li>
-          Educational ray, LP01 field, and pulse animation stay as mid-path
-          schematic overlays.
+          Educational ray and field slice sit at mid-path. Pulse animation and
+          bend/power markers follow the displayed route.
         </li>
       </ul>
     </aside>
@@ -1753,9 +1986,11 @@ export function FibreGeometryView({
   coreRadiusUm,
   sectionLengthKm,
   rayGuidance,
+  modeRegime = null,
   modeProfile,
   pulseAnimation,
   attenuation = null,
+  bends = null,
   visualizationSettings,
   onVisualizationSettingsChange,
   showConfigurationControls = true,
@@ -1800,6 +2035,9 @@ export function FibreGeometryView({
   const powerIndicatorsEnabled =
     visualizationSettings?.powerIndicatorsEnabled ?? true
   const pulseMarkersEnabled = visualizationSettings?.pulseMarkersEnabled ?? true
+  const selectedSchematicMode =
+    visualizationSettings?.selectedSchematicMode ?? 'LP01'
+  const bendMarkersEnabled = visualizationSettings?.bendMarkersEnabled ?? true
   const updateVisualizationSetting = useCallback(
     <Key extends keyof VisualizationSettings>(
       key: Key,
@@ -1928,32 +2166,39 @@ export function FibreGeometryView({
         sectionLengthKm={sectionLengthKm}
       />
 
-      <FibreGeometryViewport
-        webglAvailable={webglAvailable}
-        cameraPreset={cameraPreset}
-        onCameraInteraction={handleCameraInteraction}
-        sceneProps={{
-          coreRadiusUm,
-          sectionLengthKm,
-          visualLengthModelUnits: visualLength,
-          rayGuidance,
-          incidenceAngleDeg,
-          rayViewEnabled,
-          modeProfile,
-          modeViewEnabled,
-          pulseAnimation: pulseAnimationForScene,
-          pulseAnimationEnabled,
-          pulseAnimationPlaying: currentPulseAnimationPlayback.isPlaying,
-          onPulseAnimationComplete: handlePulseAnimationComplete,
-          pulseAnimationResetSignal: currentPulseAnimationPlayback.resetSignal,
-          fibreRoute,
-          claddingVisible,
-          scaleMarkersEnabled,
-          powerIndicatorsEnabled,
-          pulseMarkersEnabled,
-          attenuation,
-        }}
-      />
+      <div className="geometry-stage">
+        <FibreGeometryViewport
+          webglAvailable={webglAvailable}
+          cameraPreset={cameraPreset}
+          onCameraInteraction={handleCameraInteraction}
+          sceneProps={{
+            coreRadiusUm,
+            sectionLengthKm,
+            visualLengthModelUnits: visualLength,
+            rayGuidance,
+            incidenceAngleDeg,
+            rayViewEnabled,
+            modeProfile,
+            modeViewEnabled,
+            selectedSchematicMode,
+            pulseAnimation: pulseAnimationForScene,
+            pulseAnimationEnabled,
+            pulseAnimationPlaying: currentPulseAnimationPlayback.isPlaying,
+            onPulseAnimationComplete: handlePulseAnimationComplete,
+            pulseAnimationResetSignal:
+              currentPulseAnimationPlayback.resetSignal,
+            fibreRoute,
+            claddingVisible,
+            scaleMarkersEnabled,
+            powerIndicatorsEnabled,
+            pulseMarkersEnabled,
+            bendMarkersEnabled,
+            attenuation,
+            bends,
+          }}
+        />
+        <ModeRegimePanel modeRegime={modeRegime} />
+      </div>
 
       <FibreShowcaseLegend
         route={fibreRoute}
