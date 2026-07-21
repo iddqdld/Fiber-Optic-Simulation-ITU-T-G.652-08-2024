@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { AdditiveBlending } from 'three'
 
+import { buildFibreCurve, type FibreRouteStyle } from './fibreShowcase'
 import {
   advancePulseAnimationTime,
   getPulseAnimationProgress,
@@ -16,6 +17,18 @@ export type PulseAnimationLayerProps = {
   visualLength: number
   isPlaying: boolean
   onComplete: () => void
+  fibreRoute?: FibreRouteStyle
+}
+
+function pathPositionAt(
+  fibreRoute: FibreRouteStyle,
+  visualLength: number,
+  progress: number,
+): [number, number, number] {
+  const point = buildFibreCurve(fibreRoute, visualLength).getPointAt(
+    Math.min(1, Math.max(0, progress)),
+  )
+  return [point.x, point.y, point.z]
 }
 
 export function PulseAnimationRuntime({
@@ -23,11 +36,13 @@ export function PulseAnimationRuntime({
   visualLength,
   isPlaying,
   onComplete,
+  fibreRoute = 'straight',
 }: PulseAnimationLayerProps) {
   const elapsedRef = useRef(0)
   const isPlayingRef = useRef(isPlaying)
   const dataRef = useRef(data)
   const visualLengthRef = useRef(visualLength)
+  const fibreRouteRef = useRef(fibreRoute)
   const onCompleteRef = useRef(onComplete)
   const completionNotifiedRef = useRef(false)
   const { invalidate, scene } = useThree()
@@ -43,14 +58,24 @@ export function PulseAnimationRuntime({
   useEffect(() => {
     dataRef.current = data
     visualLengthRef.current = visualLength
+    fibreRouteRef.current = fibreRoute
     elapsedRef.current = 0
     completionNotifiedRef.current = false
 
     const pulseMesh = scene?.getObjectByName('pulse-envelope')
 
     if (pulseMesh && isValidPulseAnimationData(data)) {
-      const transform = getPulseAnimationVisualTransform(data, visualLength, 0)
-      pulseMesh.position.set(transform.positionX, 0, 0)
+      const transform = getPulseAnimationVisualTransform(
+        data,
+        visualLength,
+        0,
+        pathPositionAt(fibreRoute, visualLength, 0),
+      )
+      pulseMesh.position.set(
+        transform.position[0],
+        transform.position[1],
+        transform.position[2],
+      )
       pulseMesh.scale.set(
         transform.longitudinalScale,
         transform.transverseScale,
@@ -61,7 +86,7 @@ export function PulseAnimationRuntime({
     if (isPlayingRef.current) {
       invalidate()
     }
-  }, [data, invalidate, scene, visualLength])
+  }, [data, fibreRoute, invalidate, scene, visualLength])
 
   useEffect(() => {
     onCompleteRef.current = onComplete
@@ -78,12 +103,21 @@ export function PulseAnimationRuntime({
       dataRef.current,
       visualLengthRef.current,
       progress,
+      pathPositionAt(
+        fibreRouteRef.current,
+        visualLengthRef.current,
+        progress,
+      ),
     )
 
     const pulseMesh = scene?.getObjectByName('pulse-envelope')
 
     if (pulseMesh) {
-      pulseMesh.position.set(transform.positionX, 0, 0)
+      pulseMesh.position.set(
+        transform.position[0],
+        transform.position[1],
+        transform.position[2],
+      )
       pulseMesh.scale.set(
         transform.longitudinalScale,
         transform.transverseScale,
@@ -116,6 +150,7 @@ export function PulseAnimationLayer({
   visualLength,
   isPlaying,
   onComplete,
+  fibreRoute = 'straight',
 }: PulseAnimationLayerProps) {
   if (!isValidPulseAnimationData(data)) {
     return null
@@ -125,13 +160,14 @@ export function PulseAnimationLayer({
     data,
     visualLength,
     0,
+    pathPositionAt(fibreRoute, visualLength, 0),
   )
 
   return (
     <group name="pulse-animation-layer">
       <mesh
         name="pulse-envelope"
-        position={[initialTransform.positionX, 0, 0]}
+        position={initialTransform.position}
         scale={[
           initialTransform.longitudinalScale,
           initialTransform.transverseScale,
@@ -155,6 +191,7 @@ export function PulseAnimationLayer({
         visualLength={visualLength}
         isPlaying={isPlaying}
         onComplete={onComplete}
+        fibreRoute={fibreRoute}
       />
     </group>
   )

@@ -164,7 +164,18 @@ export function VisualizationInspector({
               update('modeViewEnabled', event.currentTarget.checked)
             }
           />
-          Approximate LP01 field
+          Approximate LP01 intensity (scalar)
+        </label>
+        <label className="inspector-toggle" htmlFor="inspector-bend-markers">
+          <input
+            id="inspector-bend-markers"
+            type="checkbox"
+            checked={settings.bendMarkersEnabled}
+            onChange={(event) =>
+              update('bendMarkersEnabled', event.currentTarget.checked)
+            }
+          />
+          Macrobend hotspots
         </label>
         <label className="inspector-toggle" htmlFor="inspector-pulse-view">
           <input
@@ -177,6 +188,38 @@ export function VisualizationInspector({
           />
           Scaled pulse animation
         </label>
+      </fieldset>
+
+      <fieldset className="inspector-fieldset">
+        <legend>Field mode (educational)</legend>
+        <label
+          className="inspector-select-label"
+          htmlFor="inspector-schematic-mode"
+        >
+          Schematic pattern
+        </label>
+        <select
+          id="inspector-schematic-mode"
+          value={settings.selectedSchematicMode}
+          disabled={!settings.modeViewEnabled}
+          onChange={(event) =>
+            update(
+              'selectedSchematicMode',
+              event.currentTarget
+                .value as VisualizationSettings['selectedSchematicMode'],
+            )
+          }
+        >
+          <option value="LP01">LP01 — backend intensity samples</option>
+          <option value="LP11">LP11 — schematic only</option>
+          <option value="LP21">LP21 — schematic only</option>
+          <option value="LP02">LP02 — schematic only</option>
+        </select>
+        <p className="inspector-help">
+          Higher-order patterns are educational schematics. They are not a full
+          electromagnetic mode solver and do not claim the source actually
+          excites that mode.
+        </p>
       </fieldset>
 
       <div className="inspector-range">

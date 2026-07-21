@@ -2809,6 +2809,140 @@ summary:focus-visible,
   margin-top: 0.25rem;
 }
 
+.geometry-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem);
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.mode-regime-panel {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.72));
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.mode-regime-panel h3 {
+  margin: 0 0 0.55rem;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+}
+
+.mode-regime-panel dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+}
+
+.mode-regime-panel dt {
+  color: #94a3b8;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mode-regime-panel dd {
+  margin: 0.1rem 0 0;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.mode-regime-meter {
+  position: relative;
+  height: 0.45rem;
+  margin: 0.35rem 0 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #1e293b;
+}
+
+.mode-regime-meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+}
+
+.mode-regime-meter-cutoff {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fbbf24;
+}
+
+.mode-regime-note,
+.mode-regime-supported {
+  margin: 0.45rem 0 0;
+  color: #94a3b8;
+  font-size: 0.72rem;
+}
+
+.mode-regime-supported {
+  padding-left: 1.1rem;
+}
+
+.mode-regime-supported li[data-supported='true'] {
+  color: #bbf7d0;
+}
+
+.macrobend-editor {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.macrobend-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.macrobend-editor-header h4 {
+  margin: 0;
+  color: var(--editor-text);
+  font-size: 0.78rem;
+}
+
+.macrobend-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.macrobend-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  padding: 0.55rem;
+  background: var(--editor-panel-raised);
+  border: 1px solid var(--editor-border);
+  border-radius: 6px;
+}
+
+.macrobend-row label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--editor-text-muted);
+  font-size: 0.7rem;
+}
+
+.macrobend-row button {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .geometry-stage {
+    grid-template-columns: 1fr;
+  }
+}
+
 .editor-shell .visualization-inspector .inspector-toggle {
   display: flex;
   flex-direction: row;

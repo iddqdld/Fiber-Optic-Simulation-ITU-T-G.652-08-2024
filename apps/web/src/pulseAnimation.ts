@@ -24,6 +24,7 @@ export const PULSE_WIDTH_CONVENTION = 'fwhm' as const
 export type PulseAnimationVisualTransform = {
   progress: number
   positionX: number
+  position: [number, number, number]
   visualWidthRatio: number
   longitudinalScale: number
   transverseScale: number
@@ -121,16 +122,24 @@ export function getPulseAnimationVisualTransform(
   data: PulseAnimationData,
   visualLength: number,
   progress: number,
+  pathPosition?: [number, number, number] | null,
 ): PulseAnimationVisualTransform {
   const clampedProgress = clampPulseProgress(progress)
   const safeVisualLength = Number.isFinite(visualLength)
     ? Math.max(0, visualLength)
     : 0
   const visualWidthRatio = getPulseVisualWidthRatio(data, clampedProgress)
+  const positionX = -safeVisualLength / 2 + safeVisualLength * clampedProgress
+  const position: [number, number, number] = pathPosition ?? [
+    positionX,
+    0,
+    0,
+  ]
 
   return {
     progress: clampedProgress,
-    positionX: -safeVisualLength / 2 + safeVisualLength * clampedProgress,
+    positionX: position[0],
+    position,
     visualWidthRatio,
     longitudinalScale: PULSE_ENVELOPE_BASE_WIDTH * visualWidthRatio,
     transverseScale: PULSE_ENVELOPE_TRANSVERSE_RADIUS,

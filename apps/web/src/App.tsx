@@ -28,7 +28,12 @@ import { GraphWorkspace } from './GraphWorkspace'
 import type { GraphWorkspaceId } from './graphWorkspaceCatalog'
 import { ImportExportModal } from './ImportExportModal'
 import { Level1Preview } from './Level1Preview'
-import { isMacrobendLossResult, macrobendInputsMatch } from './macrobend'
+import { isMacrobendLossResult, macrobendInputsMatch, isMacrobendSequence } from './macrobend'
+import type { MacrobendInput } from './bendMarkers'
+import {
+  MODE_REGIME_CUTOFF_V,
+  type ModeRegimeSummary,
+} from './modeRegime'
 import { M1Inspector } from './m1/M1Inspector'
 import { M1Results } from './m1/M1Results'
 import { M1Workspace } from './m1/M1Workspace'
@@ -225,7 +230,10 @@ function getGeometryValues(values: FormValues): {
   }
 }
 
-function parseFormValues(values: FormValues): {
+function parseFormValues(
+  values: FormValues,
+  bends: readonly MacrobendInput[] = [],
+): {
   request: PreviewRequest | null
   error: string | null
 } {
@@ -285,6 +293,10 @@ function parseFormValues(values: FormValues): {
     return { request: null, error: INVALID_CONFIGURATION }
   }
 
+  if (!isMacrobendSequence(bends)) {
+    return { request: null, error: INVALID_CONFIGURATION }
+  }
+
   const request: PreviewRequest = {
     preset: values.preset,
     fibre: {
@@ -305,7 +317,7 @@ function parseFormValues(values: FormValues): {
     },
     section: {
       length_km: length,
-      bends: [],
+      bends: [...bends],
     },
     sampling: {
       grid_half_width_um: gridHalfWidth,
@@ -593,6 +605,7 @@ function toPulseComparisonData(
 
 type VisualizationData = {
   rayGuidance: RayGuidance
+  modeRegime: ModeRegimeSummary
   modeProfile: ModeProfileData
   pulseAnimation: PulseAnimationData
   pulseComparison: PulseComparisonData
@@ -669,6 +682,7 @@ function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
+  const [sectionBends, setSectionBends] = useState<MacrobendInput[]>([])
   const [importedFileName, setImportedFileName] = useState<string | null>(null)
   const [result, setResult] = useState<PreviewResult | null>(null)
   const [comparisonBaseline, setComparisonBaseline] =
@@ -700,7 +714,7 @@ function App() {
   )
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
-  const formValidation = parseFormValues(formValues)
+  const formValidation = parseFormValues(formValues, sectionBends)
   const geometryValues = getGeometryValues(formValues)
   const error = formValidation.error ?? serviceError
   const matchingResult = resultMatchesRequest(formValidation.request, result)
@@ -760,7 +774,7 @@ function App() {
     const requestId = previewSequence.current + 1
     previewSequence.current = requestId
     const controller = new AbortController()
-    const parsed = parseFormValues(formValues)
+    const parsed = parseFormValues(formValues, sectionBends)
 
     if (parsed.error !== null || parsed.request === null) {
       return () => controller.abort()
@@ -831,6 +845,18 @@ function App() {
               modelId: body.guidance.model_manifest.model_id,
               modelVersion: body.guidance.model_manifest.model_version,
             },
+            modeRegime: {
+              modeRegime: body.guidance.mode_regime,
+              vNumber: body.guidance.v_number_dimensionless,
+              cutoffV:
+                body.guidance.model_manifest
+                  .mode_regime_cutoff_v_dimensionless ?? MODE_REGIME_CUTOFF_V,
+              approximateModeCount: body.guidance.approximate_mode_count,
+              numericalAperture: body.guidance.numerical_aperture_dimensionless,
+              criticalAngleDeg: body.guidance.critical_angle_deg,
+              modelId: body.guidance.model_manifest.model_id,
+              modelVersion: body.guidance.model_manifest.model_version,
+            },
             modeProfile: toModeProfileData(body.mode_profile),
             pulseAnimation: toPulseAnimationData(body),
             pulseComparison: toPulseComparisonData(body.pulse_broadening),
@@ -859,13 +885,20 @@ function App() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [formValues])
+  }, [formValues, sectionBends])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
     clearVisualizationData()
     setServiceError(null)
     setPreviewStatus('Preview scheduled…')
     setFormValues((current) => ({ ...current, [field]: value }))
+  }
+
+  const updateSectionBends = (bends: MacrobendInput[]) => {
+    clearVisualizationData()
+    setServiceError(null)
+    setPreviewStatus('Preview scheduled…')
+    setSectionBends(bends)
   }
 
   const updatePreset = (preset: Preset) => {
@@ -898,6 +931,18 @@ function App() {
     if (matchingResult !== null) {
       setComparisonBaseline(matchingResult)
     }
+  }
+
+  const handleImportConfig = (
+    importedValues: FormValues,
+    filename?: string,
+  ) => {
+    clearVisualizationData()
+    setServiceError(null)
+    setPreviewStatus('Preview scheduled…')
+    setFormValues(importedValues)
+    setSectionBends([])
+    setImportedFileName(filename ?? null)
   }
 
   const displayPreviewStatus = isPandaFieldWorkspaceActive
@@ -985,9 +1030,11 @@ function App() {
           coreRadiusUm={geometryValues.coreRadiusUm}
           sectionLengthKm={geometryValues.sectionLengthKm}
           rayGuidance={visualizationData?.rayGuidance ?? null}
+          modeRegime={visualizationData?.modeRegime ?? null}
           modeProfile={visualizationData?.modeProfile ?? null}
           pulseAnimation={visualizationData?.pulseAnimation ?? null}
           attenuation={visualizationData?.attenuation ?? null}
+          bends={sectionBends}
           visualizationSettings={visualizationSettings}
           onVisualizationSettingsChange={setVisualizationSettings}
           showConfigurationControls={false}
@@ -1041,10 +1088,14 @@ function App() {
         fieldBoundaries={fieldBoundaries}
         settings={visualizationSettings}
         rayGuidance={visualizationData?.rayGuidance ?? null}
+        sectionBends={sectionBends}
+        onSectionBendsChange={updateSectionBends}
         onNumericFieldChange={updateNumericField}
         onPresetChange={updatePreset}
         onCableApplicationChange={updateCableApplication}
         onSettingsChange={setVisualizationSettings}
+        activeConfigFileName={importedFileName}
+        onDropImportConfig={handleImportConfig}
       />
     )
 

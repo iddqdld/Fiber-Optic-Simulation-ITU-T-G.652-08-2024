@@ -38,8 +38,10 @@ describe('VisualizationInspector', () => {
     render(<Harness />)
 
     expect(screen.getByLabelText('Educational ray')).toBeChecked()
-    expect(screen.getByLabelText('Approximate LP01 field')).toBeChecked()
+    expect(screen.getByLabelText('Approximate LP01 intensity (scalar)')).toBeChecked()
+    expect(screen.getByLabelText('Macrobend hotspots')).toBeChecked()
     expect(screen.getByLabelText('Scaled pulse animation')).toBeChecked()
+    expect(screen.getByLabelText('Schematic pattern')).toHaveValue('LP01')
     expect(screen.getByLabelText('Cladding shell')).toBeChecked()
     expect(screen.getByLabelText('Scale markers')).toBeChecked()
     expect(screen.getByLabelText('Spatial power indicators')).toBeChecked()
