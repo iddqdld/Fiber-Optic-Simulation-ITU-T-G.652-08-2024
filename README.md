@@ -18,8 +18,8 @@ pls test before push bla bla bla
 - **Frontend architecture refactor** — extract preview handling, validation, and workspace composition from `App.tsx` into focused modules and hooks.
 - **Enhanced 3D showcase** — curved fibre routes, camera presets, clearer materials, scale markers, layer controls, and spatial power/pulse indicators.
 - **Bends and loss visualization** — configurable macrobends with backend-calculated loss and clearly labelled leakage hotspots.
-- ~~**Configuration comparison** — baseline and variant inputs with result differences, overlaid plots, and visual comparison.~~
-- ~~**Parameter sweeps** — explore one changing parameter across a safe range and graph its effect on selected outputs.~~
+- ~~**Configuration comparison** — baseline and variant inputs with result differences, overlaid plots, and visual comparison.~~ 
+- ~~**Parameter sweeps** — explore one changing parameter across a safe range and graph its effect on selected outputs.~~ 
 - **Multi-section links** — assemble ordered cable sections, splices, and connectors with per-component result breakdowns.
 - **Level 2 models** — wavelength-dependent loss and dispersion, splice coupling, PMD/DGD estimates, and statistical studies.
 - **Import and export** — exchange portable simulation configurations and results as JSON or CSV without accounts or server-side projects.
