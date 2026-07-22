@@ -54,6 +54,14 @@ from fibre_sim.standards import (
     G652DSimulationDefaults,
     G652DStandardLimits,
 )
+from fibre_sim.sweeps import (
+    Level1SweepCalculationError,
+    Level1SweepManifest,
+    Level1SweepPoint,
+    Level1SweepRequest,
+    Level1SweepResult,
+    calculate_level1_sweep,
+)
 
 from .schemas import (
     ApplicationError,
@@ -144,6 +152,39 @@ async def post_simulation_preview(request: Level1SimulationRequest) -> Level1Sim
         ) from exc
 
 
+@app.post(
+    "/api/v1/simulations/sweep",
+    operation_id="sweep_level1_parameter",
+    response_model=Level1SweepResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or calculation failed",
+        }
+    },
+)
+async def post_simulation_sweep(request: Level1SweepRequest) -> Level1SweepResult:
+    try:
+        return calculate_level1_sweep(request)
+    except (
+        Level1SweepCalculationError,
+        ConstantAttenuationCalculationError,
+        GroupDelayCalculationError,
+        ChromaticPulseBroadeningCalculationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message=(
+                "Level 1 parameter sweep could not produce finite results from the supplied values."
+            ),
+            field=None,
+            details={"reason": "non_finite_result"},
+            status_code=422,
+        ) from exc
+
+
 CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     CableSection,
     ChromaticPulseBroadeningManifest,
@@ -182,6 +223,10 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     Level1SimulationResult,
     Level1SourceConfig,
     Level1StandardsChecks,
+    Level1SweepManifest,
+    Level1SweepPoint,
+    Level1SweepRequest,
+    Level1SweepResult,
     Level1Warning,
     ModelManifest,
     ModelReference,

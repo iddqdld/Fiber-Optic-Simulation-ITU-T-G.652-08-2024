@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/simulations/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Simulation Sweep */
+        post: operations["sweep_level1_parameter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1215,6 +1232,128 @@ export interface components {
             preset: components["schemas"]["Level1FibrePreset"];
             preset_definition: components["schemas"]["G652DPreset"] | null;
         };
+        /** Level1SweepManifest */
+        Level1SweepManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "each sweep point is an independent deterministic Level 1 evaluation",
+             *       "only the selected parameter changes between points"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Component Model Id
+             * @default level1_single_section_simulation
+             * @constant
+             */
+            component_model_id: "level1_single_section_simulation";
+            /**
+             * Limitations
+             * @default [
+             *       "does not interpolate between evaluated points",
+             *       "does not calculate statistics or confidence intervals",
+             *       "runs synchronously without worker parallelism"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Max Sample Count
+             * @default 200
+             * @constant
+             */
+            max_sample_count: 200;
+            /**
+             * Model Id
+             * @default level1_one_parameter_sweep
+             * @constant
+             */
+            model_id: "level1_one_parameter_sweep";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Spacing
+             * @default linear
+             * @constant
+             */
+            spacing: "linear";
+        };
+        /**
+         * Level1SweepParameter
+         * @enum {string}
+         */
+        Level1SweepParameter: "n_core" | "n_cladding" | "core_radius_um" | "attenuation_db_per_km" | "dispersion_ps_per_nm_km" | "group_index_dimensionless" | "wavelength_nm" | "input_power_dbm" | "spectral_width_fwhm_nm" | "input_pulse_fwhm_ps" | "length_km";
+        /** Level1SweepPoint */
+        Level1SweepPoint: {
+            /**
+             * Approximate Mode Count
+             * @default null
+             */
+            approximate_mode_count: number | null;
+            /** @default null */
+            attenuation_standard_status: components["schemas"]["G652DAttenuationCheckStatus"] | null;
+            /** Dispersion Broadening Fwhm Ps */
+            dispersion_broadening_fwhm_ps: number;
+            /** @default null */
+            dispersion_standard_status: components["schemas"]["G652DDispersionCheckStatus"] | null;
+            /** Group Delay Ps */
+            group_delay_ps: number;
+            mode_regime: components["schemas"]["ModeRegime"];
+            /** Numerical Aperture Dimensionless */
+            numerical_aperture_dimensionless: number;
+            /** Output Power Dbm */
+            output_power_dbm: number;
+            /** Output Pulse Fwhm Ps */
+            output_pulse_fwhm_ps: number;
+            /**
+             * Parameter Value
+             * @description Evaluated request parameter value in the result parameter_unit.
+             */
+            parameter_value: number;
+            /** Section Loss Db */
+            section_loss_db: number;
+            /** V Number Dimensionless */
+            v_number_dimensionless: number;
+            /** Warning Codes */
+            warning_codes: components["schemas"]["Level1WarningCode"][];
+        };
+        /** Level1SweepRequest */
+        Level1SweepRequest: {
+            base_configuration: components["schemas"]["Level1SimulationRequest"];
+            parameter: components["schemas"]["Level1SweepParameter"];
+            /**
+             * Sample Count
+             * @description Number of independently evaluated parameter values.
+             */
+            sample_count: number;
+            /**
+             * Start Value
+             * @description First parameter value, using the unit implied by parameter.
+             */
+            start_value: number;
+            /**
+             * Stop Value
+             * @description Last parameter value, using the unit implied by parameter.
+             */
+            stop_value: number;
+        };
+        /** Level1SweepResult */
+        Level1SweepResult: {
+            model_manifest: components["schemas"]["Level1SweepManifest"];
+            /**
+             * Parameter Unit
+             * @description Unit shared by request start_value, stop_value, and point parameter_value.
+             * @enum {string}
+             */
+            parameter_unit: "dimensionless" | "µm" | "dB/km" | "ps/(nm·km)" | "nm" | "dBm" | "ps" | "km";
+            /** Points */
+            points: components["schemas"]["Level1SweepPoint"][];
+            request: components["schemas"]["Level1SweepRequest"];
+        };
         /** Level1Warning */
         Level1Warning: {
             code: components["schemas"]["Level1WarningCode"];
@@ -1640,6 +1779,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Level1SimulationResult"];
+                };
+            };
+            /** @description Request validation or calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sweep_level1_parameter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Level1SweepRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Level1SweepResult"];
                 };
             };
             /** @description Request validation or calculation failed */

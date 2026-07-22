@@ -15,6 +15,7 @@ pls test before push bla bla bla
 
 ## Remaining features
 
+- **Frontend architecture refactor** — extract preview handling, validation, and workspace composition from `App.tsx` into focused modules and hooks.
 - **Enhanced 3D showcase** — curved fibre routes, camera presets, clearer materials, scale markers, layer controls, and spatial power/pulse indicators.
 - **Bends and loss visualization** — configurable macrobends with backend-calculated loss and clearly labelled leakage hotspots.
 - **Configuration comparison** — baseline and variant inputs with result differences, overlaid plots, and visual comparison.

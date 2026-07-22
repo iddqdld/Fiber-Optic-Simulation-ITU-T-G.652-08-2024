@@ -31,6 +31,13 @@ from fibre_sim.level1 import (
     Level1StandardsChecks,
     Level1Warning,
 )
+from fibre_sim.sweeps import (
+    Level1SweepManifest,
+    Level1SweepParameter,
+    Level1SweepPoint,
+    Level1SweepRequest,
+    Level1SweepResult,
+)
 
 
 def fibre() -> FibreDefinition:
@@ -182,6 +189,11 @@ def contains_numeric_annotation(annotation: Any) -> bool:
 
 
 def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> None:
+    dynamic_sweep_fields = {
+        "Level1SweepPoint.parameter_value",
+        "Level1SweepRequest.start_value",
+        "Level1SweepRequest.stop_value",
+    }
     violations: list[str] = []
 
     for model in main.CONTRACT_MODELS:
@@ -192,8 +204,13 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
             is_dimensionless = field_name in DIMENSIONLESS_NUMERIC_FIELDS or field_name.endswith(
                 "_dimensionless"
             )
-            if not has_unit_suffix and not is_dimensionless:
-                violations.append(f"{model.__name__}.{field_name}")
+            field_key = f"{model.__name__}.{field_name}"
+            if (
+                not has_unit_suffix
+                and not is_dimensionless
+                and field_key not in dynamic_sweep_fields
+            ):
+                violations.append(field_key)
 
     assert violations == []
 
@@ -247,3 +264,17 @@ def test_level1_models_are_registered_and_unit_checked() -> None:
                 violations.append(f"{model.__name__}.{field_name}")
 
     assert violations == []
+
+
+def test_level1_sweep_models_are_registered_and_parameter_enum_is_published() -> None:
+    sweep_models = (
+        Level1SweepRequest,
+        Level1SweepPoint,
+        Level1SweepManifest,
+        Level1SweepResult,
+    )
+
+    assert set(sweep_models).issubset(set(main.CONTRACT_MODELS))
+    assert main.app.openapi()["components"]["schemas"]["Level1SweepParameter"]["enum"] == [
+        parameter.value for parameter in Level1SweepParameter
+    ]
