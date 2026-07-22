@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic_core import PydanticCustomError
 
 from fibre_sim.attenuation import ConstantAttenuationResult
+from fibre_sim.bends import MacrobendLossResult
 from fibre_sim.dispersion import ChromaticPulseBroadeningResult, GroupDelayResult
 from fibre_sim.guidance import GuidanceResult
 from fibre_sim.modes import GaussianModeProfileResult
@@ -65,15 +66,17 @@ class Level1SimulationManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["level1_single_section_simulation"] = "level1_single_section_simulation"
-    model_version: Literal["1.0.0"] = "1.0.0"
+    model_version: Literal["1.1.0"] = "1.1.0"
     component_model_ids: tuple[str, ...]
     assumptions: tuple[str, ...] = (
         "one uniform fibre section",
         "all calculations share one operating wavelength",
         "fibre composition is uniform over the section",
+        "user-supplied bend losses are applied after straight-fibre attenuation",
     )
     limitations: tuple[str, ...] = (
-        "excludes bends, splices, and connectors",
+        "bend geometry does not derive bend loss",
+        "excludes splices and connectors",
         "excludes polarization-mode dispersion",
         "excludes optical nonlinearity",
         "excludes multi-section links",
@@ -88,9 +91,43 @@ class Level1SimulationResult(BaseModel):
     guidance: GuidanceResult
     mode_profile: GaussianModeProfileResult
     attenuation: ConstantAttenuationResult
+    bend_loss: MacrobendLossResult
     group_delay: GroupDelayResult
     pulse_broadening: ChromaticPulseBroadeningResult
     standards_checks: Level1StandardsChecks
     parameter_boundaries: tuple[Level1ParameterBoundary, ...]
     warnings: tuple[Level1Warning, ...]
     model_manifest: Level1SimulationManifest
+
+    @model_validator(mode="after")
+    def validate_bend_loss_pipeline(self) -> Self:
+        if self.bend_loss.input_power_dbm != self.attenuation.output_power_dbm:
+            raise PydanticCustomError(
+                "bend_loss_input_power_mismatch",
+                "Macrobend input power must equal straight-fibre attenuation output power.",
+            )
+
+        configured_bends = tuple(
+            (
+                bend.position_fraction,
+                bend.radius_mm,
+                bend.angle_deg,
+                bend.supplied_loss_db,
+            )
+            for bend in self.configuration.section.bends
+        )
+        result_bends = tuple(
+            (
+                bend.position_fraction,
+                bend.radius_mm,
+                bend.angle_deg,
+                bend.supplied_loss_db,
+            )
+            for bend in self.bend_loss.bends
+        )
+        if configured_bends != result_bends:
+            raise PydanticCustomError(
+                "bend_loss_configuration_mismatch",
+                "Macrobend results must match the configured bend inputs in order.",
+            )
+        return self

@@ -33,7 +33,7 @@ const baseConfiguration = {
     spectral_width_fwhm_nm: 0.2,
     input_pulse_fwhm_ps: 25,
   },
-  section: { length_km: 12.5 },
+  section: { bends: [], length_km: 12.5 },
   sampling: { grid_half_width_um: 15, grid_points: 65 },
 } satisfies SweepBaseConfiguration
 

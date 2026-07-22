@@ -8,6 +8,7 @@ import pytest
 from apps.api.app import main
 from apps.api.app.main import app
 
+from fibre_sim.bends import MacrobendInput
 from fibre_sim.level1 import (
     Level1FibreConfig,
     Level1FibrePreset,
@@ -41,6 +42,7 @@ async def client() -> AsyncIterator[httpx2.AsyncClient]:
 
 def base_configuration(
     preset: Level1FibrePreset = Level1FibrePreset.CUSTOM,
+    bends: tuple[MacrobendInput, ...] = (),
 ) -> Level1SimulationRequest:
     return Level1SimulationRequest(
         preset=preset,
@@ -60,7 +62,7 @@ def base_configuration(
             spectral_width_fwhm_nm=0.2,
             input_pulse_fwhm_ps=25.0,
         ),
-        section=Level1SectionConfig(length_km=12.5),
+        section=Level1SectionConfig(length_km=12.5, bends=bends),
         sampling=Level1SamplingConfig(grid_half_width_um=15.0, grid_points=9),
     )
 
@@ -72,10 +74,11 @@ def sweep_payload(
     start_value: float = 1.0,
     stop_value: float = 5.0,
     sample_count: int = 3,
+    bends: tuple[MacrobendInput, ...] = (),
 ) -> dict[str, object]:
     request = Level1SweepRequest.model_validate(
         {
-            "base_configuration": base_configuration(preset).model_dump(mode="json"),
+            "base_configuration": base_configuration(preset, bends).model_dump(mode="json"),
             "parameter": parameter,
             "start_value": start_value,
             "stop_value": stop_value,
@@ -127,6 +130,46 @@ async def test_repeated_sweep_requests_are_deterministic(client: httpx2.AsyncCli
 
     assert first.status_code == second.status_code == 200
     assert first.content == second.content
+
+
+async def test_sweep_persists_bends_and_reports_final_post_bend_power(
+    client: httpx2.AsyncClient,
+) -> None:
+    bends = tuple(
+        MacrobendInput.model_validate(
+            {
+                "position_fraction": position,
+                "radius_mm": 12.0,
+                "angle_deg": 90.0,
+                "supplied_loss_db": loss,
+            }
+        )
+        for position, loss in ((0.2, 0.4), (0.7, 0.6))
+    )
+    payload = sweep_payload(
+        parameter="length_km",
+        start_value=12.5,
+        stop_value=13.5,
+        sample_count=2,
+        bends=bends,
+    )
+    request = Level1SweepRequest.model_validate(payload)
+
+    response = await client.post("/api/v1/simulations/sweep", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    expected = calculate_level1_sweep(request)
+    assert body == json.loads(expected.model_dump_json())
+    base_payload = payload["base_configuration"]
+    assert isinstance(base_payload, dict)
+    section_payload = base_payload["section"]
+    assert isinstance(section_payload, dict)
+    assert body["request"]["base_configuration"]["section"]["bends"] == section_payload["bends"]
+    for point, expected_point in zip(body["points"], expected.points, strict=True):
+        assert point["section_loss_db"] == expected_point.section_loss_db
+        assert point["output_power_dbm"] == expected_point.output_power_dbm
+        assert point["output_power_dbm"] < -3.0 - point["section_loss_db"]
 
 
 async def test_two_hundred_point_cap_returns_exact_compact_result(

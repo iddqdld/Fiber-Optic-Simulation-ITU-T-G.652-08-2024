@@ -1151,6 +1151,11 @@ export interface components {
         };
         /** Level1SectionConfig */
         Level1SectionConfig: {
+            /**
+             * Bends
+             * @default []
+             */
+            bends: components["schemas"]["MacrobendInput"][];
             /** Length Km */
             length_km: number;
         };
@@ -1161,7 +1166,8 @@ export interface components {
              * @default [
              *       "one uniform fibre section",
              *       "all calculations share one operating wavelength",
-             *       "fibre composition is uniform over the section"
+             *       "fibre composition is uniform over the section",
+             *       "user-supplied bend losses are applied after straight-fibre attenuation"
              *     ]
              */
             assumptions: string[];
@@ -1170,7 +1176,8 @@ export interface components {
             /**
              * Limitations
              * @default [
-             *       "excludes bends, splices, and connectors",
+             *       "bend geometry does not derive bend loss",
+             *       "excludes splices and connectors",
              *       "excludes polarization-mode dispersion",
              *       "excludes optical nonlinearity",
              *       "excludes multi-section links",
@@ -1186,10 +1193,10 @@ export interface components {
             model_id: "level1_single_section_simulation";
             /**
              * Model Version
-             * @default 1.0.0
+             * @default 1.1.0
              * @constant
              */
-            model_version: "1.0.0";
+            model_version: "1.1.0";
         };
         /** Level1SimulationRequest */
         Level1SimulationRequest: {
@@ -1202,6 +1209,7 @@ export interface components {
         /** Level1SimulationResult */
         Level1SimulationResult: {
             attenuation: components["schemas"]["ConstantAttenuationResult"];
+            bend_loss: components["schemas"]["MacrobendLossResult"];
             configuration: components["schemas"]["Level1SimulationRequest"];
             group_delay: components["schemas"]["GroupDelayResult"];
             guidance: components["schemas"]["GuidanceResult"];
@@ -1370,6 +1378,133 @@ export interface components {
          */
         Level1WarningCode: "air_acceptance_angle_unavailable" | "mode_count_unavailable" | "g652d_attenuation_not_applicable";
         LinkComponent: components["schemas"]["Splice"] | components["schemas"]["Connector"];
+        /** MacrobendInput */
+        MacrobendInput: {
+            /**
+             * Angle Deg
+             * @description Macrobend angle in degrees (deg).
+             */
+            angle_deg: number;
+            /**
+             * Position Fraction
+             * @description Macrobend position as a dimensionless fraction of propagation distance.
+             */
+            position_fraction: number;
+            /**
+             * Radius Mm
+             * @description Macrobend bend radius in millimetres (mm).
+             */
+            radius_mm: number;
+            /**
+             * Supplied Loss Db
+             * @description User-supplied macrobend loss in decibels (dB).
+             */
+            supplied_loss_db: number;
+        };
+        /** MacrobendLossManifest */
+        MacrobendLossManifest: {
+            /**
+             * Aggregation
+             * @default additive_db
+             * @constant
+             */
+            aggregation: "additive_db";
+            /**
+             * Assumptions
+             * @default [
+             *       "each bend loss is user supplied and passive",
+             *       "bends are ordered in the provided propagation order",
+             *       "losses are additive in dB"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "geometry and metadata do not affect or alter supplied loss; radius, angle, and position do not derive loss",
+             *       "no wavelength/MFD/index/radiation model is included",
+             *       "this is not the G.652 qualification test or conformance"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Loss Source
+             * @default user_supplied
+             * @constant
+             */
+            loss_source: "user_supplied";
+            /**
+             * Model Id
+             * @default user_supplied_macrobend_loss
+             * @constant
+             */
+            model_id: "user_supplied_macrobend_loss";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+        };
+        /** MacrobendLossPoint */
+        MacrobendLossPoint: {
+            /**
+             * Angle Deg
+             * @description Macrobend angle in degrees (deg).
+             */
+            angle_deg: number;
+            /**
+             * Cumulative Bend Loss Db
+             * @description Cumulative macrobend loss through this point in decibels (dB).
+             */
+            cumulative_bend_loss_db: number;
+            /**
+             * Output Power Dbm
+             * @description Output optical power level at this point in decibels referenced to one milliwatt (dBm).
+             */
+            output_power_dbm: number;
+            /**
+             * Position Fraction
+             * @description Macrobend position as a dimensionless fraction of propagation distance.
+             */
+            position_fraction: number;
+            /**
+             * Radius Mm
+             * @description Macrobend bend radius in millimetres (mm).
+             */
+            radius_mm: number;
+            /**
+             * Supplied Loss Db
+             * @description User-supplied macrobend loss in decibels (dB).
+             */
+            supplied_loss_db: number;
+        };
+        /** MacrobendLossRequest */
+        MacrobendLossRequest: {
+            /**
+             * Bends
+             * @description Macrobends in propagation order, with at most 32 entries.
+             * @default []
+             */
+            bends: components["schemas"]["MacrobendInput"][];
+            /**
+             * Input Power Dbm
+             * @description Input optical power level in decibels referenced to one milliwatt (dBm).
+             */
+            input_power_dbm: number;
+        };
+        /** MacrobendLossResult */
+        MacrobendLossResult: {
+            /** Bends */
+            bends: components["schemas"]["MacrobendLossPoint"][];
+            /** Input Power Dbm */
+            input_power_dbm: number;
+            model_manifest: components["schemas"]["MacrobendLossManifest"];
+            /** Output Power Dbm */
+            output_power_dbm: number;
+            /** Total Bend Loss Db */
+            total_bend_loss_db: number;
+        };
         /**
          * ModeRegime
          * @enum {string}

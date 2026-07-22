@@ -4,6 +4,7 @@ from typing import Annotated, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
+from fibre_sim.bends import MAX_MACROBENDS, MacrobendInput
 from fibre_sim.modes import DEFAULT_GRID_POINTS, MAX_GRID_POINTS, MIN_GRID_POINTS
 from fibre_sim.standards import G652DAttenuationApplication
 from fibre_sim.standards.constants import G652D_MAX_WAVELENGTH_NM, G652D_MIN_WAVELENGTH_NM
@@ -64,6 +65,20 @@ class Level1SectionConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     length_km: _NonNegativeStrictFiniteFloat
+    bends: tuple[MacrobendInput, ...] = Field(default=(), max_length=MAX_MACROBENDS)
+
+    @model_validator(mode="after")
+    def validate_bend_positions(self) -> Self:
+        positions = tuple(bend.position_fraction for bend in self.bends)
+        if any(
+            current >= following
+            for current, following in zip(positions, positions[1:], strict=False)
+        ):
+            raise PydanticCustomError(
+                "bend_positions_not_strictly_increasing",
+                "Macrobend positions must be strictly increasing in propagation order.",
+            )
+        return self
 
 
 class Level1SamplingConfig(BaseModel):

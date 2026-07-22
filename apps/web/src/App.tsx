@@ -27,6 +27,7 @@ import { getFieldIssues } from './fieldIssues'
 import { GraphWorkspace } from './GraphWorkspace'
 import type { GraphWorkspaceId } from './graphWorkspace'
 import { Level1Preview } from './Level1Preview'
+import { isMacrobendLossResult, macrobendInputsMatch } from './macrobend'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
 import { SweepWorkspace } from './SweepWorkspace'
@@ -297,6 +298,7 @@ function parseFormValues(values: FormValues): {
     },
     section: {
       length_km: length,
+      bends: [],
     },
     sampling: {
       grid_half_width_um: gridHalfWidth,
@@ -494,6 +496,8 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     !isGroupDelayResult(value.group_delay) ||
     !isPulseBroadeningResult(value.pulse_broadening) ||
     !isAttenuationResult(value.attenuation) ||
+    !isMacrobendLossResult(value.bend_loss) ||
+    value.bend_loss.input_power_dbm !== value.attenuation.output_power_dbm ||
     value.attenuation.length_km !== value.group_delay.length_km ||
     value.group_delay.length_km !== value.pulse_broadening.length_km
   ) {
@@ -508,7 +512,7 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     isModeProfileResult(value.mode_profile) &&
     isRecord(value.model_manifest) &&
     value.model_manifest.model_id === 'level1_single_section_simulation' &&
-    value.model_manifest.model_version === '1.0.0' &&
+    value.model_manifest.model_version === '1.1.0' &&
     Array.isArray(value.warnings) &&
     value.warnings.every(isPreviewWarning) &&
     isPreviewStandardsChecks(value.standards_checks) &&
@@ -609,6 +613,20 @@ function resultMatchesRequest(
     !isRecord(configuration.source) ||
     !isRecord(configuration.section) ||
     !isRecord(configuration.sampling)
+  ) {
+    return false
+  }
+
+  const requestBends = request.section.bends ?? []
+  if (
+    !Array.isArray(configuration.section.bends) ||
+    !macrobendInputsMatch(requestBends, configuration.section.bends)
+  ) {
+    return false
+  }
+
+  if (
+    !macrobendInputsMatch(configuration.section.bends, result.bend_loss.bends)
   ) {
     return false
   }

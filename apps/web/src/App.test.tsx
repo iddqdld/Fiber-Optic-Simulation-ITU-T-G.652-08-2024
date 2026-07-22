@@ -164,7 +164,7 @@ const initialConfiguration = {
     spectral_width_fwhm_nm: 0.2,
     input_pulse_fwhm_ps: 25,
   },
-  section: { length_km: 12.5 },
+  section: { bends: [], length_km: 12.5 },
   sampling: { grid_half_width_um: 15, grid_points: 65 },
 } satisfies Level1Request
 
@@ -281,11 +281,12 @@ const customParameterBoundaries = [
 
 const simulationManifest = {
   model_id: 'level1_single_section_simulation',
-  model_version: '1.0.0',
+  model_version: '1.1.0',
   component_model_ids: [
     'ideal_circular_step_index_guidance',
     'gaussian_lp01_mode_profile',
     'constant_fibre_attenuation',
+    'user_supplied_macrobend_loss',
     'constant_group_index_delay',
     'first_order_chromatic_pulse_broadening',
   ],
@@ -293,9 +294,11 @@ const simulationManifest = {
     'one uniform fibre section',
     'all calculations share one operating wavelength',
     'fibre composition is uniform over the section',
+    'user-supplied bend losses are applied after straight-fibre attenuation',
   ],
   limitations: [
-    'excludes bends, splices, and connectors',
+    'bend geometry does not derive bend loss',
+    'excludes splices and connectors',
     'excludes polarization-mode dispersion',
     'excludes optical nonlinearity',
     'excludes multi-section links',
@@ -318,6 +321,23 @@ const attenuationManifest = {
   assumptions: ['uniform attenuation coefficient over the fibre section'],
   limitations: ['not a G.652 conformance or typical-value model'],
 } satisfies components['schemas']['ConstantAttenuationManifest']
+
+const macrobendManifest = {
+  model_id: 'user_supplied_macrobend_loss',
+  model_version: '1.0.0',
+  loss_source: 'user_supplied',
+  aggregation: 'additive_db',
+  assumptions: [
+    'each bend loss is user supplied and passive',
+    'bends are ordered in the provided propagation order',
+    'losses are additive in dB',
+  ],
+  limitations: [
+    'geometry and metadata do not affect or alter supplied loss; radius, angle, and position do not derive loss',
+    'no wavelength/MFD/index/radiation model is included',
+    'this is not the G.652 qualification test or conformance',
+  ],
+} satisfies components['schemas']['MacrobendLossManifest']
 
 const groupDelayManifest = {
   model_id: 'constant_group_index_delay',
@@ -413,6 +433,13 @@ const customResult = {
     output_power_dbm: -5.5,
     model_manifest: attenuationManifest,
   },
+  bend_loss: {
+    input_power_dbm: -5.5,
+    total_bend_loss_db: 0,
+    output_power_dbm: -5.5,
+    bends: [],
+    model_manifest: macrobendManifest,
+  },
   group_delay: {
     group_delay_ps: 61209011.468860894,
     group_index_dimensionless: 1.468,
@@ -459,6 +486,11 @@ const zeroLengthResult = {
     distance_samples_km: [0],
     power_samples_dbm: [-3],
   },
+  bend_loss: {
+    ...customResult.bend_loss,
+    input_power_dbm: -3,
+    output_power_dbm: -3,
+  },
   group_delay: {
     ...customResult.group_delay,
     group_delay_ps: 0,
@@ -481,7 +513,7 @@ const comparisonVariantResult = {
       ...initialConfiguration.fibre,
       attenuation_db_per_km: 0.3,
     },
-    section: { length_km: 20 },
+    section: { bends: [], length_km: 20 },
   },
   attenuation: {
     ...customResult.attenuation,
@@ -491,6 +523,11 @@ const comparisonVariantResult = {
     output_power_dbm: -9,
     distance_samples_km: [0, 5, 10, 15, 20],
     power_samples_dbm: [-3, -4.5, -6, -7.5, -9],
+  },
+  bend_loss: {
+    ...customResult.bend_loss,
+    input_power_dbm: -9,
+    output_power_dbm: -9,
   },
   group_delay: {
     ...customResult.group_delay,
@@ -1194,7 +1231,7 @@ describe('Level 1 form', () => {
       ...initialConfiguration,
       fibre: { ...initialConfiguration.fibre, core_radius_um: 4.2 },
       source: { ...initialConfiguration.source, wavelength_nm: 1310 },
-      section: { length_km: 13 },
+      section: { bends: [], length_km: 13 },
     })
   })
 
@@ -2549,10 +2586,11 @@ describe('Level 1 preview state and results', () => {
     expect(preview).toHaveTextContent('25 ps')
     expect(preview).toHaveTextContent('49.30770730829005 ps')
     expect(preview).toHaveTextContent('level1_single_section_simulation')
-    expect(preview).toHaveTextContent('1.0.0')
+    expect(preview).toHaveTextContent('1.1.0')
     expect(preview).toHaveTextContent('Approximate')
     expect(preview).toHaveTextContent('one uniform fibre section')
-    expect(preview).toHaveTextContent('excludes bends, splices, and connectors')
+    expect(preview).toHaveTextContent('bend geometry does not derive bend loss')
+    expect(preview).toHaveTextContent('excludes splices and connectors')
     const warningsHeading = within(preview).getByRole('heading', {
       name: 'Warnings',
     })

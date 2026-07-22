@@ -6,6 +6,7 @@ import httpx2
 import pytest
 from apps.api.app.main import app
 
+from fibre_sim.bends import MAX_MACROBENDS
 from fibre_sim.level1 import (
     Level1FibreConfig,
     Level1FibrePreset,
@@ -108,6 +109,16 @@ async def test_custom_preview_returns_exact_physics_result_without_standards_det
         "dispersion": None,
         "attenuation": None,
     }
+    assert response.json()["bend_loss"]["bends"] == []
+    assert (
+        response.json()["bend_loss"]["input_power_dbm"]
+        == response.json()["attenuation"]["output_power_dbm"]
+        == response.json()["bend_loss"]["output_power_dbm"]
+    )
+    assert response.json()["model_manifest"]["model_version"] == "1.1.0"
+    assert (
+        "user_supplied_macrobend_loss" in response.json()["model_manifest"]["component_model_ids"]
+    )
     assert len(response.json()["parameter_boundaries"]) == 16
     assert {boundary["field"] for boundary in response.json()["parameter_boundaries"]} == {
         "n_core",
@@ -158,6 +169,45 @@ async def test_repeated_valid_preview_requests_are_deterministic(
     assert first.status_code == second.status_code == 200
     assert first.content == second.content
     assert first.json() == second.json()
+
+
+async def test_preview_serializes_multiple_bends_and_final_power(
+    client: httpx2.AsyncClient,
+) -> None:
+    payload = level1_payload()
+    section = payload["section"]
+    assert isinstance(section, dict)
+    payload["section"] = {
+        **section,
+        "bends": [
+            {
+                "position_fraction": 0.2,
+                "radius_mm": 12.0,
+                "angle_deg": 90.0,
+                "supplied_loss_db": 0.4,
+            },
+            {
+                "position_fraction": 0.7,
+                "radius_mm": 12.0,
+                "angle_deg": 90.0,
+                "supplied_loss_db": 0.6,
+            },
+        ],
+    }
+    request = request_from_payload(payload)
+
+    response = await client.post("/api/v1/simulations/preview", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == json.loads(calculate_level1_simulation(request).model_dump_json())
+    configured_section = payload["section"]
+    assert isinstance(configured_section, dict)
+    assert body["configuration"]["section"]["bends"] == configured_section["bends"]
+    assert body["attenuation"]["output_power_dbm"] == -5.5
+    assert body["bend_loss"]["input_power_dbm"] == -5.5
+    assert body["bend_loss"]["total_bend_loss_db"] == 1.0
+    assert body["bend_loss"]["output_power_dbm"] == -6.5
 
 
 @pytest.mark.parametrize(
@@ -224,3 +274,60 @@ async def test_invalid_preview_requests_return_stable_errors_and_trace_echo(
         )
 
     assert_validation_error(response, location, error_type, trace_id)
+
+
+@pytest.mark.parametrize(
+    ("bends", "location", "error_type"),
+    [
+        (
+            [
+                {
+                    "position_fraction": 0.5,
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 0.4,
+                },
+                {
+                    "position_fraction": 0.5,
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 0.4,
+                },
+            ],
+            ["body", "section"],
+            "bend_positions_not_strictly_increasing",
+        ),
+        (
+            [
+                {
+                    "position_fraction": index / (MAX_MACROBENDS + 1),
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 0.1,
+                }
+                for index in range(1, MAX_MACROBENDS + 2)
+            ],
+            ["body", "section", "bends"],
+            "too_long",
+        ),
+    ],
+    ids=["non-increasing-positions", "maximum-bend-count"],
+)
+async def test_invalid_bend_sections_return_typed_422_errors(
+    client: httpx2.AsyncClient,
+    bends: list[dict[str, object]],
+    location: list[str],
+    error_type: str,
+) -> None:
+    payload = level1_payload()
+    section = payload["section"]
+    assert isinstance(section, dict)
+    payload["section"] = {**section, "bends": bends}
+
+    response = await client.post(
+        "/api/v1/simulations/preview",
+        json=payload,
+        headers={"X-Trace-ID": "level1-bend-validation"},
+    )
+
+    assert_validation_error(response, location, error_type, "level1-bend-validation")

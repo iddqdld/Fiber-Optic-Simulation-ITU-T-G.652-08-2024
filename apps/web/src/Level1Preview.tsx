@@ -106,7 +106,7 @@ export function Level1Preview({ result }: Level1PreviewProps) {
         <div>
           <dt>Output power</dt>
           <dd>
-            {result.attenuation.output_power_dbm} <span>dBm</span>
+            {result.bend_loss.output_power_dbm} <span>dBm</span>
           </dd>
         </div>
         <div>

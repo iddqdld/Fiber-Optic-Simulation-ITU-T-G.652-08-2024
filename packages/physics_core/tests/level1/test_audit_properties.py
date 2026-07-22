@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 
 import fibre_sim.level1.calculations as level1_calculations
 from fibre_sim.attenuation import ConstantAttenuationRequest, calculate_constant_attenuation
+from fibre_sim.bends import MacrobendLossRequest, calculate_macrobend_loss
 from fibre_sim.dispersion import (
     ChromaticPulseBroadeningRequest,
     GroupDelayRequest,
@@ -67,6 +68,12 @@ def assert_subresults_match_standalone(result: Level1SimulationResult) -> None:
             length_km=request.section.length_km,
             attenuation_db_per_km=request.fibre.attenuation_db_per_km,
             input_power_dbm=request.source.input_power_dbm,
+        )
+    )
+    assert result.bend_loss == calculate_macrobend_loss(
+        MacrobendLossRequest(
+            input_power_dbm=result.attenuation.output_power_dbm,
+            bends=request.section.bends,
         )
     )
     assert result.group_delay == calculate_group_delay(
@@ -317,6 +324,7 @@ def test_warning_order_and_component_order_are_stable_for_all_level1_branches() 
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
         "constant_fibre_attenuation",
+        "user_supplied_macrobend_loss",
         "constant_group_index_delay",
         "first_order_chromatic_pulse_broadening",
         "itu_t_g652d_preset",
@@ -324,6 +332,7 @@ def test_warning_order_and_component_order_are_stable_for_all_level1_branches() 
         "itu_t_g652d_chromatic_dispersion_check",
         "itu_t_g652d_attenuation_check",
     )
+    assert result.model_manifest.model_version == "1.1.0"
 
 
 @pytest.mark.parametrize("preset", [Level1FibrePreset.CUSTOM, Level1FibrePreset.G652D])

@@ -1,6 +1,7 @@
 from pydantic import ValidationError
 
 from fibre_sim.attenuation import ConstantAttenuationCalculationError
+from fibre_sim.bends import MacrobendLossCalculationError
 from fibre_sim.dispersion import (
     ChromaticPulseBroadeningCalculationError,
     GroupDelayCalculationError,
@@ -65,7 +66,7 @@ def _build_point(parameter_value: float, result: Level1SimulationResult) -> Leve
         mode_regime=result.guidance.mode_regime,
         approximate_mode_count=result.guidance.approximate_mode_count,
         section_loss_db=result.attenuation.section_loss_db,
-        output_power_dbm=result.attenuation.output_power_dbm,
+        output_power_dbm=result.bend_loss.output_power_dbm,
         group_delay_ps=result.group_delay.group_delay_ps,
         dispersion_broadening_fwhm_ps=result.pulse_broadening.dispersion_broadening_fwhm_ps,
         output_pulse_fwhm_ps=result.pulse_broadening.output_pulse_fwhm_ps,
@@ -93,6 +94,7 @@ def calculate_level1_sweep(request: Level1SweepRequest) -> Level1SweepResult:
             points.append(_build_point(parameter_value, result))
         except (
             ConstantAttenuationCalculationError,
+            MacrobendLossCalculationError,
             GroupDelayCalculationError,
             ChromaticPulseBroadeningCalculationError,
             ValidationError,

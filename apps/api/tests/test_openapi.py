@@ -19,6 +19,11 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
         "GuidanceRequest",
         "HealthResponse",
         "LinkComponent",
+        "MacrobendInput",
+        "MacrobendLossManifest",
+        "MacrobendLossPoint",
+        "MacrobendLossRequest",
+        "MacrobendLossResult",
         "ModelManifest",
         "PulseSeries",
         "SimulationConfig",
@@ -37,6 +42,28 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
     }
     assert "$defs" not in schemas["SimulationResult"]
     assert "value" not in schemas["SimulationResult"]["properties"]
+
+
+def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
+    schemas = main.app.openapi()["components"]["schemas"]
+
+    assert schemas["MacrobendInput"]["additionalProperties"] is False
+    assert set(schemas["MacrobendInput"]["properties"]) == {
+        "position_fraction",
+        "radius_mm",
+        "angle_deg",
+        "supplied_loss_db",
+    }
+    assert schemas["MacrobendLossRequest"]["properties"]["bends"]["items"] == {
+        "$ref": "#/components/schemas/MacrobendInput"
+    }
+    assert schemas["MacrobendLossRequest"]["properties"]["bends"]["maxItems"] == 32
+    assert schemas["MacrobendLossResult"]["properties"]["bends"]["items"] == {
+        "$ref": "#/components/schemas/MacrobendLossPoint"
+    }
+    assert schemas["MacrobendLossManifest"]["properties"]["model_id"]["const"] == (
+        "user_supplied_macrobend_loss"
+    )
 
 
 def test_constant_attenuation_result_publishes_bounded_power_samples() -> None:
@@ -360,6 +387,14 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
         "drop_cable",
     ]
 
+    section = schemas["Level1SectionConfig"]
+    assert set(section["properties"]) == {"length_km", "bends"}
+    assert section["required"] == ["length_km"]
+    assert section["properties"]["bends"]["items"] == {
+        "$ref": "#/components/schemas/MacrobendInput"
+    }
+    assert section["properties"]["bends"]["maxItems"] == 32
+
     result = schemas["Level1SimulationResult"]
     assert {
         field: result["properties"][field]
@@ -368,6 +403,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
             "guidance",
             "mode_profile",
             "attenuation",
+            "bend_loss",
             "group_delay",
             "pulse_broadening",
             "standards_checks",
@@ -379,6 +415,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
         "guidance": {"$ref": "#/components/schemas/GuidanceResult"},
         "mode_profile": {"$ref": "#/components/schemas/GaussianModeProfileResult"},
         "attenuation": {"$ref": "#/components/schemas/ConstantAttenuationResult"},
+        "bend_loss": {"$ref": "#/components/schemas/MacrobendLossResult"},
         "group_delay": {"$ref": "#/components/schemas/GroupDelayResult"},
         "pulse_broadening": {"$ref": "#/components/schemas/ChromaticPulseBroadeningResult"},
         "standards_checks": {"$ref": "#/components/schemas/Level1StandardsChecks"},
@@ -457,6 +494,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
     ]
 
     manifest = schemas["Level1SimulationManifest"]
+    assert manifest["properties"]["model_version"]["const"] == "1.1.0"
     for field in ("component_model_ids", "assumptions", "limitations"):
         assert manifest["properties"][field]["type"] == "array"
         assert manifest["properties"][field]["items"] == {"type": "string"}

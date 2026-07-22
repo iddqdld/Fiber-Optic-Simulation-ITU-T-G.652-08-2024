@@ -10,10 +10,16 @@ inputs together while the result exposes each calculated section directly.
 The engine constructs every subrequest from the validated configuration. The
 same refractive indices, core radius, and source wavelength feed guidance; the
 explicit mode-field radius and sampling settings feed the Gaussian mode
-profile; length and attenuation feed constant loss; length and group index
-feed group delay; and length, signed dispersion, source spectrum, and input
-pulse width feed chromatic broadening. No Level 1 formula is reimplemented in
-the composition layer.
+profile; length and attenuation feed straight-fibre constant loss; length and
+group index feed group delay; length, signed dispersion, source spectrum, and
+input pulse width feed chromatic broadening; and the ordered `section.bends`
+inputs provide user-supplied macrobend loss. No Level 1 formula is reimplemented
+in the composition layer.
+
+`attenuation` reports straight-fibre loss only. `bend_loss` aggregates the
+supplied bend losses starting from the straight-attenuation output power, and
+its `output_power_dbm` is the final power after both contributions. Bend
+geometry is preserved as metadata but does not derive a loss value.
 
 The operating wavelength is shared by all models that accept it. The fibre
 configuration also represents one uniform composition over the section. The
@@ -46,18 +52,22 @@ or hiding a standards applicability result.
 
 ## Ordering and manifest
 
-The calculation order is guidance, Gaussian mode profile, constant
-attenuation, group delay, and chromatic pulse broadening. For `g652d`, the
-standards calls then occur in preset, dispersion envelope, dispersion check,
-and attenuation check order. `Level1SimulationManifest.component_model_ids`
-records the model IDs in exactly that call order. Repeated calculations from
-the same request produce equal frozen models and deterministic JSON.
+The calculation order is guidance, Gaussian mode profile, straight-fibre
+attenuation, bend aggregation, group delay, and chromatic pulse broadening. For
+`g652d`, the standards calls then occur in preset, dispersion envelope,
+dispersion check, and attenuation check order. Bend aggregation applies
+user-supplied loss from the straight-attenuation output power.
+`Level1SimulationManifest.component_model_ids` records the model IDs in exactly
+that call order. Repeated calculations from the same request produce equal
+frozen models and deterministic JSON.
 
 ## Assumptions and limits
 
-The manifest records one uniform section, one shared operating wavelength, and
-uniform composition. This is a reduced-order educational/first-order slice,
-not a full propagation solver. It excludes bends, splices, connectors,
-polarization-mode dispersion, optical nonlinearity, multi-section links, and
-full-wave field solving. It also does not provide an API or UI; this document
-describes only the physics-core composition contract.
+The manifest records one uniform section, one shared operating wavelength,
+uniform composition, and that user-supplied bend losses are applied after
+straight attenuation. This is a reduced-order educational/first-order slice,
+not a full propagation solver. Bend geometry does not derive bend loss; splices
+and connectors, polarization-mode dispersion, optical nonlinearity,
+multi-section links, and full-wave field solving remain excluded. It also does
+not provide an API or UI; this document describes only the physics-core
+composition contract.

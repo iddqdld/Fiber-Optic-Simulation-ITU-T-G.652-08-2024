@@ -9,6 +9,7 @@ import pytest
 from apps.api.app import main
 from apps.api.app.main import app
 
+from fibre_sim.bends import MAX_MACROBENDS
 from fibre_sim.level1 import (
     Level1FibreConfig,
     Level1FibrePreset,
@@ -191,6 +192,7 @@ async def test_normal_maximum_grid_preview_p95_stays_below_plan_budget(
         "group-delay-overflow",
         "pulse-broadening-overflow",
         "v-number-overflow",
+        "macrobend-overflow",
     ],
 )
 async def test_extreme_finite_previews_return_structured_calculation_errors(
@@ -207,9 +209,22 @@ async def test_extreme_finite_previews_return_structured_calculation_errors(
         payload["section"] = {"length_km": 1e308}
         override_nested(payload, "fibre", "dispersion_ps_per_nm_km", 1e308)
         override_nested(payload, "fibre", "group_index_dimensionless", 5e-324)
-    else:
+    elif case == "v-number-overflow":
         override_nested(payload, "fibre", "core_radius_um", 1e308)
         override_nested(payload, "source", "wavelength_nm", 1e-308)
+    else:
+        payload["section"] = {
+            "length_km": 12.5,
+            "bends": [
+                {
+                    "position_fraction": index / (MAX_MACROBENDS + 1),
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 1e308,
+                }
+                for index in range(1, MAX_MACROBENDS + 1)
+            ],
+        }
     Level1SimulationRequest.model_validate(payload)
     trace_id = f"level1-{case}-trace"
     transport = httpx2.ASGITransport(app=app, raise_app_exceptions=False)

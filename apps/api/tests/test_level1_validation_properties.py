@@ -10,6 +10,7 @@ from apps.api.app.main import app
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from fibre_sim.bends import MAX_MACROBENDS
 from fibre_sim.level1 import Level1SimulationRequest, Level1SimulationResult
 from fibre_sim.modes import MAX_GRID_POINTS, MIN_GRID_POINTS
 from fibre_sim.standards.constants import G652D_MAX_WAVELENGTH_NM, G652D_MIN_WAVELENGTH_NM
@@ -339,6 +340,56 @@ def test_preview_enforces_grid_bounds_and_oddness(
     grid_points: int, location: tuple[str, ...], error_type: str
 ) -> None:
     response = post_json(valid_payload(grid_points=grid_points))
+
+    assert_error_response(response, location, error_type)
+
+
+@pytest.mark.parametrize(
+    ("bends", "location", "error_type"),
+    [
+        (
+            [
+                {
+                    "position_fraction": 0.4,
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 0.2,
+                },
+                {
+                    "position_fraction": 0.4,
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 0.3,
+                },
+            ],
+            ("section",),
+            "bend_positions_not_strictly_increasing",
+        ),
+        (
+            [
+                {
+                    "position_fraction": index / (MAX_MACROBENDS + 1),
+                    "radius_mm": 12.0,
+                    "angle_deg": 90.0,
+                    "supplied_loss_db": 0.1,
+                }
+                for index in range(1, MAX_MACROBENDS + 2)
+            ],
+            ("section", "bends"),
+            "too_long",
+        ),
+    ],
+    ids=["non-increasing-positions", "maximum-bend-count"],
+)
+def test_preview_rejects_invalid_bend_order_and_limit(
+    bends: list[dict[str, object]],
+    location: tuple[str, ...],
+    error_type: str,
+) -> None:
+    payload = valid_payload()
+    payload["section"]["bends"] = bends
+
+    response = post_json(payload)
 
     assert_error_response(response, location, error_type)
 
