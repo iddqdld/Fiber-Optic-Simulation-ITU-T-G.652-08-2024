@@ -29,6 +29,7 @@ import type { GraphWorkspaceId } from './graphWorkspace'
 import { Level1Preview } from './Level1Preview'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
+import { SweepWorkspace } from './SweepWorkspace'
 import { defaultVisualizationSettings } from './visualizationSettings'
 import {
   isValidPowerDistanceData,
@@ -880,6 +881,10 @@ function App() {
   const modelLabel = result
     ? `${result.model_manifest.model_id} · ${result.model_manifest.model_version}`
     : 'Level 1 single-section model'
+  const sweepConfigurationKey =
+    formValidation.request === null
+      ? 'invalid-configuration'
+      : JSON.stringify(formValidation.request)
 
   let workspace: ReactNode
 
@@ -912,13 +917,20 @@ function App() {
     workspace = (
       <StandardsWorkspace standardsChecks={result?.standards_checks ?? null} />
     )
-  } else {
+  } else if (activeWorkspace === 'compare') {
     workspace = (
       <ComparisonWorkspace
         baseline={comparisonBaseline}
         variant={matchingResult}
         onCaptureBaseline={captureComparisonBaseline}
         onClearBaseline={() => setComparisonBaseline(null)}
+      />
+    )
+  } else {
+    workspace = (
+      <SweepWorkspace
+        key={sweepConfigurationKey}
+        baseConfiguration={formValidation.request}
       />
     )
   }

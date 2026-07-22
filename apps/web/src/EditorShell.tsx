@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 
-export type WorkspaceId = 'scene' | 'graphs' | 'standards' | 'compare'
+export type WorkspaceId = 'scene' | 'graphs' | 'standards' | 'compare' | 'sweep'
 
 export type PreviewStateTone =
   'neutral' | 'info' | 'success' | 'warning' | 'error'
@@ -22,6 +22,7 @@ const workspaceTabs: readonly WorkspaceTab[] = [
   { id: 'graphs', label: 'Graphs' },
   { id: 'standards', label: 'Standards' },
   { id: 'compare', label: 'Compare' },
+  { id: 'sweep', label: 'Sweep' },
 ]
 
 export type EditorShellProps = {

@@ -75,11 +75,12 @@ describe('EditorShell', () => {
       'Graphs',
       'Standards',
       'Compare',
+      'Sweep',
     ])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(tabs[0]).toHaveAttribute('tabindex', '0')
     expect(tabs[1]).toHaveAttribute('tabindex', '-1')
-    expect(tabs[3]).not.toBeDisabled()
+    expect(tabs[4]).not.toBeDisabled()
 
     const panel = screen.getByRole('tabpanel')
     expect(tablist).toContainElement(tabs[0])
@@ -111,10 +112,10 @@ describe('EditorShell', () => {
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Scene' }), {
       key: 'End',
     })
-    expect(onWorkspaceChange).toHaveBeenLastCalledWith('compare')
-    expect(screen.getByRole('tab', { name: 'Compare' })).toHaveFocus()
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('sweep')
+    expect(screen.getByRole('tab', { name: 'Sweep' })).toHaveFocus()
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Compare' }), {
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Sweep' }), {
       key: 'Home',
     })
     expect(onWorkspaceChange).toHaveBeenLastCalledWith('scene')
@@ -146,6 +147,17 @@ describe('EditorShell', () => {
       screen.queryByText('Compare workspace is not available yet.'),
     ).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Compare' })).not.toBeDisabled()
+  })
+
+  test('renders the supplied Sweep workspace', () => {
+    const onWorkspaceChange = vi.fn()
+    render(<Harness onWorkspaceChange={onWorkspaceChange} />)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Sweep' }))
+
+    expect(onWorkspaceChange).toHaveBeenCalledWith('sweep')
+    expect(screen.getByText('Workspace slot')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Sweep' })).not.toBeDisabled()
   })
 
   test('exposes preview, backend, and warning status information', () => {
