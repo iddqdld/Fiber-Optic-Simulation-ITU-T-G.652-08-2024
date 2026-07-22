@@ -3,6 +3,8 @@ from typing import Any
 import pytest
 from apps.api.app import main
 
+from fibre_sim.sweeps import Level1SweepParameter
+
 
 def test_shared_contracts_are_published_in_openapi_components() -> None:
     schemas = main.app.openapi()["components"]["schemas"]
@@ -122,6 +124,7 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
         "/api/v1/health",
         "/api/v1/guidance/calculate",
         "/api/v1/simulations/preview",
+        "/api/v1/simulations/sweep",
     }
     guidance_path = paths["/api/v1/guidance/calculate"]
     assert set(guidance_path) == {"post"}
@@ -165,6 +168,151 @@ def test_level1_preview_path_has_exact_operation_and_response_contracts() -> Non
     assert operation["responses"]["422"]["description"] == (
         "Request validation or calculation failed"
     )
+
+
+def test_level1_sweep_path_has_exact_operation_and_response_contracts() -> None:
+    sweep_path = main.app.openapi()["paths"]["/api/v1/simulations/sweep"]
+
+    assert set(sweep_path) == {"post"}
+    operation = sweep_path["post"]
+    assert operation["operationId"] == "sweep_level1_parameter"
+    assert (
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/Level1SweepRequest"
+    )
+    assert set(operation["responses"]) == {"200", "422"}
+    assert (
+        operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/Level1SweepResult"
+    )
+    assert (
+        operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+    assert operation["responses"]["422"]["description"] == (
+        "Request validation or calculation failed"
+    )
+
+
+def test_level1_sweep_component_schemas_are_closed_and_unit_compatible() -> None:
+    schemas = main.app.openapi()["components"]["schemas"]
+    sweep_models = (
+        "Level1SweepRequest",
+        "Level1SweepPoint",
+        "Level1SweepManifest",
+        "Level1SweepResult",
+    )
+
+    for name in sweep_models:
+        assert schemas[name]["additionalProperties"] is False
+
+    request = schemas["Level1SweepRequest"]
+    assert set(request["properties"]) == {
+        "base_configuration",
+        "parameter",
+        "start_value",
+        "stop_value",
+        "sample_count",
+    }
+    assert set(request["required"]) == set(request["properties"])
+    assert request["properties"]["base_configuration"] == {
+        "$ref": "#/components/schemas/Level1SimulationRequest"
+    }
+    assert request["properties"]["parameter"] == {
+        "$ref": "#/components/schemas/Level1SweepParameter"
+    }
+    assert request["properties"]["start_value"]["type"] == "number"
+    assert "unit implied by parameter" in request["properties"]["start_value"]["description"]
+    assert request["properties"]["stop_value"]["type"] == "number"
+    assert "unit implied by parameter" in request["properties"]["stop_value"]["description"]
+    assert request["properties"]["sample_count"]["type"] == "integer"
+    assert schemas["Level1SweepParameter"]["enum"] == [
+        "n_core",
+        "n_cladding",
+        "core_radius_um",
+        "attenuation_db_per_km",
+        "dispersion_ps_per_nm_km",
+        "group_index_dimensionless",
+        "wavelength_nm",
+        "input_power_dbm",
+        "spectral_width_fwhm_nm",
+        "input_pulse_fwhm_ps",
+        "length_km",
+    ]
+    assert schemas["Level1SweepParameter"]["enum"] == [
+        parameter.value for parameter in Level1SweepParameter
+    ]
+
+    point = schemas["Level1SweepPoint"]
+    assert set(point["properties"]) == {
+        "parameter_value",
+        "numerical_aperture_dimensionless",
+        "v_number_dimensionless",
+        "mode_regime",
+        "approximate_mode_count",
+        "section_loss_db",
+        "output_power_dbm",
+        "group_delay_ps",
+        "dispersion_broadening_fwhm_ps",
+        "output_pulse_fwhm_ps",
+        "warning_codes",
+        "dispersion_standard_status",
+        "attenuation_standard_status",
+    }
+    assert set(point["required"]) == {
+        "parameter_value",
+        "numerical_aperture_dimensionless",
+        "v_number_dimensionless",
+        "mode_regime",
+        "section_loss_db",
+        "output_power_dbm",
+        "group_delay_ps",
+        "dispersion_broadening_fwhm_ps",
+        "output_pulse_fwhm_ps",
+        "warning_codes",
+    }
+    assert point["properties"]["warning_codes"]["items"] == {
+        "$ref": "#/components/schemas/Level1WarningCode"
+    }
+    assert point["properties"]["dispersion_standard_status"]["anyOf"] == [
+        {"$ref": "#/components/schemas/G652DDispersionCheckStatus"},
+        {"type": "null"},
+    ]
+    assert point["properties"]["attenuation_standard_status"]["anyOf"] == [
+        {"$ref": "#/components/schemas/G652DAttenuationCheckStatus"},
+        {"type": "null"},
+    ]
+
+    result = schemas["Level1SweepResult"]
+    assert set(result["properties"]) == {
+        "request",
+        "parameter_unit",
+        "points",
+        "model_manifest",
+    }
+    assert result["properties"]["request"] == {"$ref": "#/components/schemas/Level1SweepRequest"}
+    parameter_unit = result["properties"]["parameter_unit"]
+    assert parameter_unit["enum"] == [
+        "dimensionless",
+        "µm",
+        "dB/km",
+        "ps/(nm·km)",
+        "nm",
+        "dBm",
+        "ps",
+        "km",
+    ]
+    assert "start_value" in parameter_unit["description"]
+    assert result["properties"]["points"]["items"] == {
+        "$ref": "#/components/schemas/Level1SweepPoint"
+    }
+    assert result["properties"]["model_manifest"] == {
+        "$ref": "#/components/schemas/Level1SweepManifest"
+    }
+    assert set(result["required"]) == set(result["properties"])
+    points = result["properties"]["points"]
+    assert points["minItems"] == 2
+    assert points["maxItems"] == 200
 
 
 def test_level1_component_schemas_are_closed_and_reference_nested_contracts() -> None:

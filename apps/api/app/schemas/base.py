@@ -26,6 +26,7 @@ DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
     "n_cladding",
     "n_core",
     "section_index",
+    "sample_count",
     "grid_points",
     "macrobend_turns",
     "normalized_field",
