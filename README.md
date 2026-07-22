@@ -21,4 +21,4 @@ pls test before push bla bla bla
 - **Parameter sweeps** — explore one changing parameter across a safe range and graph its effect on selected outputs.
 - **Multi-section links** — assemble ordered cable sections, splices, and connectors with per-component result breakdowns.
 - **Level 2 models** — wavelength-dependent loss and dispersion, splice coupling, PMD/DGD estimates, and statistical studies.
-- **Project exchange** — save, reopen, import, and export reproducible simulations and results as JSON or CSV.
+- **Import and export** — exchange portable simulation configurations and results as JSON or CSV without accounts or server-side projects.

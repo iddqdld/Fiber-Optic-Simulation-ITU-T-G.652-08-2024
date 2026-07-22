@@ -134,21 +134,17 @@ describe('EditorShell', () => {
     )
   })
 
-  test('honestly labels Compare as unavailable while keeping it selectable', () => {
+  test('renders the supplied Compare workspace without a shell placeholder', () => {
     const onWorkspaceChange = vi.fn()
-    render(
-      <Harness
-        onWorkspaceChange={onWorkspaceChange}
-        includeWorkspace={false}
-      />,
-    )
+    render(<Harness onWorkspaceChange={onWorkspaceChange} />)
 
     fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
 
     expect(onWorkspaceChange).toHaveBeenCalledWith('compare')
+    expect(screen.getByText('Workspace slot')).toBeInTheDocument()
     expect(
-      screen.getByText('Compare workspace is not available yet.'),
-    ).toBeInTheDocument()
+      screen.queryByText('Compare workspace is not available yet.'),
+    ).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Compare' })).not.toBeDisabled()
   })
 
