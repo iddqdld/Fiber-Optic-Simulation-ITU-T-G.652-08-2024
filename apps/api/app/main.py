@@ -15,6 +15,14 @@ from fibre_sim.attenuation import (
     ConstantAttenuationManifest,
     ConstantAttenuationResult,
 )
+from fibre_sim.bends import (
+    MacrobendInput,
+    MacrobendLossCalculationError,
+    MacrobendLossManifest,
+    MacrobendLossPoint,
+    MacrobendLossRequest,
+    MacrobendLossResult,
+)
 from fibre_sim.dispersion import (
     ChromaticPulseBroadeningCalculationError,
     ChromaticPulseBroadeningManifest,
@@ -138,6 +146,7 @@ async def post_simulation_preview(request: Level1SimulationRequest) -> Level1Sim
         return calculate_level1_simulation(request)
     except (
         ConstantAttenuationCalculationError,
+        MacrobendLossCalculationError,
         GroupDelayCalculationError,
         ChromaticPulseBroadeningCalculationError,
         ValidationError,
@@ -169,6 +178,7 @@ async def post_simulation_sweep(request: Level1SweepRequest) -> Level1SweepResul
     except (
         Level1SweepCalculationError,
         ConstantAttenuationCalculationError,
+        MacrobendLossCalculationError,
         GroupDelayCalculationError,
         ChromaticPulseBroadeningCalculationError,
         ValidationError,
@@ -228,6 +238,11 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     Level1SweepRequest,
     Level1SweepResult,
     Level1Warning,
+    MacrobendInput,
+    MacrobendLossManifest,
+    MacrobendLossPoint,
+    MacrobendLossRequest,
+    MacrobendLossResult,
     ModelManifest,
     ModelReference,
     ModelWarning,

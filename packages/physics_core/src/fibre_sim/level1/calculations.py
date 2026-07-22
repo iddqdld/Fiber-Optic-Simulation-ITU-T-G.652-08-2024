@@ -1,4 +1,5 @@
 from fibre_sim.attenuation import ConstantAttenuationRequest, calculate_constant_attenuation
+from fibre_sim.bends import MacrobendLossRequest, calculate_macrobend_loss
 from fibre_sim.dispersion import (
     ChromaticPulseBroadeningRequest,
     GroupDelayRequest,
@@ -55,6 +56,12 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
             input_power_dbm=source.input_power_dbm,
         )
     )
+    bend_loss = calculate_macrobend_loss(
+        MacrobendLossRequest(
+            input_power_dbm=attenuation.output_power_dbm,
+            bends=section.bends,
+        )
+    )
     group_delay = calculate_group_delay(
         GroupDelayRequest(
             length_km=section.length_km,
@@ -83,6 +90,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
         guidance.model_manifest.model_id,
         mode_profile.model_manifest.model_id,
         attenuation.model_manifest.model_id,
+        bend_loss.model_manifest.model_id,
         group_delay.model_manifest.model_id,
         pulse_broadening.model_manifest.model_id,
     ]
@@ -145,6 +153,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
         guidance=guidance,
         mode_profile=mode_profile,
         attenuation=attenuation,
+        bend_loss=bend_loss,
         group_delay=group_delay,
         pulse_broadening=pulse_broadening,
         standards_checks=standards_checks,

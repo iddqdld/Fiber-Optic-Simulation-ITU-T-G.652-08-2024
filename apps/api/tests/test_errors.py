@@ -77,6 +77,28 @@ def test_request_validation_handler_returns_stable_uppercase_code() -> None:
     assert body(response)["error"]["code"] == "REQUEST_VALIDATION_ERROR"
 
 
+def test_request_validation_handler_preserves_typed_bend_errors_as_422() -> None:
+    exc = RequestValidationError(
+        [
+            {
+                "type": "bend_positions_not_strictly_increasing",
+                "loc": ("body", "section"),
+                "msg": "Macrobend positions must be strictly increasing in propagation order.",
+                "input": {"bends": []},
+            }
+        ]
+    )
+
+    response = asyncio.run(handle_request_validation_error(request("trace-bend-validation"), exc))
+
+    assert response.status_code == 422
+    assert response.headers["x-trace-id"] == "trace-bend-validation"
+    assert body(response)["error"]["code"] == "REQUEST_VALIDATION_ERROR"
+    assert body(response)["error"]["details"]["errors"][0]["type"] == (
+        "bend_positions_not_strictly_increasing"
+    )
+
+
 def test_starlette_http_error_handler_returns_stable_envelope() -> None:
     response = asyncio.run(handle_http_error(request(), HTTPException(404, "Not found")))
 

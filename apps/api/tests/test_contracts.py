@@ -17,6 +17,13 @@ from apps.api.app.schemas import (
 from apps.api.app.schemas.base import DIMENSIONLESS_NUMERIC_FIELDS, PHYSICAL_UNIT_SUFFIXES
 from pydantic import TypeAdapter, ValidationError
 
+from fibre_sim.bends import (
+    MacrobendInput,
+    MacrobendLossManifest,
+    MacrobendLossPoint,
+    MacrobendLossRequest,
+    MacrobendLossResult,
+)
 from fibre_sim.guidance import GuidanceRequest
 from fibre_sim.level1 import (
     Level1FibreConfig,
@@ -194,6 +201,10 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "Level1SweepRequest.start_value",
         "Level1SweepRequest.stop_value",
     }
+    dimensionless_bend_fields = {
+        "MacrobendInput.position_fraction",
+        "MacrobendLossPoint.position_fraction",
+    }
     violations: list[str] = []
 
     for model in main.CONTRACT_MODELS:
@@ -205,6 +216,7 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
                 "_dimensionless"
             )
             field_key = f"{model.__name__}.{field_name}"
+            is_dimensionless = is_dimensionless or field_key in dimensionless_bend_fields
             if (
                 not has_unit_suffix
                 and not is_dimensionless
@@ -264,6 +276,21 @@ def test_level1_models_are_registered_and_unit_checked() -> None:
                 violations.append(f"{model.__name__}.{field_name}")
 
     assert violations == []
+
+
+def test_public_bend_models_are_registered_and_closed() -> None:
+    bend_models = (
+        MacrobendInput,
+        MacrobendLossManifest,
+        MacrobendLossPoint,
+        MacrobendLossRequest,
+        MacrobendLossResult,
+    )
+
+    assert set(bend_models).issubset(set(main.CONTRACT_MODELS))
+    for model in bend_models:
+        assert model.model_config["frozen"] is True
+        assert model.model_config["extra"] == "forbid"
 
 
 def test_level1_sweep_models_are_registered_and_parameter_enum_is_published() -> None:

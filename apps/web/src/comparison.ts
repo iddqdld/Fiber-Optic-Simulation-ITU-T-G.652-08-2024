@@ -65,7 +65,7 @@ const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     id: 'output-power',
     label: 'Output power',
     unit: 'dBm',
-    getValue: (result) => result.attenuation.output_power_dbm,
+    getValue: (result) => result.bend_loss.output_power_dbm,
   },
   {
     id: 'group-delay',

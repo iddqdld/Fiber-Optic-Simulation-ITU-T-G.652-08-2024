@@ -2,6 +2,7 @@ import type {
   components,
   operations,
 } from '../../../packages/shared_schemas/generated/api'
+import { isMacrobendSequence } from './macrobend'
 
 export type SweepBaseConfiguration =
   components['schemas']['Level1SimulationRequest']
@@ -272,7 +273,7 @@ function isSweepBaseConfiguration(
       'spectral_width_fwhm_nm',
       'input_pulse_fwhm_ps',
     ]) ||
-    !hasExactKeys(value.section, ['length_km']) ||
+    !hasExactKeys(value.section, ['bends', 'length_km']) ||
     !hasExactKeys(value.sampling, ['grid_half_width_um', 'grid_points'])
   ) {
     return false
@@ -300,6 +301,7 @@ function isSweepBaseConfiguration(
     isFiniteNumber(source.spectral_width_fwhm_nm) &&
     isFiniteNumber(source.input_pulse_fwhm_ps) &&
     isFiniteNumber(section.length_km) &&
+    isMacrobendSequence(section.bends) &&
     isFiniteNumber(sampling.grid_half_width_um) &&
     isFiniteNumber(sampling.grid_points)
   )

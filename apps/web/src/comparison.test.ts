@@ -12,6 +12,7 @@ import {
 
 type GuidanceResult = components['schemas']['GuidanceResult']
 type AttenuationResult = components['schemas']['ConstantAttenuationResult']
+type MacrobendLossResult = components['schemas']['MacrobendLossResult']
 type GroupDelayResult = components['schemas']['GroupDelayResult']
 type PulseBroadeningResult =
   components['schemas']['ChromaticPulseBroadeningResult']
@@ -35,7 +36,7 @@ const configuration = {
     spectral_width_fwhm_nm: 0.2,
     input_pulse_fwhm_ps: 25,
   },
-  section: { length_km: 12.5 },
+  section: { bends: [], length_km: 12.5 },
   sampling: { grid_half_width_um: 15, grid_points: 5 },
 } satisfies ComparisonResult['configuration']
 
@@ -73,6 +74,21 @@ const attenuation = {
     limitations: [],
   },
 } satisfies AttenuationResult
+
+const bendLoss = {
+  bends: [],
+  input_power_dbm: -5,
+  model_manifest: {
+    aggregation: 'additive_db',
+    assumptions: [],
+    limitations: [],
+    loss_source: 'user_supplied',
+    model_id: 'user_supplied_macrobend_loss',
+    model_version: '1.0.0',
+  },
+  output_power_dbm: -5,
+  total_bend_loss_db: 0,
+} satisfies MacrobendLossResult
 
 const groupDelay = {
   group_delay_ps: 48,
@@ -146,12 +162,13 @@ const baseResult = {
   configuration,
   guidance,
   attenuation,
+  bend_loss: bendLoss,
   group_delay: groupDelay,
   pulse_broadening: pulseBroadening,
   mode_profile: baseModeProfile,
   model_manifest: {
     model_id: 'level1_single_section_simulation',
-    model_version: '1.0.0',
+    model_version: '1.1.0',
     component_model_ids: [],
     assumptions: [],
     limitations: [],
@@ -170,6 +187,7 @@ function withResultChanges(
   changes: Partial<{
     guidance: Partial<GuidanceResult>
     attenuation: Partial<AttenuationResult>
+    bend_loss: Partial<MacrobendLossResult>
     group_delay: Partial<GroupDelayResult>
     pulse_broadening: Partial<PulseBroadeningResult>
     mode_profile: ModeProfileResult
@@ -181,6 +199,7 @@ function withResultChanges(
     ...changes,
     guidance: { ...baseResult.guidance, ...changes.guidance },
     attenuation: { ...baseResult.attenuation, ...changes.attenuation },
+    bend_loss: { ...baseResult.bend_loss, ...changes.bend_loss },
     group_delay: { ...baseResult.group_delay, ...changes.group_delay },
     pulse_broadening: {
       ...baseResult.pulse_broadening,
@@ -198,8 +217,8 @@ describe('comparison derivation', () => {
       },
       attenuation: {
         section_loss_db: 3,
-        output_power_dbm: -6,
       },
+      bend_loss: { output_power_dbm: -6 },
       group_delay: { group_delay_ps: 53 },
       pulse_broadening: {
         dispersion_broadening_fwhm_ps: 45,
@@ -310,7 +329,7 @@ describe('comparison derivation', () => {
         spectral_width_fwhm_nm: 0.3,
         input_pulse_fwhm_ps: 30,
       },
-      section: { length_km: 15 },
+      section: { bends: [], length_km: 15 },
       sampling: { grid_half_width_um: 20, grid_points: 7 },
     } satisfies ComparisonResult['configuration']
 

@@ -3,6 +3,7 @@ import math
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from fibre_sim.bends import MAX_MACROBENDS, MacrobendInput
 from fibre_sim.level1 import (
     Level1FibreConfig,
     Level1FibrePreset,
@@ -42,6 +43,18 @@ def source_values() -> dict[str, object]:
     }
 
 
+def bend_values(
+    position_fraction: float = 0.25,
+    supplied_loss_db: float = 0.4,
+) -> dict[str, object]:
+    return {
+        "position_fraction": position_fraction,
+        "radius_mm": 12.0,
+        "angle_deg": 90.0,
+        "supplied_loss_db": supplied_loss_db,
+    }
+
+
 def request_values(preset: Level1FibrePreset = Level1FibrePreset.CUSTOM) -> dict[str, object]:
     return {
         "preset": preset,
@@ -64,6 +77,49 @@ def test_nested_request_has_exact_order_and_existing_sampling_defaults() -> None
     ]
     assert request.sampling.grid_points == DEFAULT_GRID_POINTS
     assert MIN_GRID_POINTS <= request.sampling.grid_points <= MAX_GRID_POINTS
+    assert request.section.bends == ()
+    assert list(Level1SectionConfig.model_fields) == ["length_km", "bends"]
+
+
+def test_section_accepts_multiple_bends_in_propagation_order() -> None:
+    bends = tuple(
+        MacrobendInput.model_validate(bend_values(position_fraction=position))
+        for position in (0.1, 0.5, 0.9)
+    )
+
+    section = Level1SectionConfig(length_km=12.5, bends=bends)
+
+    assert section.bends == bends
+    assert tuple(bend.position_fraction for bend in section.bends) == (0.1, 0.5, 0.9)
+
+
+def test_section_rejects_non_increasing_bend_positions() -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        Level1SectionConfig(
+            length_km=12.5,
+            bends=(
+                MacrobendInput.model_validate(bend_values(position_fraction=0.5)),
+                MacrobendInput.model_validate(bend_values(position_fraction=0.5)),
+            ),
+        )
+
+    error = exc_info.value.errors()[0]
+    assert error["type"] == "bend_positions_not_strictly_increasing"
+    assert error["msg"] == "Macrobend positions must be strictly increasing in propagation order."
+
+
+def test_section_rejects_more_than_maximum_macrobends() -> None:
+    bends = tuple(
+        MacrobendInput.model_validate(bend_values(position_fraction=index / (MAX_MACROBENDS + 1)))
+        for index in range(1, MAX_MACROBENDS + 2)
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        Level1SectionConfig(length_km=12.5, bends=bends)
+
+    error = exc_info.value.errors()[0]
+    assert error["loc"] == ("bends",)
+    assert error["type"] == "too_long"
 
 
 @pytest.mark.parametrize("wavelength_nm", [1260.0, 1625.0])

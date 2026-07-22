@@ -4,6 +4,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 import fibre_sim.sweeps.calculations as sweep_calculations
+from fibre_sim.bends import MacrobendInput
 from fibre_sim.level1 import (
     Level1FibrePreset,
     Level1SimulationRequest,
@@ -53,8 +54,14 @@ def request_values(preset: Level1FibrePreset = Level1FibrePreset.CUSTOM) -> dict
 
 def make_configuration(
     preset: Level1FibrePreset = Level1FibrePreset.CUSTOM,
+    bends: tuple[MacrobendInput, ...] = (),
 ) -> Level1SimulationRequest:
-    return Level1SimulationRequest.model_validate(request_values(preset))
+    values = request_values(preset)
+    if bends:
+        section = values["section"]
+        assert isinstance(section, dict)
+        values["section"] = {**section, "bends": bends}
+    return Level1SimulationRequest.model_validate(values)
 
 
 def make_sweep(
@@ -63,9 +70,10 @@ def make_sweep(
     stop_value: float = 1.48,
     sample_count: int = 3,
     preset: Level1FibrePreset = Level1FibrePreset.CUSTOM,
+    bends: tuple[MacrobendInput, ...] = (),
 ) -> Level1SweepRequest:
     return Level1SweepRequest(
-        base_configuration=make_configuration(preset),
+        base_configuration=make_configuration(preset, bends),
         parameter=parameter,
         start_value=start_value,
         stop_value=stop_value,
@@ -268,7 +276,7 @@ def test_each_parameter_is_replaced_and_matches_independent_level1_scalars(
         assert point.mode_regime == expected.guidance.mode_regime
         assert point.approximate_mode_count == expected.guidance.approximate_mode_count
         assert point.section_loss_db == expected.attenuation.section_loss_db
-        assert point.output_power_dbm == expected.attenuation.output_power_dbm
+        assert point.output_power_dbm == expected.bend_loss.output_power_dbm
         assert point.group_delay_ps == expected.group_delay.group_delay_ps
         assert (
             point.dispersion_broadening_fwhm_ps
@@ -276,6 +284,44 @@ def test_each_parameter_is_replaced_and_matches_independent_level1_scalars(
         )
         assert point.output_pulse_fwhm_ps == expected.pulse_broadening.output_pulse_fwhm_ps
         assert point.warning_codes == tuple(warning.code for warning in expected.warnings)
+
+
+def test_sweep_preserves_bends_and_publishes_final_post_bend_power() -> None:
+    bends = tuple(
+        MacrobendInput.model_validate(
+            {
+                "position_fraction": position,
+                "radius_mm": 12.0,
+                "angle_deg": 90.0,
+                "supplied_loss_db": loss,
+            }
+        )
+        for position, loss in ((0.2, 0.4), (0.7, 0.6))
+    )
+    request = make_sweep(
+        parameter=Level1SweepParameter.LENGTH_KM,
+        start_value=12.5,
+        stop_value=13.5,
+        sample_count=2,
+        bends=bends,
+    )
+
+    result = calculate_level1_sweep(request)
+
+    assert result.request.base_configuration.section.bends == bends
+    for point in result.points:
+        configuration = request.base_configuration.model_copy(
+            update={
+                "section": request.base_configuration.section.model_copy(
+                    update={"length_km": point.parameter_value}
+                )
+            }
+        )
+        expected = calculate_level1_simulation(configuration)
+        assert configuration.section.bends == bends
+        assert point.section_loss_db == expected.attenuation.section_loss_db
+        assert point.output_power_dbm == expected.bend_loss.output_power_dbm
+        assert point.output_power_dbm < expected.attenuation.output_power_dbm
 
 
 def test_g652d_statuses_and_warnings_are_projected() -> None:
