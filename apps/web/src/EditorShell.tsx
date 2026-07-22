@@ -152,13 +152,6 @@ export function EditorShell({
     }
   }
 
-  const comparePlaceholder =
-    activeWorkspace === 'compare' ? (
-      <p className="editor-shell-workspace-placeholder">
-        Compare workspace is not available yet.
-      </p>
-    ) : null
-
   return (
     <div
       className="editor-shell"
@@ -283,7 +276,6 @@ export function EditorShell({
                 tabIndex={0}
                 hidden={!selected}
               >
-                {selected && comparePlaceholder}
                 {selected && workspace}
               </section>
             )
@@ -294,7 +286,6 @@ export function EditorShell({
           <aside
             id={resultDrawerId}
             className="editor-shell-result-drawer"
-            role="complementary"
             aria-label="Result drawer"
           >
             <header className="editor-shell-result-drawer-header">

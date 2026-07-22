@@ -11,6 +11,7 @@ import {
   type NumericFormField,
   type Preset,
 } from './Level1Form'
+import { ComparisonWorkspace } from './ComparisonWorkspace'
 import {
   FibreGeometryView,
   type ModeProfileData,
@@ -643,6 +644,8 @@ function App() {
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
   const [result, setResult] = useState<PreviewResult | null>(null)
+  const [comparisonBaseline, setComparisonBaseline] =
+    useState<PreviewResult | null>(null)
   const [visualizationData, setVisualizationData] =
     useState<VisualizationData | null>(null)
   const [serviceError, setServiceError] = useState<string | null>(null)
@@ -683,9 +686,19 @@ function App() {
         const response = await fetch('/api/v1/health', {
           signal: controller.signal,
         })
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        if (!response.ok) {
+          setBackendStatus('Backend unavailable')
+          return
+        }
+
         const data: unknown = await response.json().catch(() => null)
 
-        if (response.ok && isHealthResponse(data)) {
+        if (isHealthResponse(data)) {
           setBackendStatus('Backend available')
         } else {
           setBackendStatus('Backend unavailable')
@@ -731,7 +744,6 @@ function App() {
             body: JSON.stringify(request),
             signal: controller.signal,
           })
-          const body: unknown = await response.json().catch(() => null)
 
           if (
             controller.signal.aborted ||
@@ -741,9 +753,27 @@ function App() {
           }
 
           if (!response.ok) {
+            const body: unknown = await response.json().catch(() => null)
+
+            if (
+              controller.signal.aborted ||
+              previewSequence.current !== requestId
+            ) {
+              return
+            }
+
             setVisualizationData(null)
             setServiceError(getErrorMessage(body) ?? PREVIEW_FAILED)
             setPreviewStatus('Preview unavailable.')
+            return
+          }
+
+          const body: unknown = await response.json().catch(() => null)
+
+          if (
+            controller.signal.aborted ||
+            previewSequence.current !== requestId
+          ) {
             return
           }
 
@@ -825,6 +855,12 @@ function App() {
     setFormValues((current) => ({ ...current, cable_application: value }))
   }
 
+  const captureComparisonBaseline = () => {
+    if (matchingResult !== null) {
+      setComparisonBaseline(matchingResult)
+    }
+  }
+
   const displayPreviewStatus =
     formValidation.error !== null ? 'Validation issue' : previewStatus
   const previewStateTone: PreviewStateTone =
@@ -875,6 +911,15 @@ function App() {
   } else if (activeWorkspace === 'standards') {
     workspace = (
       <StandardsWorkspace standardsChecks={result?.standards_checks ?? null} />
+    )
+  } else {
+    workspace = (
+      <ComparisonWorkspace
+        baseline={comparisonBaseline}
+        variant={matchingResult}
+        onCaptureBaseline={captureComparisonBaseline}
+        onClearBaseline={() => setComparisonBaseline(null)}
+      />
     )
   }
 

@@ -432,6 +432,39 @@ const zeroLengthResult = {
   },
 } satisfies Level1Result
 
+const comparisonVariantResult = {
+  ...customResult,
+  configuration: {
+    ...initialConfiguration,
+    fibre: {
+      ...initialConfiguration.fibre,
+      attenuation_db_per_km: 0.3,
+    },
+    section: { length_km: 20 },
+  },
+  attenuation: {
+    ...customResult.attenuation,
+    attenuation_db_per_km: 0.3,
+    length_km: 20,
+    section_loss_db: 6,
+    output_power_dbm: -9,
+    distance_samples_km: [0, 5, 10, 15, 20],
+    power_samples_dbm: [-3, -4.5, -6, -7.5, -9],
+  },
+  group_delay: {
+    ...customResult.group_delay,
+    group_delay_ps: 97934418.35017744,
+    length_km: 20,
+  },
+  pulse_broadening: {
+    ...customResult.pulse_broadening,
+    accumulated_dispersion_ps_per_nm: 340,
+    dispersion_broadening_fwhm_ps: 68,
+    output_pulse_fwhm_ps: 72.44998274671983,
+    length_km: 20,
+  },
+} satisfies Level1Result
+
 const g652dPreset = {
   model_id: 'itu_t_g652d_preset',
   model_version: '1.0.0',
@@ -773,6 +806,9 @@ describe('editor UI state', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Power / distance' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Standards' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Set current as baseline' }),
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Optical source' }))
     fireEvent.change(screen.getByLabelText(/Displayed fibre length/), {
       target: { value: '11' },
@@ -805,6 +841,64 @@ describe('editor UI state', () => {
     expect(
       screen.getByRole('heading', { name: 'Standards', level: 2 }),
     ).toBeVisible()
+  })
+
+  test('captures a baseline and compares only a matching validated variant', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch({
+      preview: [
+        jsonResponse(customResult),
+        jsonResponse(comparisonVariantResult),
+      ],
+    })
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.click(screen.getByRole('tab', { name: 'Compare' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Set current as baseline' }),
+    )
+
+    expect(previewCalls(fetchMock)).toHaveLength(1)
+    expect(
+      screen.getByRole('button', { name: 'Replace baseline' }),
+    ).toBeEnabled()
+    expect(screen.getByText(/Inputs are identical/)).toBeVisible()
+
+    fireEvent.change(numberInput(/Attenuation/i), {
+      target: { value: '0.3' },
+    })
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '20' },
+    })
+
+    expect(screen.getByText('Current variant unavailable')).toBeVisible()
+    expect(screen.queryByText('Numeric results')).not.toBeInTheDocument()
+
+    await settleDebounce()
+
+    expect(previewCalls(fetchMock)).toHaveLength(2)
+    expect(screen.getByText('Numeric results')).toBeVisible()
+    expect(screen.getByRole('row', { name: /Attenuation/ })).toHaveTextContent(
+      '0.2',
+    )
+    expect(
+      screen.getByRole('row', { name: /Section length/ }),
+    ).toHaveTextContent('20')
+    expect(screen.getByRole('row', { name: /Section loss/ })).toHaveTextContent(
+      '+3.5',
+    )
+    expect(
+      document.querySelectorAll('.comparison-power-baseline-point'),
+    ).toHaveLength(4)
+    expect(
+      document.querySelectorAll('.comparison-power-variant-point'),
+    ).toHaveLength(5)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace baseline' }))
+    expect(screen.getByText(/Inputs are identical/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear baseline' }))
+    expect(screen.getByText('No baseline snapshot')).toBeVisible()
   })
 })
 
