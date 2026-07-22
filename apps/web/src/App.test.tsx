@@ -140,6 +140,10 @@ type Level1Request =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
 type Level1Result =
   operations['preview_level1_simulation']['responses'][200]['content']['application/json']
+type SweepRequest =
+  operations['sweep_level1_parameter']['requestBody']['content']['application/json']
+type SweepResult =
+  operations['sweep_level1_parameter']['responses'][200]['content']['application/json']
 type FetchOutcome = Response | Promise<Response> | Error
 
 const initialConfiguration = {
@@ -163,6 +167,43 @@ const initialConfiguration = {
   section: { length_km: 12.5 },
   sampling: { grid_half_width_um: 15, grid_points: 65 },
 } satisfies Level1Request
+
+const initialSweepRequest = {
+  base_configuration: initialConfiguration,
+  parameter: 'length_km',
+  start_value: 12.5,
+  stop_value: 20,
+  sample_count: 3,
+} satisfies SweepRequest
+
+const initialSweepResult = {
+  model_manifest: {
+    assumptions: ['independent deterministic evaluations'],
+    component_model_id: 'level1_single_section_simulation',
+    limitations: ['no interpolation'],
+    max_sample_count: 200,
+    model_id: 'level1_one_parameter_sweep',
+    model_version: '1.0.0',
+    spacing: 'linear',
+  },
+  parameter_unit: 'km',
+  points: [12.5, 16.25, 20].map((parameterValue, index) => ({
+    approximate_mode_count: null,
+    attenuation_standard_status: null,
+    dispersion_broadening_fwhm_ps: 3 + index,
+    dispersion_standard_status: null,
+    group_delay_ps: 60 + index,
+    mode_regime: 'single_mode' as const,
+    numerical_aperture_dimensionless: 0.12,
+    output_power_dbm: -5 - index,
+    output_pulse_fwhm_ps: 25 + index,
+    parameter_value: parameterValue,
+    section_loss_db: 2 + index,
+    v_number_dimensionless: 2,
+    warning_codes: [],
+  })),
+  request: initialSweepRequest,
+} satisfies SweepResult
 
 const parameterBoundaryFields = [
   'n_core',
@@ -600,9 +641,14 @@ function deferred<T>() {
 }
 
 function mockFetch(
-  options: { health?: FetchOutcome; preview?: FetchOutcome[] } = {},
+  options: {
+    health?: FetchOutcome
+    preview?: FetchOutcome[]
+    sweep?: FetchOutcome[]
+  } = {},
 ) {
   let previewIndex = 0
+  let sweepIndex = 0
   const fetchMock = vi
     .fn<typeof fetch>()
     .mockImplementation(async (input, init) => {
@@ -627,11 +673,28 @@ function mockFetch(
         return outcome
       }
 
+      if (url === '/api/v1/simulations/sweep' && method === 'POST') {
+        const outcome = options.sweep?.[sweepIndex] ?? jsonResponse({})
+        sweepIndex += 1
+        if (outcome instanceof Error) {
+          throw outcome
+        }
+        return outcome
+      }
+
       throw new Error(`Unexpected ${method} ${url}`)
     })
 
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
+}
+
+function sweepCalls(fetchMock: ReturnType<typeof mockFetch>) {
+  return fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      String(input) === '/api/v1/simulations/sweep' &&
+      (init?.method ?? 'GET') === 'POST',
+  )
 }
 
 function previewCalls(fetchMock: ReturnType<typeof mockFetch>) {
@@ -809,6 +872,7 @@ describe('editor UI state', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Set current as baseline' }),
     )
+    fireEvent.click(screen.getByRole('tab', { name: 'Sweep' }))
     fireEvent.click(screen.getByRole('button', { name: 'Optical source' }))
     fireEvent.change(screen.getByLabelText(/Displayed fibre length/), {
       target: { value: '11' },
@@ -817,7 +881,48 @@ describe('editor UI state', () => {
 
     await settleDebounce()
     expect(previewCalls(fetchMock)).toHaveLength(initialCallCount)
+    expect(sweepCalls(fetchMock)).toHaveLength(0)
     expect(screen.getByLabelText(/Displayed fibre length/)).toHaveValue('11')
+  })
+
+  test('runs a sweep from the current form and clears it when physics inputs change', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch({
+      sweep: [jsonResponse(initialSweepResult)],
+    })
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.click(screen.getByRole('tab', { name: 'Sweep' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Stop/ }), {
+      target: { value: '20' },
+    })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Sample count' }), {
+      target: { value: '3' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Run sweep' }))
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(sweepCalls(fetchMock)).toHaveLength(1)
+    expect(JSON.parse(String(sweepCalls(fetchMock)[0][1]?.body))).toEqual(
+      initialSweepRequest,
+    )
+    expect(
+      screen.getByRole('img', { name: 'One-parameter sweep result' }),
+    ).toBeVisible()
+
+    fireEvent.change(numberInput(/length.*km/i), {
+      target: { value: '13' },
+    })
+
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /Start/ })).toHaveValue(13)
+    expect(screen.getByRole('spinbutton', { name: /Stop/ })).toHaveValue(null)
+    expect(sweepCalls(fetchMock)).toHaveLength(1)
   })
 
   test('keeps the selected workspace while a preview completes', async () => {
