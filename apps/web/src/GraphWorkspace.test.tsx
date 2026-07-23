@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { GraphWorkspace } from './GraphWorkspace'
-import type { GraphWorkspaceId } from './graphWorkspace'
+import type { GraphWorkspaceId } from './graphWorkspaceCatalog'
 
 vi.mock('./RadialIntensityPlot', () => ({
   RadialIntensityPlot: () => <p>Radial plot mounted</p>,

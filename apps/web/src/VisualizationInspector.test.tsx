@@ -40,6 +40,11 @@ describe('VisualizationInspector', () => {
     expect(screen.getByLabelText('Educational ray')).toBeChecked()
     expect(screen.getByLabelText('Approximate LP01 field')).toBeChecked()
     expect(screen.getByLabelText('Scaled pulse animation')).toBeChecked()
+    expect(screen.getByLabelText('Cladding shell')).toBeChecked()
+    expect(screen.getByLabelText('Scale markers')).toBeChecked()
+    expect(screen.getByLabelText('Spatial power indicators')).toBeChecked()
+    expect(screen.getByLabelText('Spatial pulse markers')).toBeChecked()
+    expect(screen.getByLabelText('Path style')).toHaveValue('straight')
     expect(screen.getByText('≥ 0.01 normalized intensity')).toBeVisible()
     expect(
       screen.queryByRole('spinbutton', { name: /threshold/i }),
@@ -63,6 +68,42 @@ describe('VisualizationInspector', () => {
     fireEvent.click(screen.getByLabelText('Educational ray'))
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ rayViewEnabled: false }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Path style'), {
+      target: { value: 'gentle_arc' },
+    })
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ fibreRoute: 'gentle_arc' }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Side' }))
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cameraPreset: 'side' }),
+    )
+  })
+
+  test('shows a custom camera without an active preset and restores a preset on selection', () => {
+    const onChange = vi.fn()
+    render(
+      <VisualizationInspector
+        settings={{ ...defaultVisualizationSettings, cameraPreset: null }}
+        rayGuidance={null}
+        onChange={onChange}
+      />,
+    )
+
+    expect(screen.getByText('Straight · Custom')).toBeVisible()
+    for (const option of ['Perspective', 'Side', 'End-on', 'Top']) {
+      expect(screen.getByRole('button', { name: option })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      )
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Top' }))
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ cameraPreset: 'top' }),
     )
   })
 })

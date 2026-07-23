@@ -25,7 +25,7 @@ import {
 } from './EditorShell'
 import { getFieldIssues } from './fieldIssues'
 import { GraphWorkspace } from './GraphWorkspace'
-import type { GraphWorkspaceId } from './graphWorkspace'
+import type { GraphWorkspaceId } from './graphWorkspaceCatalog'
 import { Level1Preview } from './Level1Preview'
 import { isMacrobendLossResult, macrobendInputsMatch } from './macrobend'
 import { SimulationInspector } from './SimulationInspector'
@@ -915,6 +915,7 @@ function App() {
           rayGuidance={visualizationData?.rayGuidance ?? null}
           modeProfile={visualizationData?.modeProfile ?? null}
           pulseAnimation={visualizationData?.pulseAnimation ?? null}
+          attenuation={visualizationData?.attenuation ?? null}
           visualizationSettings={visualizationSettings}
           onVisualizationSettingsChange={setVisualizationSettings}
           showConfigurationControls={false}

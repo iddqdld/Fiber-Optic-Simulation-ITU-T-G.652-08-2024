@@ -1,4 +1,5 @@
 import type { RayGuidance } from './FibreGeometryView'
+import { CAMERA_PRESET_OPTIONS, FIBRE_ROUTE_OPTIONS } from './fibreShowcase'
 import {
   modeDisplayThreshold,
   type VisualizationSettings,
@@ -31,20 +32,152 @@ export function VisualizationInspector({
     value: VisualizationSettings[Key],
   ) => onChange({ ...settings, [key]: value })
   const validGuidance = isValidGuidance(rayGuidance)
+  const routeLabel =
+    FIBRE_ROUTE_OPTIONS.find((option) => option.id === settings.fibreRoute)
+      ?.label ?? settings.fibreRoute
+  const cameraLabel =
+    settings.cameraPreset === null
+      ? 'Custom'
+      : (CAMERA_PRESET_OPTIONS.find(
+          (option) => option.id === settings.cameraPreset,
+        )?.label ?? settings.cameraPreset)
 
   return (
     <div className="visualization-inspector">
-      <label className="inspector-toggle" htmlFor="inspector-ray-view">
-        <input
-          id="inspector-ray-view"
-          type="checkbox"
-          checked={settings.rayViewEnabled}
+      <fieldset className="inspector-fieldset">
+        <legend>Fibre route</legend>
+        <label
+          className="inspector-select-label"
+          htmlFor="inspector-fibre-route"
+        >
+          Path style
+        </label>
+        <select
+          id="inspector-fibre-route"
+          value={settings.fibreRoute}
           onChange={(event) =>
-            update('rayViewEnabled', event.currentTarget.checked)
+            update(
+              'fibreRoute',
+              event.currentTarget.value as VisualizationSettings['fibreRoute'],
+            )
           }
-        />
-        Educational ray
-      </label>
+        >
+          {FIBRE_ROUTE_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </fieldset>
+
+      <fieldset className="inspector-fieldset">
+        <legend>Camera</legend>
+        <div
+          className="inspector-button-row"
+          role="group"
+          aria-label="Camera presets"
+        >
+          {CAMERA_PRESET_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={
+                settings.cameraPreset === option.id
+                  ? 'inspector-preset-button is-active'
+                  : 'inspector-preset-button'
+              }
+              aria-pressed={settings.cameraPreset === option.id}
+              onClick={() => update('cameraPreset', option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="inspector-fieldset">
+        <legend>Layers</legend>
+        <label className="inspector-toggle" htmlFor="inspector-cladding-view">
+          <input
+            id="inspector-cladding-view"
+            type="checkbox"
+            checked={settings.claddingVisible}
+            onChange={(event) =>
+              update('claddingVisible', event.currentTarget.checked)
+            }
+          />
+          Cladding shell
+        </label>
+        <label className="inspector-toggle" htmlFor="inspector-scale-markers">
+          <input
+            id="inspector-scale-markers"
+            type="checkbox"
+            checked={settings.scaleMarkersEnabled}
+            onChange={(event) =>
+              update('scaleMarkersEnabled', event.currentTarget.checked)
+            }
+          />
+          Scale markers
+        </label>
+        <label
+          className="inspector-toggle"
+          htmlFor="inspector-power-indicators"
+        >
+          <input
+            id="inspector-power-indicators"
+            type="checkbox"
+            checked={settings.powerIndicatorsEnabled}
+            onChange={(event) =>
+              update('powerIndicatorsEnabled', event.currentTarget.checked)
+            }
+          />
+          Spatial power indicators
+        </label>
+        <label className="inspector-toggle" htmlFor="inspector-pulse-markers">
+          <input
+            id="inspector-pulse-markers"
+            type="checkbox"
+            checked={settings.pulseMarkersEnabled}
+            onChange={(event) =>
+              update('pulseMarkersEnabled', event.currentTarget.checked)
+            }
+          />
+          Spatial pulse markers
+        </label>
+        <label className="inspector-toggle" htmlFor="inspector-ray-view">
+          <input
+            id="inspector-ray-view"
+            type="checkbox"
+            checked={settings.rayViewEnabled}
+            onChange={(event) =>
+              update('rayViewEnabled', event.currentTarget.checked)
+            }
+          />
+          Educational ray
+        </label>
+        <label className="inspector-toggle" htmlFor="inspector-mode-view">
+          <input
+            id="inspector-mode-view"
+            type="checkbox"
+            checked={settings.modeViewEnabled}
+            onChange={(event) =>
+              update('modeViewEnabled', event.currentTarget.checked)
+            }
+          />
+          Approximate LP01 field
+        </label>
+        <label className="inspector-toggle" htmlFor="inspector-pulse-view">
+          <input
+            id="inspector-pulse-view"
+            type="checkbox"
+            checked={settings.pulseAnimationEnabled}
+            onChange={(event) =>
+              update('pulseAnimationEnabled', event.currentTarget.checked)
+            }
+          />
+          Scaled pulse animation
+        </label>
+      </fieldset>
 
       <div className="inspector-range">
         <label htmlFor="inspector-incidence-angle">
@@ -81,30 +214,6 @@ export function VisualizationInspector({
         </div>
       </div>
 
-      <label className="inspector-toggle" htmlFor="inspector-mode-view">
-        <input
-          id="inspector-mode-view"
-          type="checkbox"
-          checked={settings.modeViewEnabled}
-          onChange={(event) =>
-            update('modeViewEnabled', event.currentTarget.checked)
-          }
-        />
-        Approximate LP01 field
-      </label>
-
-      <label className="inspector-toggle" htmlFor="inspector-pulse-view">
-        <input
-          id="inspector-pulse-view"
-          type="checkbox"
-          checked={settings.pulseAnimationEnabled}
-          onChange={(event) =>
-            update('pulseAnimationEnabled', event.currentTarget.checked)
-          }
-        />
-        Scaled pulse animation
-      </label>
-
       <div className="inspector-range">
         <label htmlFor="inspector-visual-length">
           Displayed fibre length
@@ -131,10 +240,17 @@ export function VisualizationInspector({
           <dt>LP01 display threshold</dt>
           <dd>≥ {modeDisplayThreshold} normalized intensity</dd>
         </div>
+        <div>
+          <dt>Route / camera</dt>
+          <dd>
+            {routeLabel} · {cameraLabel}
+          </dd>
+        </div>
       </dl>
       <p className="inspector-help">
         Visualization controls change display only and do not recalculate the
-        simulation.
+        simulation. Curved routes are schematic; power and pulse markers map
+        backend samples onto the displayed path.
       </p>
     </div>
   )

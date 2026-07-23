@@ -2,12 +2,27 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
+import { AdditiveBlending } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
+import {
+  buildFibreCurve,
+  CAMERA_PRESETS,
+  CAMERA_PRESET_OPTIONS,
+  FIBRE_ROUTE_OPTIONS,
+  getCurveMidpoint,
+  getScaleMarkers,
+  getSpatialPowerMarkers,
+  getSpatialPulseMarkers,
+  type CameraPresetId,
+  type FibreRouteStyle,
+} from './fibreShowcase'
+import type { PowerDistanceData } from './powerDistancePlot'
 import { PulseAnimationLayer } from './PulseAnimationLayer'
 import {
   getPulseAnimationUnavailableReason,
@@ -39,8 +54,13 @@ const MAX_RAY_SLOPE = 0.85
 const DEGREES_TO_RADIANS = Math.PI / 180
 const MIN_MODE_GRID_POINTS = 3
 const MAX_MODE_GRID_POINTS = 65
-const MODE_FIELD_POINT_SIZE = 0.075
+const MODE_FIELD_POINT_SIZE = 0.12
+const MODE_FIELD_GLOW_POINT_SIZE = 0.22
 const MODE_FIELD_DISPLAY_THRESHOLD = 0.01
+const MODE_FIELD_RADIUS_RING_SEGMENTS = 64
+const MODE_FIELD_RADIUS_RING_THICKNESS = 0.018
+const LEAKAGE_MARKER_COUNT = 7
+const LEAKAGE_MARKER_BASE_SIZE = 0.055
 const MODE_PROFILE_MODEL_ID = 'gaussian_lp01_mode_profile'
 const MODE_PROFILE_MODEL_VERSION = '1.0.0'
 
@@ -91,6 +111,7 @@ export type FibreGeometryViewProps = {
   rayGuidance: RayGuidance | null
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
+  attenuation?: PowerDistanceData | null
   visualizationSettings?: VisualizationSettings
   onVisualizationSettingsChange?: (settings: VisualizationSettings) => void
   showConfigurationControls?: boolean
@@ -98,6 +119,7 @@ export type FibreGeometryViewProps = {
 
 export type FibreGeometrySceneProps = {
   coreRadiusUm: number | null
+  sectionLengthKm?: number | null
   visualLengthModelUnits: number
   rayGuidance?: RayGuidance | null
   incidenceAngleDeg?: number
@@ -109,6 +131,12 @@ export type FibreGeometrySceneProps = {
   pulseAnimationPlaying?: boolean
   onPulseAnimationComplete?: () => void
   pulseAnimationResetSignal?: number
+  fibreRoute?: FibreRouteStyle
+  claddingVisible?: boolean
+  scaleMarkersEnabled?: boolean
+  powerIndicatorsEnabled?: boolean
+  pulseMarkersEnabled?: boolean
+  attenuation?: PowerDistanceData | null
 }
 
 type RayPoint = [number, number, number]
@@ -117,6 +145,8 @@ type RaySegmentProps = {
   name: string
   start: RayPoint
   end: RayPoint
+  color?: string
+  thickness?: number
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -217,11 +247,25 @@ type ModeFieldGeometry = {
 }
 
 function getModeFieldColor(intensity: number): [number, number, number] {
-  return [
-    0.18 + intensity * 0.82,
-    0.36 + intensity * 0.54,
-    0.72 + intensity * 0.28,
-  ]
+  const t = clamp(intensity, 0, 1)
+
+  if (t < 0.33) {
+    const local = t / 0.33
+    return [0.08 + local * 0.12, 0.12 + local * 0.55, 0.45 + local * 0.45]
+  }
+
+  if (t < 0.66) {
+    const local = (t - 0.33) / 0.33
+    return [0.2 + local * 0.75, 0.67 + local * 0.25, 0.9 - local * 0.55]
+  }
+
+  const local = (t - 0.66) / 0.34
+  return [0.95 + local * 0.05, 0.92 + local * 0.08, 0.35 + local * 0.65]
+}
+
+function getLeakageMarkerColor(progress: number): [number, number, number] {
+  const fade = 1 - progress
+  return [0.98, 0.35 + fade * 0.25, 0.18 + fade * 0.12]
 }
 
 function getModeFieldGeometry(
@@ -328,18 +372,24 @@ function getSegmentGeometry(start: RayPoint, end: RayPoint) {
   }
 }
 
-function RaySegment({ name, start, end }: RaySegmentProps) {
+function RaySegment({
+  name,
+  start,
+  end,
+  color = '#ffe066',
+  thickness = RAY_THICKNESS,
+}: RaySegmentProps) {
   const { length, position, rotation } = getSegmentGeometry(start, end)
 
   return (
     <mesh name={name} position={position} rotation={rotation}>
       <boxGeometry
         name={`${name}-geometry`}
-        args={[length, RAY_THICKNESS, RAY_THICKNESS]}
+        args={[length, thickness, thickness]}
       />
       <meshBasicMaterial
         name="educational-ray-material"
-        color="#ffe066"
+        color={color}
         toneMapped={false}
       />
     </mesh>
@@ -430,6 +480,44 @@ function TransmittedRay({
   visualLength: number
 }) {
   const boundaryPoint: RayPoint = [0, coreRadius * 0.98, 0]
+  const exitPoint: RayPoint = [
+    visualLength / 2 - 0.25,
+    CLADDING_RADIUS * 0.72,
+    0,
+  ]
+  const leakageMarkers: ReactNode[] = []
+
+  for (let index = 0; index < LEAKAGE_MARKER_COUNT; index += 1) {
+    const progress = index / (LEAKAGE_MARKER_COUNT - 1)
+    const markerX =
+      boundaryPoint[0] + (exitPoint[0] - boundaryPoint[0]) * progress
+    const markerY =
+      boundaryPoint[1] + (exitPoint[1] - boundaryPoint[1]) * progress
+    const flare = progress * 0.14
+    const [red, green, blue] = getLeakageMarkerColor(progress)
+    const size = LEAKAGE_MARKER_BASE_SIZE * (1.35 - progress * 0.55)
+
+    leakageMarkers.push(
+      <mesh
+        key={`leak-${index}`}
+        name={`educational-ray-leakage-marker-${index}`}
+        position={[markerX, markerY + flare * (index % 2 === 0 ? 1 : -0.35), 0]}
+      >
+        <sphereGeometry
+          name={`educational-ray-leakage-marker-${index}-geometry`}
+          args={[size, 16, 16]}
+        />
+        <meshBasicMaterial
+          name={`educational-ray-leakage-marker-${index}-material`}
+          color={`rgb(${Math.round(red * 255)}, ${Math.round(green * 255)}, ${Math.round(blue * 255)})`}
+          transparent
+          opacity={0.95 - progress * 0.45}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>,
+    )
+  }
 
   return (
     <group name="educational-ray-transmission">
@@ -437,12 +525,44 @@ function TransmittedRay({
         name="educational-ray-transmission-incident-segment"
         start={[-visualLength / 2 + 0.25, -coreRadius * 0.55, 0]}
         end={boundaryPoint}
+        color="#ffd166"
       />
+      <mesh name="educational-ray-leakage-point" position={boundaryPoint}>
+        <sphereGeometry
+          name="educational-ray-leakage-point-geometry"
+          args={[0.09, 20, 20]}
+        />
+        <meshBasicMaterial
+          name="educational-ray-leakage-point-material"
+          color="#ff6b4a"
+          transparent
+          opacity={0.95}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh name="educational-ray-leakage-glow" position={boundaryPoint}>
+        <sphereGeometry
+          name="educational-ray-leakage-glow-geometry"
+          args={[0.16, 20, 20]}
+        />
+        <meshBasicMaterial
+          name="educational-ray-leakage-glow-material"
+          color="#ff8f70"
+          transparent
+          opacity={0.35}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
       <RaySegment
         name="educational-ray-transmission-exiting-segment"
         start={boundaryPoint}
-        end={[visualLength / 2 - 0.25, CLADDING_RADIUS * 0.72, 0]}
+        end={exitPoint}
+        color="#ff7a59"
+        thickness={RAY_THICKNESS * 0.85}
       />
+      <group name="educational-ray-leakage-markers">{leakageMarkers}</group>
     </group>
   )
 }
@@ -485,11 +605,86 @@ function EducationalRayLayer({
 
 function ApproximateLP01FieldLayer({
   geometry,
+  modeFieldRadiusUm,
+  coreRadiusUm,
 }: {
   geometry: ModeFieldGeometry
+  modeFieldRadiusUm: number
+  coreRadiusUm: number
 }) {
+  const ringRadius =
+    (modeFieldRadiusUm / coreRadiusUm) * getNormalisedCoreRadius(coreRadiusUm)
+
   return (
     <group name="approximate-lp01-field-layer">
+      <mesh name="approximate-lp01-field-backdrop" rotation={[0, HALF_TURN, 0]}>
+        <circleGeometry
+          name="approximate-lp01-field-backdrop-geometry"
+          args={[CLADDING_RADIUS * 0.98, 64]}
+        />
+        <meshBasicMaterial
+          name="approximate-lp01-field-backdrop-material"
+          color="#0b1220"
+          transparent
+          opacity={0.55}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <mesh
+        name="approximate-lp01-field-radius-ring"
+        rotation={[0, HALF_TURN, 0]}
+      >
+        <torusGeometry
+          name="approximate-lp01-field-radius-ring-geometry"
+          args={[
+            ringRadius,
+            MODE_FIELD_RADIUS_RING_THICKNESS,
+            12,
+            MODE_FIELD_RADIUS_RING_SEGMENTS,
+          ]}
+        />
+        <meshBasicMaterial
+          name="approximate-lp01-field-radius-ring-material"
+          color="#f8fafc"
+          transparent
+          opacity={0.85}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+      <points name="approximate-lp01-field-glow">
+        <bufferGeometry name="approximate-lp01-field-glow-geometry">
+          <bufferAttribute
+            attach="attributes-position"
+            name="approximate-lp01-field-glow-position-attribute"
+            args={[geometry.positions, 3]}
+            array={geometry.positions}
+            count={geometry.sampleCount}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            name="approximate-lp01-field-glow-color-attribute"
+            args={[geometry.colors, 3]}
+            array={geometry.colors}
+            count={geometry.sampleCount}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          name="approximate-lp01-field-glow-material"
+          size={MODE_FIELD_GLOW_POINT_SIZE}
+          vertexColors
+          transparent
+          opacity={0.28}
+          depthWrite={false}
+          depthTest={false}
+          sizeAttenuation
+          toneMapped={false}
+          blending={AdditiveBlending}
+        />
+      </points>
       <points name="approximate-lp01-field">
         <bufferGeometry name="approximate-lp01-field-geometry">
           <bufferAttribute
@@ -522,11 +717,12 @@ function ApproximateLP01FieldLayer({
           size={MODE_FIELD_POINT_SIZE}
           vertexColors
           transparent
-          opacity={0.92}
+          opacity={0.96}
           depthWrite={false}
           depthTest={false}
           sizeAttenuation
           toneMapped={false}
+          blending={AdditiveBlending}
         />
       </points>
     </group>
@@ -609,6 +805,10 @@ function ModeProfilePanel({
                 <dd>≥ {MODE_FIELD_DISPLAY_THRESHOLD} normalized intensity</dd>
               </div>
               <div>
+                <dt>1/e field-radius ring</dt>
+                <dd>White torus at supplied mode-field radius</dd>
+              </div>
+              <div>
                 <dt>Approximate model</dt>
                 <dd className="mode-profile-model">
                   {modeProfile.modelId} ({modeProfile.modelVersion})
@@ -631,13 +831,14 @@ function ModeProfilePanel({
 
           <p id="mode-profile-explanation" className="mode-profile-explanation">
             This is a scalar, circularly symmetric Gaussian LP01 approximation
-            reconstructed from backend normalized-intensity samples. It shows a
-            transverse slice with normalized/unit-peak intensity from 0–1;
-            display placement and scale are schematic. Samples below 0.01, or 1%
-            of unit peak, are omitted from the display for clarity without
-            changing the backend grid or reported values. This field layer is
-            separate from the educational ray and is not a physical ray path. It
-            is not an exact step-index eigenmode or a full-wave solution.
+            reconstructed from backend normalized-intensity samples (related to
+            |E|²). Intensity uses a heat colormap with additive glow; the white
+            ring marks the supplied 1/e field radius (1/e² intensity radius).
+            Samples below 0.01, or 1% of unit peak, are omitted from the display
+            for clarity without changing the backend grid or reported values.
+            This field layer is separate from the educational ray and is not a
+            physical ray path. It is not an exact step-index eigenmode or a
+            full-wave electromagnetic solution.
           </p>
         </>
       )}
@@ -860,7 +1061,7 @@ function getRayStatusText(
     return `Critical boundary: ${incidence} equals the ${critical} critical angle.`
   }
 
-  return `Transmission into cladding: ${incidence} is below the ${critical} critical angle.`
+  return `Leakage into cladding: ${incidence} is below the ${critical} critical angle. Markers show the schematic leakage path leaving the core.`
 }
 
 type RayGuidancePanelProps = {
@@ -974,9 +1175,11 @@ function RayGuidancePanel({
           <p id="ray-explanation" className="ray-explanation">
             The incidence angle is measured inside core from the boundary
             normal. Total internal reflection occurs only above the critical
-            angle. Status comes from the backend critical angle. The ray path is
-            schematic, not longitudinally or radially to scale, and is not a
-            full-wave field solution.
+            angle. Below it, the educational ray shows leakage into the cladding
+            with an orange exit path and leakage markers. Status comes from the
+            backend critical angle. The ray path is schematic, not
+            longitudinally or radially to scale, and is not a full-wave field
+            solution.
           </p>
         </>
       )}
@@ -984,22 +1187,43 @@ function RayGuidancePanel({
   )
 }
 
-function FibreOrbitControls() {
+function FibreOrbitControls({ onInteraction }: { onInteraction: () => void }) {
   const { camera, gl, invalidate } = useThree()
   const { domElement } = gl
+  const onInteractionRef = useRef(onInteraction)
+
+  useEffect(() => {
+    onInteractionRef.current = onInteraction
+  }, [onInteraction])
 
   useEffect(() => {
     const controls = new OrbitControls(camera, domElement)
-    const requestRender = () => invalidate()
+    let cameraChanged = false
+    const beginInteraction = () => {
+      cameraChanged = false
+    }
+    const requestRender = () => {
+      cameraChanged = true
+      invalidate()
+    }
+    const finishInteraction = () => {
+      if (cameraChanged) {
+        onInteractionRef.current()
+      }
+    }
     controls.enableDamping = false
     controls.enablePan = false
     controls.minDistance = 8
     controls.maxDistance = 28
+    controls.addEventListener('start', beginInteraction)
     controls.addEventListener('change', requestRender)
+    controls.addEventListener('end', finishInteraction)
     controls.update()
 
     return () => {
+      controls.removeEventListener('start', beginInteraction)
       controls.removeEventListener('change', requestRender)
+      controls.removeEventListener('end', finishInteraction)
       controls.dispose()
     }
   }, [camera, domElement, invalidate])
@@ -1007,8 +1231,248 @@ function FibreOrbitControls() {
   return null
 }
 
+export function CameraPresetController({
+  preset,
+}: {
+  preset: CameraPresetId | null
+}) {
+  const { camera, invalidate } = useThree()
+
+  useEffect(() => {
+    if (preset === null) {
+      return
+    }
+
+    const next = CAMERA_PRESETS[preset]
+    camera.position.set(...next.position)
+    camera.lookAt(...next.target)
+    camera.updateProjectionMatrix()
+    invalidate()
+  }, [camera, invalidate, preset])
+
+  return null
+}
+
+function StraightFibreBody({
+  coreRadius,
+  visualLength,
+  claddingVisible,
+  coreMaterialProps,
+}: {
+  coreRadius: number
+  visualLength: number
+  claddingVisible: boolean
+  coreMaterialProps: {
+    transparent?: boolean
+    opacity?: number
+    depthWrite?: boolean
+  }
+}) {
+  return (
+    <group rotation={[0, 0, HALF_TURN]}>
+      <mesh name="solid-fibre-core">
+        <cylinderGeometry
+          name="solid-core-geometry"
+          args={[coreRadius, coreRadius, visualLength, CYLINDER_SEGMENTS]}
+        />
+        <meshStandardMaterial
+          {...coreMaterialProps}
+          name="solid-core-material"
+          color="#f2a65a"
+          emissive="#3a1d0a"
+          emissiveIntensity={0.12}
+          roughness={0.28}
+          metalness={0.08}
+        />
+      </mesh>
+      {claddingVisible && (
+        <mesh name="illustrative-cladding-shell">
+          <cylinderGeometry
+            name="illustrative-cladding-geometry"
+            args={[
+              CLADDING_RADIUS,
+              CLADDING_RADIUS,
+              visualLength,
+              CYLINDER_SEGMENTS,
+            ]}
+          />
+          <meshPhysicalMaterial
+            name="illustrative-cladding-material"
+            color="#6eb6ff"
+            transparent
+            opacity={0.24}
+            depthWrite={false}
+            roughness={0.18}
+            metalness={0.02}
+            transmission={0.35}
+            thickness={0.4}
+          />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
+function CurvedFibreBody({
+  coreRadius,
+  visualLength,
+  fibreRoute,
+  claddingVisible,
+  coreMaterialProps,
+}: {
+  coreRadius: number
+  visualLength: number
+  fibreRoute: FibreRouteStyle
+  claddingVisible: boolean
+  coreMaterialProps: {
+    transparent?: boolean
+    opacity?: number
+    depthWrite?: boolean
+  }
+}) {
+  const curve = buildFibreCurve(fibreRoute, visualLength)
+
+  return (
+    <group name="curved-fibre-body">
+      <mesh name="solid-fibre-core">
+        <tubeGeometry
+          name="solid-core-geometry"
+          args={[curve, 96, coreRadius, 24, false]}
+        />
+        <meshStandardMaterial
+          {...coreMaterialProps}
+          name="solid-core-material"
+          color="#f2a65a"
+          emissive="#3a1d0a"
+          emissiveIntensity={0.12}
+          roughness={0.28}
+          metalness={0.08}
+        />
+      </mesh>
+      {claddingVisible && (
+        <mesh name="illustrative-cladding-shell">
+          <tubeGeometry
+            name="illustrative-cladding-geometry"
+            args={[curve, 96, CLADDING_RADIUS, 24, false]}
+          />
+          <meshPhysicalMaterial
+            name="illustrative-cladding-material"
+            color="#6eb6ff"
+            transparent
+            opacity={0.24}
+            depthWrite={false}
+            roughness={0.18}
+            metalness={0.02}
+            transmission={0.35}
+            thickness={0.4}
+          />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
+function ScaleMarkerLayer({
+  markers,
+}: {
+  markers: ReturnType<typeof getScaleMarkers>
+}) {
+  return (
+    <group name="scale-marker-layer">
+      {markers.map((marker, index) => (
+        <group
+          key={`scale-${marker.t}`}
+          name={`scale-marker-${index}`}
+          position={marker.position}
+        >
+          <mesh name={`scale-marker-${index}-tick`}>
+            <boxGeometry args={[0.04, CLADDING_RADIUS * 1.55, 0.04]} />
+            <meshBasicMaterial
+              color="#e2e8f0"
+              transparent
+              opacity={0.85}
+              depthWrite={false}
+              toneMapped={false}
+            />
+          </mesh>
+          <mesh
+            name={`scale-marker-${index}-bead`}
+            position={[0, CLADDING_RADIUS * 0.95, 0]}
+          >
+            <sphereGeometry args={[0.045, 12, 12]} />
+            <meshBasicMaterial color="#f8fafc" toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+function SpatialPowerLayer({
+  markers,
+}: {
+  markers: ReturnType<typeof getSpatialPowerMarkers>
+}) {
+  return (
+    <group name="spatial-power-layer">
+      {markers.map((marker, index) => (
+        <mesh
+          key={`power-${marker.distanceKm}-${marker.powerDbm}`}
+          name={`spatial-power-marker-${index}`}
+          position={marker.position}
+        >
+          <sphereGeometry
+            name={`spatial-power-marker-${index}-geometry`}
+            args={[marker.radius, 18, 18]}
+          />
+          <meshBasicMaterial
+            name={`spatial-power-marker-${index}-material`}
+            color={marker.color}
+            transparent
+            opacity={0.78}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function SpatialPulseMarkerLayer({
+  markers,
+}: {
+  markers: ReturnType<typeof getSpatialPulseMarkers>
+}) {
+  return (
+    <group name="spatial-pulse-marker-layer">
+      {markers.map((marker) => (
+        <mesh
+          key={marker.id}
+          name={`spatial-pulse-marker-${marker.id}`}
+          position={marker.position}
+        >
+          <sphereGeometry
+            name={`spatial-pulse-marker-${marker.id}-geometry`}
+            args={[marker.radius, 20, 20]}
+          />
+          <meshBasicMaterial
+            name={`spatial-pulse-marker-${marker.id}-material`}
+            color={marker.color}
+            transparent
+            opacity={0.72}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 export function FibreGeometryScene({
   coreRadiusUm,
+  sectionLengthKm = null,
   visualLengthModelUnits,
   rayGuidance = null,
   incidenceAngleDeg = DEFAULT_INCIDENCE_ANGLE_DEG,
@@ -1020,79 +1484,268 @@ export function FibreGeometryScene({
   pulseAnimationPlaying = false,
   onPulseAnimationComplete = () => {},
   pulseAnimationResetSignal = 0,
+  fibreRoute = 'straight',
+  claddingVisible = true,
+  scaleMarkersEnabled = false,
+  powerIndicatorsEnabled = false,
+  pulseMarkersEnabled = false,
+  attenuation = null,
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
   const modeFieldGeometry = modeViewEnabled
     ? getModeFieldGeometry(modeProfile, coreRadiusUm)
     : null
-  const pulseAnimationData =
-    pulseAnimationEnabled && isValidPulseAnimationData(pulseAnimation)
-      ? pulseAnimation
-      : null
-  const coreMaterialProps =
-    rayViewEnabled || modeFieldGeometry !== null || pulseAnimationData !== null
-      ? { transparent: true, opacity: 0.42, depthWrite: false }
-      : {}
+  const validPulseData = isValidPulseAnimationData(pulseAnimation)
+    ? pulseAnimation
+    : null
+  const pulseAnimationData = pulseAnimationEnabled ? validPulseData : null
+  const overlayOrigin =
+    fibreRoute === 'straight'
+      ? ([0, 0, 0] as [number, number, number])
+      : getCurveMidpoint(fibreRoute, visualLength)
+  const scaleMarkers = scaleMarkersEnabled
+    ? getScaleMarkers(fibreRoute, visualLength, sectionLengthKm)
+    : []
+  const powerMarkers = powerIndicatorsEnabled
+    ? getSpatialPowerMarkers(fibreRoute, visualLength, attenuation)
+    : []
+  const pulseMarkers = pulseMarkersEnabled
+    ? getSpatialPulseMarkers(fibreRoute, visualLength, validPulseData)
+    : []
+  const hasOverlay =
+    rayViewEnabled ||
+    modeFieldGeometry !== null ||
+    pulseAnimationData !== null ||
+    powerMarkers.length > 0 ||
+    pulseMarkers.length > 0
+  const coreMaterialProps = hasOverlay
+    ? { transparent: true, opacity: 0.42, depthWrite: false }
+    : {}
 
   return (
     <group name="fibre-geometry-scene">
-      <group rotation={[0, 0, HALF_TURN]}>
-        <mesh name="solid-fibre-core">
-          <cylinderGeometry
-            name="solid-core-geometry"
-            args={[coreRadius, coreRadius, visualLength, CYLINDER_SEGMENTS]}
-          />
-          <meshStandardMaterial
-            {...coreMaterialProps}
-            name="solid-core-material"
-            color="#f4a261"
-            roughness={0.42}
-            metalness={0.04}
-          />
-        </mesh>
-        <mesh name="illustrative-cladding-shell">
-          <cylinderGeometry
-            name="illustrative-cladding-geometry"
-            args={[
-              CLADDING_RADIUS,
-              CLADDING_RADIUS,
-              visualLength,
-              CYLINDER_SEGMENTS,
-            ]}
-          />
-          <meshStandardMaterial
-            name="illustrative-cladding-material"
-            color="#4f8edb"
-            transparent
-            opacity={0.24}
-            depthWrite={false}
-            roughness={0.28}
-            metalness={0}
-          />
-        </mesh>
-      </group>
-      {rayViewEnabled && (
-        <EducationalRayLayer
+      {fibreRoute === 'straight' ? (
+        <StraightFibreBody
           coreRadius={coreRadius}
           visualLength={visualLength}
-          incidenceAngleDeg={incidenceAngleDeg}
-          guidance={rayGuidance}
+          claddingVisible={claddingVisible}
+          coreMaterialProps={coreMaterialProps}
         />
-      )}
-      {modeFieldGeometry !== null && (
-        <ApproximateLP01FieldLayer geometry={modeFieldGeometry} />
-      )}
-      {pulseAnimationData !== null && (
-        <PulseAnimationLayer
-          key={pulseAnimationResetSignal}
-          data={pulseAnimationData}
+      ) : (
+        <CurvedFibreBody
+          coreRadius={coreRadius}
           visualLength={visualLength}
-          isPlaying={pulseAnimationPlaying}
-          onComplete={onPulseAnimationComplete}
+          fibreRoute={fibreRoute}
+          claddingVisible={claddingVisible}
+          coreMaterialProps={coreMaterialProps}
         />
       )}
+      {scaleMarkers.length > 0 && <ScaleMarkerLayer markers={scaleMarkers} />}
+      {powerMarkers.length > 0 && <SpatialPowerLayer markers={powerMarkers} />}
+      {pulseMarkers.length > 0 && (
+        <SpatialPulseMarkerLayer markers={pulseMarkers} />
+      )}
+      <group name="schematic-overlay-frame" position={overlayOrigin}>
+        {rayViewEnabled && (
+          <EducationalRayLayer
+            coreRadius={coreRadius}
+            visualLength={visualLength}
+            incidenceAngleDeg={incidenceAngleDeg}
+            guidance={rayGuidance}
+          />
+        )}
+        {modeFieldGeometry !== null &&
+          isValidModeProfile(modeProfile) &&
+          hasValidPhysicalCoreRadius(coreRadiusUm) && (
+            <ApproximateLP01FieldLayer
+              geometry={modeFieldGeometry}
+              modeFieldRadiusUm={modeProfile.modeFieldRadiusUm}
+              coreRadiusUm={coreRadiusUm}
+            />
+          )}
+        {pulseAnimationData !== null && (
+          <PulseAnimationLayer
+            key={pulseAnimationResetSignal}
+            data={pulseAnimationData}
+            visualLength={visualLength}
+            isPlaying={pulseAnimationPlaying}
+            onComplete={onPulseAnimationComplete}
+          />
+        )}
+      </group>
     </group>
+  )
+}
+
+type FibreGeometryViewportProps = {
+  webglAvailable: boolean
+  cameraPreset: CameraPresetId | null
+  onCameraInteraction: () => void
+  sceneProps: FibreGeometrySceneProps
+}
+
+function FibreGeometryViewport({
+  webglAvailable,
+  cameraPreset,
+  onCameraInteraction,
+  sceneProps,
+}: FibreGeometryViewportProps) {
+  return (
+    <div className="geometry-viewport">
+      {webglAvailable ? (
+        <Canvas
+          role="img"
+          aria-label="Illustrative interactive 3D fibre geometry"
+          aria-describedby="geometry-scale-note showcase-legend"
+          frameloop="demand"
+          dpr={[1, 1.5]}
+          camera={{ position: [10, 6, 12], fov: 42, near: 0.1, far: 100 }}
+          gl={{ antialias: true, powerPreference: 'high-performance' }}
+          fallback={
+            <p role="status">
+              3D rendering is unavailable in this browser or device.
+            </p>
+          }
+        >
+          <color attach="background" args={['#0b1220']} />
+          <ambientLight intensity={0.55} />
+          <directionalLight position={[6, 9, 5]} intensity={1.55} />
+          <directionalLight position={[-4, 2, -6]} intensity={0.45} />
+          <pointLight position={[0, 4, 3]} intensity={0.55} color="#9ecbff" />
+          <FibreGeometryScene {...sceneProps} />
+          <CameraPresetController preset={cameraPreset} />
+          <FibreOrbitControls onInteraction={onCameraInteraction} />
+        </Canvas>
+      ) : (
+        <p className="geometry-webgl-fallback" role="status">
+          3D rendering is unavailable in this browser or device.
+        </p>
+      )}
+    </div>
+  )
+}
+
+type FibreShowcaseLegendProps = {
+  route: FibreRouteStyle
+  cameraPreset: CameraPresetId | null
+  visualLength: number
+  sectionLengthKm: number | null
+  scaleMarkersEnabled: boolean
+  powerIndicatorsEnabled: boolean
+  pulseMarkersEnabled: boolean
+  attenuation: PowerDistanceData | null
+  pulseAnimation: PulseAnimationData | null
+}
+
+function FibreShowcaseLegend({
+  route,
+  cameraPreset,
+  visualLength,
+  sectionLengthKm,
+  scaleMarkersEnabled,
+  powerIndicatorsEnabled,
+  pulseMarkersEnabled,
+  attenuation,
+  pulseAnimation,
+}: FibreShowcaseLegendProps) {
+  const routeLabel =
+    FIBRE_ROUTE_OPTIONS.find((option) => option.id === route)?.label ?? route
+  const cameraLabel =
+    cameraPreset === null
+      ? 'Custom'
+      : (CAMERA_PRESET_OPTIONS.find((option) => option.id === cameraPreset)
+          ?.label ?? cameraPreset)
+  const scaleMarkers = scaleMarkersEnabled
+    ? getScaleMarkers(route, visualLength, sectionLengthKm)
+    : []
+  const powerMarkers = powerIndicatorsEnabled
+    ? getSpatialPowerMarkers(route, visualLength, attenuation)
+    : []
+  const pulseMarkers = pulseMarkersEnabled
+    ? getSpatialPulseMarkers(route, visualLength, pulseAnimation)
+    : []
+
+  return (
+    <aside
+      id="showcase-legend"
+      className="showcase-legend"
+      aria-label="3D showcase legend"
+    >
+      <p>
+        Route: <strong>{routeLabel}</strong> · Camera:{' '}
+        <strong>{cameraLabel}</strong>
+      </p>
+      <ul>
+        {scaleMarkersEnabled && (
+          <li>
+            Scale positions:
+            <ul aria-label="Scale marker positions">
+              {scaleMarkers.map((marker) => (
+                <li key={marker.t}>{marker.label}</li>
+              ))}
+            </ul>
+          </li>
+        )}
+        {powerIndicatorsEnabled && (
+          <li>
+            Backend power samples:
+            {powerMarkers.length > 0 && attenuation !== null ? (
+              <ul aria-label="Spatial power marker values">
+                {powerMarkers.map((marker) => (
+                  <li key={`${marker.distanceKm}-${marker.powerDbm}`}>
+                    {marker.distanceKm} km: {marker.powerDbm} dBm
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              ' unavailable'
+            )}
+          </li>
+        )}
+        {pulseMarkersEnabled && (
+          <li>
+            Pulse FWHM markers:
+            {pulseMarkers.length > 0 ? (
+              <ul aria-label="Spatial pulse marker values">
+                {pulseMarkers.map((marker) => (
+                  <li key={marker.id}>
+                    {marker.label}: {marker.fwhmPs} ps
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              ' unavailable'
+            )}
+          </li>
+        )}
+        <li>
+          Educational ray, LP01 field, and pulse animation stay as mid-path
+          schematic overlays.
+        </li>
+      </ul>
+    </aside>
+  )
+}
+
+function FibreGeometryFacts({
+  coreRadiusUm,
+  sectionLengthKm,
+}: {
+  coreRadiusUm: number | null
+  sectionLengthKm: number | null
+}) {
+  return (
+    <dl className="geometry-facts">
+      <div>
+        <dt>Entered core radius</dt>
+        <dd>{formatEnteredValue(coreRadiusUm, 'µm')}</dd>
+      </div>
+      <div>
+        <dt>Entered section length</dt>
+        <dd>{formatEnteredValue(sectionLengthKm, 'km')}</dd>
+      </div>
+    </dl>
   )
 }
 
@@ -1102,6 +1755,7 @@ export function FibreGeometryView({
   rayGuidance,
   modeProfile,
   pulseAnimation,
+  attenuation = null,
   visualizationSettings,
   onVisualizationSettingsChange,
   showConfigurationControls = true,
@@ -1113,6 +1767,8 @@ export function FibreGeometryView({
   const [localModeViewEnabled, setLocalModeViewEnabled] = useState(true)
   const [localPulseAnimationEnabled, setLocalPulseAnimationEnabled] =
     useState(true)
+  const [localCameraPreset, setLocalCameraPreset] =
+    useState<CameraPresetId | null>('perspective')
   const [pulseAnimationPlayback, setPulseAnimationPlayback] =
     useState<PulseAnimationPlaybackState>({
       data: pulseAnimation,
@@ -1134,6 +1790,16 @@ export function FibreGeometryView({
     visualizationSettings?.pulseAnimationEnabled ?? localPulseAnimationEnabled
   const incidenceAngleDeg =
     visualizationSettings?.incidenceAngleDeg ?? localIncidenceAngleDeg
+  const fibreRoute = visualizationSettings?.fibreRoute ?? 'straight'
+  const cameraPreset =
+    visualizationSettings === undefined
+      ? localCameraPreset
+      : visualizationSettings.cameraPreset
+  const claddingVisible = visualizationSettings?.claddingVisible ?? true
+  const scaleMarkersEnabled = visualizationSettings?.scaleMarkersEnabled ?? true
+  const powerIndicatorsEnabled =
+    visualizationSettings?.powerIndicatorsEnabled ?? true
+  const pulseMarkersEnabled = visualizationSettings?.pulseMarkersEnabled ?? true
   const updateVisualizationSetting = useCallback(
     <Key extends keyof VisualizationSettings>(
       key: Key,
@@ -1155,8 +1821,10 @@ export function FibreGeometryView({
         setLocalModeViewEnabled(value as boolean)
       } else if (key === 'pulseAnimationEnabled') {
         setLocalPulseAnimationEnabled(value as boolean)
-      } else {
+      } else if (key === 'incidenceAngleDeg') {
         setLocalIncidenceAngleDeg(value as number)
+      } else if (key === 'cameraPreset') {
+        setLocalCameraPreset(value as CameraPresetId | null)
       }
     },
     [onVisualizationSettingsChange, visualizationSettings],
@@ -1243,6 +1911,10 @@ export function FibreGeometryView({
       updateVisualizationSetting,
     ],
   )
+  const handleCameraInteraction = useCallback(
+    () => updateVisualizationSetting('cameraPreset', null),
+    [updateVisualizationSetting],
+  )
 
   return (
     <section className="geometry-card" aria-labelledby="fibre-geometry-title">
@@ -1251,61 +1923,49 @@ export function FibreGeometryView({
         Illustrative geometry. Drag to rotate and scroll or pinch to zoom.
       </p>
 
-      <dl className="geometry-facts">
-        <div>
-          <dt>Entered core radius</dt>
-          <dd>{formatEnteredValue(coreRadiusUm, 'µm')}</dd>
-        </div>
-        <div>
-          <dt>Entered section length</dt>
-          <dd>{formatEnteredValue(sectionLengthKm, 'km')}</dd>
-        </div>
-      </dl>
+      <FibreGeometryFacts
+        coreRadiusUm={coreRadiusUm}
+        sectionLengthKm={sectionLengthKm}
+      />
 
-      <div className="geometry-viewport">
-        {webglAvailable ? (
-          <Canvas
-            role="img"
-            aria-label="Illustrative interactive 3D fibre geometry"
-            aria-describedby="geometry-scale-note"
-            frameloop="demand"
-            dpr={[1, 1.5]}
-            camera={{ position: [10, 6, 12], fov: 42, near: 0.1, far: 100 }}
-            gl={{ antialias: true, powerPreference: 'high-performance' }}
-            fallback={
-              <p role="status">
-                3D rendering is unavailable in this browser or device.
-              </p>
-            }
-          >
-            <color attach="background" args={['#101827']} />
-            <ambientLight intensity={0.8} />
-            <directionalLight position={[5, 8, 7]} intensity={1.4} />
-            <pointLight position={[-5, -3, 4]} intensity={0.65} />
-            <FibreGeometryScene
-              coreRadiusUm={coreRadiusUm}
-              visualLengthModelUnits={visualLength}
-              rayGuidance={rayGuidance}
-              incidenceAngleDeg={incidenceAngleDeg}
-              rayViewEnabled={rayViewEnabled}
-              modeProfile={modeProfile}
-              modeViewEnabled={modeViewEnabled}
-              pulseAnimation={pulseAnimationForScene}
-              pulseAnimationEnabled={pulseAnimationEnabled}
-              pulseAnimationPlaying={currentPulseAnimationPlayback.isPlaying}
-              onPulseAnimationComplete={handlePulseAnimationComplete}
-              pulseAnimationResetSignal={
-                currentPulseAnimationPlayback.resetSignal
-              }
-            />
-            <FibreOrbitControls />
-          </Canvas>
-        ) : (
-          <p className="geometry-webgl-fallback" role="status">
-            3D rendering is unavailable in this browser or device.
-          </p>
-        )}
-      </div>
+      <FibreGeometryViewport
+        webglAvailable={webglAvailable}
+        cameraPreset={cameraPreset}
+        onCameraInteraction={handleCameraInteraction}
+        sceneProps={{
+          coreRadiusUm,
+          sectionLengthKm,
+          visualLengthModelUnits: visualLength,
+          rayGuidance,
+          incidenceAngleDeg,
+          rayViewEnabled,
+          modeProfile,
+          modeViewEnabled,
+          pulseAnimation: pulseAnimationForScene,
+          pulseAnimationEnabled,
+          pulseAnimationPlaying: currentPulseAnimationPlayback.isPlaying,
+          onPulseAnimationComplete: handlePulseAnimationComplete,
+          pulseAnimationResetSignal: currentPulseAnimationPlayback.resetSignal,
+          fibreRoute,
+          claddingVisible,
+          scaleMarkersEnabled,
+          powerIndicatorsEnabled,
+          pulseMarkersEnabled,
+          attenuation,
+        }}
+      />
+
+      <FibreShowcaseLegend
+        route={fibreRoute}
+        cameraPreset={cameraPreset}
+        visualLength={visualLength}
+        sectionLengthKm={sectionLengthKm}
+        scaleMarkersEnabled={scaleMarkersEnabled}
+        powerIndicatorsEnabled={powerIndicatorsEnabled}
+        pulseMarkersEnabled={pulseMarkersEnabled}
+        attenuation={attenuation}
+        pulseAnimation={pulseAnimationForScene}
+      />
 
       {showConfigurationControls && (
         <div className="geometry-controls">
@@ -1380,7 +2040,8 @@ export function FibreGeometryView({
       <p id="geometry-scale-note" className="geometry-note">
         Radial dimensions are normalized for visibility. The cladding shell is
         illustrative because no cladding diameter is configured. Longitudinal
-        scale is compressed and not to scale.
+        scale is compressed and not to scale. Curved routes are display-only
+        path styles; they do not change Level 1 physics.
       </p>
     </section>
   )
