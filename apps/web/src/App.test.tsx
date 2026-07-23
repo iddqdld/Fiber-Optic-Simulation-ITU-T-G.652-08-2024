@@ -29,6 +29,7 @@ type GeometryProps = {
   } | null
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
+  attenuation: PowerDistanceData | null
 }
 
 vi.mock('./FibreGeometryView', () => ({
@@ -38,6 +39,7 @@ vi.mock('./FibreGeometryView', () => ({
     rayGuidance,
     modeProfile,
     pulseAnimation,
+    attenuation,
   }: GeometryProps) => (
     <section role="region" aria-label="3D fibre geometry">
       <p>
@@ -77,6 +79,11 @@ vi.mock('./FibreGeometryView', () => ({
             <span> Delay version: {pulseAnimation.delayModelVersion}</span>
           </>
         )}
+      </p>
+      <p aria-label="Geometry attenuation" data-testid="geometry-attenuation">
+        {attenuation === null
+          ? 'null'
+          : `Distances: ${attenuation.distanceSamplesKm.join(',')} · Powers: ${attenuation.powerSamplesDbm.join(',')}`}
       </p>
     </section>
   ),
@@ -1483,6 +1490,7 @@ describe('Level 1 preview state and results', () => {
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
     expect(pulseAnimationOutput()).toHaveTextContent('null')
+    expect(screen.getByTestId('geometry-attenuation')).toHaveTextContent('null')
     expect(powerDistancePlotOutput()).toHaveTextContent('null')
     expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
 
@@ -1528,6 +1536,9 @@ describe('Level 1 preview state and results', () => {
     )
     expect(powerDistancePlotOutput()).toHaveTextContent(
       'Model: constant_fibre_attenuation 1.0.0',
+    )
+    expect(screen.getByTestId('geometry-attenuation')).toHaveTextContent(
+      'Distances: 0,3,6.5,12.5 · Powers: -3,-3.6,-4.3,-5.5',
     )
     expect(pulseAnimationOutput()).toHaveTextContent('Input pulse: 25 ps')
     expect(pulseAnimationOutput()).toHaveTextContent('Broadening: 42.5 ps')
@@ -1954,6 +1965,9 @@ describe('Level 1 preview state and results', () => {
       expect(radialIntensityPlotOutput()).toHaveTextContent('null')
       expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
       expect(pulseAnimationOutput()).toHaveTextContent('null')
+      expect(screen.getByTestId('geometry-attenuation')).toHaveTextContent(
+        'null',
+      )
       expect(powerDistancePlotOutput()).toHaveTextContent('null')
       expect(pulseComparisonPlotOutput()).toHaveTextContent('null')
       expect(screen.getByRole('alert')).toHaveTextContent(/^Preview failed\.$/)
