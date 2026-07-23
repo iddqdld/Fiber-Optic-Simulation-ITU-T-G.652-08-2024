@@ -75,13 +75,22 @@ export function sampleFibrePath(
   visualLength: number,
   sampleCount: number,
 ): PathSample[] {
+  if (
+    !Number.isFinite(visualLength) ||
+    visualLength < 0 ||
+    !Number.isFinite(sampleCount) ||
+    sampleCount < 1
+  ) {
+    return []
+  }
+
   const count = Math.max(2, Math.floor(sampleCount))
   const curve = buildFibreCurve(route, visualLength)
   const samples: PathSample[] = []
 
   for (let index = 0; index < count; index += 1) {
     const t = index / (count - 1)
-    const point = curve.getPoint(t)
+    const point = curve.getPointAt(t)
     samples.push({
       t,
       position: [point.x, point.y, point.z],
@@ -95,12 +104,17 @@ export function getCurveMidpoint(
   route: FibreRouteStyle,
   visualLength: number,
 ): [number, number, number] {
-  const point = buildFibreCurve(route, visualLength).getPoint(0.5)
+  if (!Number.isFinite(visualLength) || visualLength < 0) {
+    return [0, 0, 0]
+  }
+
+  const point = buildFibreCurve(route, visualLength).getPointAt(0.5)
   return [point.x, point.y, point.z]
 }
 
 export type SpatialPowerMarker = {
   t: number
+  distanceKm: number
   position: [number, number, number]
   powerDbm: number
   normalizedPower: number
@@ -116,38 +130,154 @@ function powerToColor(normalized: number): string {
   return `rgb(${red}, ${green}, ${blue})`
 }
 
-export function getSpatialPowerMarkers(
-  route: FibreRouteStyle,
-  visualLength: number,
-  attenuation: PowerDistanceData | null,
-  markerCount = 6,
-): SpatialPowerMarker[] {
+type ValidPowerSamples = {
+  lengthKm: number
+  distanceSamplesKm: number[]
+  powerSamplesDbm: number[]
+}
+
+function getValidPowerSamples(
+  attenuation: PowerDistanceData | null | undefined,
+): ValidPowerSamples | null {
   if (
     attenuation === null ||
+    attenuation === undefined ||
+    !Number.isFinite(attenuation.lengthKm) ||
+    attenuation.lengthKm < 0 ||
+    !Array.isArray(attenuation.distanceSamplesKm) ||
+    !Array.isArray(attenuation.powerSamplesDbm) ||
     attenuation.distanceSamplesKm.length < 1 ||
-    attenuation.powerSamplesDbm.length !==
-      attenuation.distanceSamplesKm.length
+    attenuation.distanceSamplesKm.length !== attenuation.powerSamplesDbm.length
   ) {
+    return null
+  }
+
+  const { distanceSamplesKm, powerSamplesDbm, lengthKm } = attenuation
+
+  for (let index = 0; index < distanceSamplesKm.length; index += 1) {
+    const distance = distanceSamplesKm[index]
+    const power = powerSamplesDbm[index]
+
+    if (
+      !Number.isFinite(distance) ||
+      !Number.isFinite(power) ||
+      distance < 0 ||
+      distance > lengthKm ||
+      (index > 0 && distance <= distanceSamplesKm[index - 1])
+    ) {
+      return null
+    }
+  }
+
+  if (
+    distanceSamplesKm[0] !== 0 ||
+    distanceSamplesKm[distanceSamplesKm.length - 1] !== lengthKm
+  ) {
+    return null
+  }
+
+  if (lengthKm === 0 && distanceSamplesKm.length !== 1) {
+    return null
+  }
+
+  return { lengthKm, distanceSamplesKm, powerSamplesDbm }
+}
+
+function selectPowerSampleIndexes(
+  distances: number[],
+  lengthKm: number,
+  markerCount: number,
+): number[] {
+  const count = Math.floor(markerCount)
+
+  if (!Number.isFinite(markerCount) || count < 1) {
     return []
   }
 
-  const powers = attenuation.powerSamplesDbm
+  if (distances.length === 1) {
+    return count >= 1 ? [0] : []
+  }
+
+  if (count < 2) {
+    return []
+  }
+
+  if (count >= distances.length) {
+    return distances.map((_, index) => index)
+  }
+
+  const selected = new Set<number>([0, distances.length - 1])
+
+  for (let index = 1; index < count - 1; index += 1) {
+    const targetDistance = (index / (count - 1)) * lengthKm
+    let closestIndex = -1
+    let closestDifference = Number.POSITIVE_INFINITY
+
+    for (
+      let sampleIndex = 1;
+      sampleIndex < distances.length - 1;
+      sampleIndex += 1
+    ) {
+      if (selected.has(sampleIndex)) {
+        continue
+      }
+
+      const difference = Math.abs(distances[sampleIndex] - targetDistance)
+      if (difference < closestDifference) {
+        closestIndex = sampleIndex
+        closestDifference = difference
+      }
+    }
+
+    if (closestIndex >= 0) {
+      selected.add(closestIndex)
+    }
+  }
+
+  return [...selected].sort((left, right) => left - right)
+}
+
+export function getSpatialPowerMarkers(
+  route: FibreRouteStyle,
+  visualLength: number,
+  attenuation: PowerDistanceData | null | undefined,
+  markerCount = 6,
+): SpatialPowerMarker[] {
+  if (!Number.isFinite(visualLength) || visualLength < 0) {
+    return []
+  }
+
+  const samples = getValidPowerSamples(attenuation)
+  if (samples === null) {
+    return []
+  }
+
+  const indexes = selectPowerSampleIndexes(
+    samples.distanceSamplesKm,
+    samples.lengthKm,
+    markerCount,
+  )
+  if (indexes.length === 0) {
+    return []
+  }
+
+  const powers = samples.powerSamplesDbm
   const minPower = Math.min(...powers)
   const maxPower = Math.max(...powers)
-  const span = Math.max(1e-9, maxPower - minPower)
-  const path = sampleFibrePath(route, visualLength, markerCount)
+  const span = maxPower - minPower
+  const curve = buildFibreCurve(route, visualLength)
 
-  return path.map((sample) => {
-    const sampleIndex = Math.min(
-      powers.length - 1,
-      Math.round(sample.t * (powers.length - 1)),
-    )
+  return indexes.map((sampleIndex) => {
+    const distance = samples.distanceSamplesKm[sampleIndex]
+    const t = samples.lengthKm === 0 ? 0 : distance / samples.lengthKm
+    const point = curve.getPointAt(t)
     const powerDbm = powers[sampleIndex]
-    const normalizedPower = (powerDbm - minPower) / span
+    const normalizedPower = span === 0 ? 0.5 : (powerDbm - minPower) / span
 
     return {
-      t: sample.t,
-      position: sample.position,
+      t,
+      distanceKm: distance,
+      position: [point.x, point.y, point.z],
       powerDbm,
       normalizedPower,
       radius: 0.08 + normalizedPower * 0.14,
@@ -171,6 +301,8 @@ export function getSpatialPulseMarkers(
   pulse: PulseAnimationData | null,
 ): SpatialPulseMarker[] {
   if (
+    !Number.isFinite(visualLength) ||
+    visualLength < 0 ||
     pulse === null ||
     !Number.isFinite(pulse.inputPulseFwhmPs) ||
     !Number.isFinite(pulse.outputPulseFwhmPs) ||
@@ -181,6 +313,10 @@ export function getSpatialPulseMarkers(
   }
 
   const path = sampleFibrePath(route, visualLength, 2)
+  if (path.length < 2) {
+    return []
+  }
+
   const maxFwhm = Math.max(pulse.inputPulseFwhmPs, pulse.outputPulseFwhmPs)
 
   return [

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -12,6 +13,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import {
   buildFibreCurve,
   CAMERA_PRESETS,
+  CAMERA_PRESET_OPTIONS,
+  FIBRE_ROUTE_OPTIONS,
   getCurveMidpoint,
   getScaleMarkers,
   getSpatialPowerMarkers,
@@ -244,7 +247,6 @@ type ModeFieldGeometry = {
 }
 
 function getModeFieldColor(intensity: number): [number, number, number] {
-  // Heat map for normalized intensity: deep indigo → cyan → amber → white.
   const t = clamp(intensity, 0, 1)
 
   if (t < 0.33) {
@@ -261,9 +263,7 @@ function getModeFieldColor(intensity: number): [number, number, number] {
   return [0.95 + local * 0.05, 0.92 + local * 0.08, 0.35 + local * 0.65]
 }
 
-function getLeakageMarkerColor(
-  progress: number,
-): [number, number, number] {
+function getLeakageMarkerColor(progress: number): [number, number, number] {
   const fade = 1 - progress
   return [0.98, 0.35 + fade * 0.25, 0.18 + fade * 0.12]
 }
@@ -541,10 +541,7 @@ function TransmittedRay({
           toneMapped={false}
         />
       </mesh>
-      <mesh
-        name="educational-ray-leakage-glow"
-        position={boundaryPoint}
-      >
+      <mesh name="educational-ray-leakage-glow" position={boundaryPoint}>
         <sphereGeometry
           name="educational-ray-leakage-glow-geometry"
           args={[0.16, 20, 20]}
@@ -620,10 +617,7 @@ function ApproximateLP01FieldLayer({
 
   return (
     <group name="approximate-lp01-field-layer">
-      <mesh
-        name="approximate-lp01-field-backdrop"
-        rotation={[0, HALF_TURN, 0]}
-      >
+      <mesh name="approximate-lp01-field-backdrop" rotation={[0, HALF_TURN, 0]}>
         <circleGeometry
           name="approximate-lp01-field-backdrop-geometry"
           args={[CLADDING_RADIUS * 0.98, 64]}
@@ -1181,9 +1175,9 @@ function RayGuidancePanel({
           <p id="ray-explanation" className="ray-explanation">
             The incidence angle is measured inside core from the boundary
             normal. Total internal reflection occurs only above the critical
-            angle. Below it, the educational ray shows leakage into the
-            cladding with an orange exit path and leakage markers. Status comes
-            from the backend critical angle. The ray path is schematic, not
+            angle. Below it, the educational ray shows leakage into the cladding
+            with an orange exit path and leakage markers. Status comes from the
+            backend critical angle. The ray path is schematic, not
             longitudinally or radially to scale, and is not a full-wave field
             solution.
           </p>
@@ -1193,22 +1187,43 @@ function RayGuidancePanel({
   )
 }
 
-function FibreOrbitControls() {
+function FibreOrbitControls({ onInteraction }: { onInteraction: () => void }) {
   const { camera, gl, invalidate } = useThree()
   const { domElement } = gl
+  const onInteractionRef = useRef(onInteraction)
+
+  useEffect(() => {
+    onInteractionRef.current = onInteraction
+  }, [onInteraction])
 
   useEffect(() => {
     const controls = new OrbitControls(camera, domElement)
-    const requestRender = () => invalidate()
+    let cameraChanged = false
+    const beginInteraction = () => {
+      cameraChanged = false
+    }
+    const requestRender = () => {
+      cameraChanged = true
+      invalidate()
+    }
+    const finishInteraction = () => {
+      if (cameraChanged) {
+        onInteractionRef.current()
+      }
+    }
     controls.enableDamping = false
     controls.enablePan = false
     controls.minDistance = 8
     controls.maxDistance = 28
+    controls.addEventListener('start', beginInteraction)
     controls.addEventListener('change', requestRender)
+    controls.addEventListener('end', finishInteraction)
     controls.update()
 
     return () => {
+      controls.removeEventListener('start', beginInteraction)
       controls.removeEventListener('change', requestRender)
+      controls.removeEventListener('end', finishInteraction)
       controls.dispose()
     }
   }, [camera, domElement, invalidate])
@@ -1216,14 +1231,18 @@ function FibreOrbitControls() {
   return null
 }
 
-function CameraPresetController({
+export function CameraPresetController({
   preset,
 }: {
-  preset: CameraPresetId
+  preset: CameraPresetId | null
 }) {
   const { camera, invalidate } = useThree()
 
   useEffect(() => {
+    if (preset === null) {
+      return
+    }
+
     const next = CAMERA_PRESETS[preset]
     camera.position.set(...next.position)
     camera.lookAt(...next.target)
@@ -1362,7 +1381,7 @@ function ScaleMarkerLayer({
     <group name="scale-marker-layer">
       {markers.map((marker, index) => (
         <group
-          key={`scale-${index}`}
+          key={`scale-${marker.t}`}
           name={`scale-marker-${index}`}
           position={marker.position}
         >
@@ -1381,10 +1400,7 @@ function ScaleMarkerLayer({
             position={[0, CLADDING_RADIUS * 0.95, 0]}
           >
             <sphereGeometry args={[0.045, 12, 12]} />
-            <meshBasicMaterial
-              color="#f8fafc"
-              toneMapped={false}
-            />
+            <meshBasicMaterial color="#f8fafc" toneMapped={false} />
           </mesh>
         </group>
       ))}
@@ -1401,7 +1417,7 @@ function SpatialPowerLayer({
     <group name="spatial-power-layer">
       {markers.map((marker, index) => (
         <mesh
-          key={`power-${index}`}
+          key={`power-${marker.distanceKm}-${marker.powerDbm}`}
           name={`spatial-power-marker-${index}`}
           position={marker.position}
         >
@@ -1480,17 +1496,10 @@ export function FibreGeometryScene({
   const modeFieldGeometry = modeViewEnabled
     ? getModeFieldGeometry(modeProfile, coreRadiusUm)
     : null
-  const pulseAnimationData =
-    pulseAnimationEnabled && isValidPulseAnimationData(pulseAnimation)
-      ? pulseAnimation
-      : null
-  const hasOverlay =
-    rayViewEnabled ||
-    modeFieldGeometry !== null ||
-    pulseAnimationData !== null
-  const coreMaterialProps = hasOverlay
-    ? { transparent: true, opacity: 0.42, depthWrite: false }
-    : {}
+  const validPulseData = isValidPulseAnimationData(pulseAnimation)
+    ? pulseAnimation
+    : null
+  const pulseAnimationData = pulseAnimationEnabled ? validPulseData : null
   const overlayOrigin =
     fibreRoute === 'straight'
       ? ([0, 0, 0] as [number, number, number])
@@ -1498,14 +1507,21 @@ export function FibreGeometryScene({
   const scaleMarkers = scaleMarkersEnabled
     ? getScaleMarkers(fibreRoute, visualLength, sectionLengthKm)
     : []
-  const powerMarkers =
-    powerIndicatorsEnabled
-      ? getSpatialPowerMarkers(fibreRoute, visualLength, attenuation)
-      : []
-  const pulseMarkers =
-    pulseMarkersEnabled
-      ? getSpatialPulseMarkers(fibreRoute, visualLength, pulseAnimationData)
-      : []
+  const powerMarkers = powerIndicatorsEnabled
+    ? getSpatialPowerMarkers(fibreRoute, visualLength, attenuation)
+    : []
+  const pulseMarkers = pulseMarkersEnabled
+    ? getSpatialPulseMarkers(fibreRoute, visualLength, validPulseData)
+    : []
+  const hasOverlay =
+    rayViewEnabled ||
+    modeFieldGeometry !== null ||
+    pulseAnimationData !== null ||
+    powerMarkers.length > 0 ||
+    pulseMarkers.length > 0
+  const coreMaterialProps = hasOverlay
+    ? { transparent: true, opacity: 0.42, depthWrite: false }
+    : {}
 
   return (
     <group name="fibre-geometry-scene">
@@ -1562,6 +1578,177 @@ export function FibreGeometryScene({
   )
 }
 
+type FibreGeometryViewportProps = {
+  webglAvailable: boolean
+  cameraPreset: CameraPresetId | null
+  onCameraInteraction: () => void
+  sceneProps: FibreGeometrySceneProps
+}
+
+function FibreGeometryViewport({
+  webglAvailable,
+  cameraPreset,
+  onCameraInteraction,
+  sceneProps,
+}: FibreGeometryViewportProps) {
+  return (
+    <div className="geometry-viewport">
+      {webglAvailable ? (
+        <Canvas
+          role="img"
+          aria-label="Illustrative interactive 3D fibre geometry"
+          aria-describedby="geometry-scale-note showcase-legend"
+          frameloop="demand"
+          dpr={[1, 1.5]}
+          camera={{ position: [10, 6, 12], fov: 42, near: 0.1, far: 100 }}
+          gl={{ antialias: true, powerPreference: 'high-performance' }}
+          fallback={
+            <p role="status">
+              3D rendering is unavailable in this browser or device.
+            </p>
+          }
+        >
+          <color attach="background" args={['#0b1220']} />
+          <ambientLight intensity={0.55} />
+          <directionalLight position={[6, 9, 5]} intensity={1.55} />
+          <directionalLight position={[-4, 2, -6]} intensity={0.45} />
+          <pointLight position={[0, 4, 3]} intensity={0.55} color="#9ecbff" />
+          <FibreGeometryScene {...sceneProps} />
+          <CameraPresetController preset={cameraPreset} />
+          <FibreOrbitControls onInteraction={onCameraInteraction} />
+        </Canvas>
+      ) : (
+        <p className="geometry-webgl-fallback" role="status">
+          3D rendering is unavailable in this browser or device.
+        </p>
+      )}
+    </div>
+  )
+}
+
+type FibreShowcaseLegendProps = {
+  route: FibreRouteStyle
+  cameraPreset: CameraPresetId | null
+  visualLength: number
+  sectionLengthKm: number | null
+  scaleMarkersEnabled: boolean
+  powerIndicatorsEnabled: boolean
+  pulseMarkersEnabled: boolean
+  attenuation: PowerDistanceData | null
+  pulseAnimation: PulseAnimationData | null
+}
+
+function FibreShowcaseLegend({
+  route,
+  cameraPreset,
+  visualLength,
+  sectionLengthKm,
+  scaleMarkersEnabled,
+  powerIndicatorsEnabled,
+  pulseMarkersEnabled,
+  attenuation,
+  pulseAnimation,
+}: FibreShowcaseLegendProps) {
+  const routeLabel =
+    FIBRE_ROUTE_OPTIONS.find((option) => option.id === route)?.label ?? route
+  const cameraLabel =
+    cameraPreset === null
+      ? 'Custom'
+      : (CAMERA_PRESET_OPTIONS.find((option) => option.id === cameraPreset)
+          ?.label ?? cameraPreset)
+  const scaleMarkers = scaleMarkersEnabled
+    ? getScaleMarkers(route, visualLength, sectionLengthKm)
+    : []
+  const powerMarkers = powerIndicatorsEnabled
+    ? getSpatialPowerMarkers(route, visualLength, attenuation)
+    : []
+  const pulseMarkers = pulseMarkersEnabled
+    ? getSpatialPulseMarkers(route, visualLength, pulseAnimation)
+    : []
+
+  return (
+    <aside
+      id="showcase-legend"
+      className="showcase-legend"
+      aria-label="3D showcase legend"
+    >
+      <p>
+        Route: <strong>{routeLabel}</strong> · Camera:{' '}
+        <strong>{cameraLabel}</strong>
+      </p>
+      <ul>
+        {scaleMarkersEnabled && (
+          <li>
+            Scale positions:
+            <ul aria-label="Scale marker positions">
+              {scaleMarkers.map((marker) => (
+                <li key={marker.t}>{marker.label}</li>
+              ))}
+            </ul>
+          </li>
+        )}
+        {powerIndicatorsEnabled && (
+          <li>
+            Backend power samples:
+            {powerMarkers.length > 0 && attenuation !== null ? (
+              <ul aria-label="Spatial power marker values">
+                {powerMarkers.map((marker) => (
+                  <li key={`${marker.distanceKm}-${marker.powerDbm}`}>
+                    {marker.distanceKm} km: {marker.powerDbm} dBm
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              ' unavailable'
+            )}
+          </li>
+        )}
+        {pulseMarkersEnabled && (
+          <li>
+            Pulse FWHM markers:
+            {pulseMarkers.length > 0 ? (
+              <ul aria-label="Spatial pulse marker values">
+                {pulseMarkers.map((marker) => (
+                  <li key={marker.id}>
+                    {marker.label}: {marker.fwhmPs} ps
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              ' unavailable'
+            )}
+          </li>
+        )}
+        <li>
+          Educational ray, LP01 field, and pulse animation stay as mid-path
+          schematic overlays.
+        </li>
+      </ul>
+    </aside>
+  )
+}
+
+function FibreGeometryFacts({
+  coreRadiusUm,
+  sectionLengthKm,
+}: {
+  coreRadiusUm: number | null
+  sectionLengthKm: number | null
+}) {
+  return (
+    <dl className="geometry-facts">
+      <div>
+        <dt>Entered core radius</dt>
+        <dd>{formatEnteredValue(coreRadiusUm, 'µm')}</dd>
+      </div>
+      <div>
+        <dt>Entered section length</dt>
+        <dd>{formatEnteredValue(sectionLengthKm, 'km')}</dd>
+      </div>
+    </dl>
+  )
+}
+
 export function FibreGeometryView({
   coreRadiusUm,
   sectionLengthKm,
@@ -1580,6 +1767,8 @@ export function FibreGeometryView({
   const [localModeViewEnabled, setLocalModeViewEnabled] = useState(true)
   const [localPulseAnimationEnabled, setLocalPulseAnimationEnabled] =
     useState(true)
+  const [localCameraPreset, setLocalCameraPreset] =
+    useState<CameraPresetId | null>('perspective')
   const [pulseAnimationPlayback, setPulseAnimationPlayback] =
     useState<PulseAnimationPlaybackState>({
       data: pulseAnimation,
@@ -1602,14 +1791,15 @@ export function FibreGeometryView({
   const incidenceAngleDeg =
     visualizationSettings?.incidenceAngleDeg ?? localIncidenceAngleDeg
   const fibreRoute = visualizationSettings?.fibreRoute ?? 'straight'
-  const cameraPreset = visualizationSettings?.cameraPreset ?? 'perspective'
+  const cameraPreset =
+    visualizationSettings === undefined
+      ? localCameraPreset
+      : visualizationSettings.cameraPreset
   const claddingVisible = visualizationSettings?.claddingVisible ?? true
-  const scaleMarkersEnabled =
-    visualizationSettings?.scaleMarkersEnabled ?? true
+  const scaleMarkersEnabled = visualizationSettings?.scaleMarkersEnabled ?? true
   const powerIndicatorsEnabled =
     visualizationSettings?.powerIndicatorsEnabled ?? true
-  const pulseMarkersEnabled =
-    visualizationSettings?.pulseMarkersEnabled ?? true
+  const pulseMarkersEnabled = visualizationSettings?.pulseMarkersEnabled ?? true
   const updateVisualizationSetting = useCallback(
     <Key extends keyof VisualizationSettings>(
       key: Key,
@@ -1633,6 +1823,8 @@ export function FibreGeometryView({
         setLocalPulseAnimationEnabled(value as boolean)
       } else if (key === 'incidenceAngleDeg') {
         setLocalIncidenceAngleDeg(value as number)
+      } else if (key === 'cameraPreset') {
+        setLocalCameraPreset(value as CameraPresetId | null)
       }
     },
     [onVisualizationSettingsChange, visualizationSettings],
@@ -1719,6 +1911,10 @@ export function FibreGeometryView({
       updateVisualizationSetting,
     ],
   )
+  const handleCameraInteraction = useCallback(
+    () => updateVisualizationSetting('cameraPreset', null),
+    [updateVisualizationSetting],
+  )
 
   return (
     <section className="geometry-card" aria-labelledby="fibre-geometry-title">
@@ -1727,98 +1923,49 @@ export function FibreGeometryView({
         Illustrative geometry. Drag to rotate and scroll or pinch to zoom.
       </p>
 
-      <dl className="geometry-facts">
-        <div>
-          <dt>Entered core radius</dt>
-          <dd>{formatEnteredValue(coreRadiusUm, 'µm')}</dd>
-        </div>
-        <div>
-          <dt>Entered section length</dt>
-          <dd>{formatEnteredValue(sectionLengthKm, 'km')}</dd>
-        </div>
-      </dl>
+      <FibreGeometryFacts
+        coreRadiusUm={coreRadiusUm}
+        sectionLengthKm={sectionLengthKm}
+      />
 
-      <div className="geometry-viewport">
-        {webglAvailable ? (
-          <Canvas
-            role="img"
-            aria-label="Illustrative interactive 3D fibre geometry"
-            aria-describedby="geometry-scale-note showcase-legend"
-            frameloop="demand"
-            dpr={[1, 1.5]}
-            camera={{ position: [10, 6, 12], fov: 42, near: 0.1, far: 100 }}
-            gl={{ antialias: true, powerPreference: 'high-performance' }}
-            fallback={
-              <p role="status">
-                3D rendering is unavailable in this browser or device.
-              </p>
-            }
-          >
-            <color attach="background" args={['#0b1220']} />
-            <ambientLight intensity={0.55} />
-            <directionalLight position={[6, 9, 5]} intensity={1.55} />
-            <directionalLight position={[-4, 2, -6]} intensity={0.45} />
-            <pointLight position={[0, 4, 3]} intensity={0.55} color="#9ecbff" />
-            <FibreGeometryScene
-              coreRadiusUm={coreRadiusUm}
-              sectionLengthKm={sectionLengthKm}
-              visualLengthModelUnits={visualLength}
-              rayGuidance={rayGuidance}
-              incidenceAngleDeg={incidenceAngleDeg}
-              rayViewEnabled={rayViewEnabled}
-              modeProfile={modeProfile}
-              modeViewEnabled={modeViewEnabled}
-              pulseAnimation={pulseAnimationForScene}
-              pulseAnimationEnabled={pulseAnimationEnabled}
-              pulseAnimationPlaying={currentPulseAnimationPlayback.isPlaying}
-              onPulseAnimationComplete={handlePulseAnimationComplete}
-              pulseAnimationResetSignal={
-                currentPulseAnimationPlayback.resetSignal
-              }
-              fibreRoute={fibreRoute}
-              claddingVisible={claddingVisible}
-              scaleMarkersEnabled={scaleMarkersEnabled}
-              powerIndicatorsEnabled={powerIndicatorsEnabled}
-              pulseMarkersEnabled={pulseMarkersEnabled}
-              attenuation={attenuation}
-            />
-            <CameraPresetController preset={cameraPreset} />
-            <FibreOrbitControls />
-          </Canvas>
-        ) : (
-          <p className="geometry-webgl-fallback" role="status">
-            3D rendering is unavailable in this browser or device.
-          </p>
-        )}
-      </div>
+      <FibreGeometryViewport
+        webglAvailable={webglAvailable}
+        cameraPreset={cameraPreset}
+        onCameraInteraction={handleCameraInteraction}
+        sceneProps={{
+          coreRadiusUm,
+          sectionLengthKm,
+          visualLengthModelUnits: visualLength,
+          rayGuidance,
+          incidenceAngleDeg,
+          rayViewEnabled,
+          modeProfile,
+          modeViewEnabled,
+          pulseAnimation: pulseAnimationForScene,
+          pulseAnimationEnabled,
+          pulseAnimationPlaying: currentPulseAnimationPlayback.isPlaying,
+          onPulseAnimationComplete: handlePulseAnimationComplete,
+          pulseAnimationResetSignal: currentPulseAnimationPlayback.resetSignal,
+          fibreRoute,
+          claddingVisible,
+          scaleMarkersEnabled,
+          powerIndicatorsEnabled,
+          pulseMarkersEnabled,
+          attenuation,
+        }}
+      />
 
-      <aside id="showcase-legend" className="showcase-legend" aria-label="3D showcase legend">
-        <p>
-          Route: <strong>{fibreRoute}</strong> · Camera:{' '}
-          <strong>{cameraPreset}</strong>
-        </p>
-        <ul>
-          {scaleMarkersEnabled && (
-            <li>White ticks map schematic path fraction to entered section length.</li>
-          )}
-          {powerIndicatorsEnabled && (
-            <li>
-              Coloured beads show backend power samples along the path (brighter /
-              larger ≈ higher dBm).
-            </li>
-          )}
-          {pulseMarkersEnabled && (
-            <li>
-              Cyan / amber spheres mark input and output pulse FWHM at the path
-              ends.
-            </li>
-          )}
-          <li>
-            Educational ray, LP01 field, and pulse animation stay as mid-path
-            schematic overlays.
-          </li>
-        </ul>
-      </aside>
+      <FibreShowcaseLegend
+        route={fibreRoute}
+        cameraPreset={cameraPreset}
+        visualLength={visualLength}
+        sectionLengthKm={sectionLengthKm}
+        scaleMarkersEnabled={scaleMarkersEnabled}
+        powerIndicatorsEnabled={powerIndicatorsEnabled}
+        pulseMarkersEnabled={pulseMarkersEnabled}
+        attenuation={attenuation}
+        pulseAnimation={pulseAnimationForScene}
+      />
 
       {showConfigurationControls && (
         <div className="geometry-controls">

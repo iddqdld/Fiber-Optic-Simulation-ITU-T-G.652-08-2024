@@ -1796,6 +1796,65 @@ summary:focus-visible,
   border-color: #ffd166;
 }
 
+.level1-inspector-boundaries {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  color: var(--editor-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  list-style: none;
+}
+
+.level1-inspector-boundary {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.3rem 0.4rem;
+  background: #171c23;
+  border-left: 2px solid #596576;
+  border-radius: 2px;
+}
+
+.level1-inspector-boundary-heading {
+  color: var(--editor-text);
+}
+
+.level1-inspector-boundary-kind {
+  display: inline-block;
+  padding: 0.04rem 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+}
+
+.level1-inspector-boundary-kind--input {
+  color: #9bd7ff;
+}
+
+.level1-inspector-boundary-kind--model {
+  color: #c7b0ff;
+}
+
+.level1-inspector-boundary-kind--standard {
+  color: #f0c77c;
+}
+
+.level1-inspector-boundary-label {
+  font-weight: 750;
+}
+
+.level1-inspector-boundary-range {
+  color: var(--editor-text-muted);
+}
+
+.level1-inspector-boundary-dependencies {
+  color: #aeb9c6;
+  font-style: italic;
+}
+
 .level1-inspector-issues {
   display: grid;
   gap: 0.2rem;
@@ -1927,7 +1986,11 @@ summary:focus-visible,
   padding: 0.7rem 0.85rem;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 0.55rem;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.72));
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.92),
+    rgba(15, 23, 42, 0.72)
+  );
   color: #cbd5e1;
   font-size: 0.78rem;
   line-height: 1.45;
@@ -1960,7 +2023,8 @@ summary:focus-visible,
 }
 
 .editor-shell .visualization-inspector .inspector-toggle + .inspector-toggle {
-  border-top: 1px solid color-mix(in srgb, var(--editor-border) 75%, transparent);
+  border-top: 1px solid
+    color-mix(in srgb, var(--editor-border) 75%, transparent);
 }
 
 .editor-shell .visualization-inspector .inspector-toggle input {
