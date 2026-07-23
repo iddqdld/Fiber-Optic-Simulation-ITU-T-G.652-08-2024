@@ -7,7 +7,7 @@ export type VisualizationSettings = {
   modeViewEnabled: boolean
   pulseAnimationEnabled: boolean
   fibreRoute: FibreRouteStyle
-  cameraPreset: CameraPresetId
+  cameraPreset: CameraPresetId | null
   claddingVisible: boolean
   scaleMarkersEnabled: boolean
   powerIndicatorsEnabled: boolean

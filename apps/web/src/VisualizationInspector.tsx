@@ -1,8 +1,5 @@
 import type { RayGuidance } from './FibreGeometryView'
-import {
-  CAMERA_PRESET_OPTIONS,
-  FIBRE_ROUTE_OPTIONS,
-} from './fibreShowcase'
+import { CAMERA_PRESET_OPTIONS, FIBRE_ROUTE_OPTIONS } from './fibreShowcase'
 import {
   modeDisplayThreshold,
   type VisualizationSettings,
@@ -35,12 +32,24 @@ export function VisualizationInspector({
     value: VisualizationSettings[Key],
   ) => onChange({ ...settings, [key]: value })
   const validGuidance = isValidGuidance(rayGuidance)
+  const routeLabel =
+    FIBRE_ROUTE_OPTIONS.find((option) => option.id === settings.fibreRoute)
+      ?.label ?? settings.fibreRoute
+  const cameraLabel =
+    settings.cameraPreset === null
+      ? 'Custom'
+      : (CAMERA_PRESET_OPTIONS.find(
+          (option) => option.id === settings.cameraPreset,
+        )?.label ?? settings.cameraPreset)
 
   return (
     <div className="visualization-inspector">
       <fieldset className="inspector-fieldset">
         <legend>Fibre route</legend>
-        <label className="inspector-select-label" htmlFor="inspector-fibre-route">
+        <label
+          className="inspector-select-label"
+          htmlFor="inspector-fibre-route"
+        >
           Path style
         </label>
         <select
@@ -63,7 +72,11 @@ export function VisualizationInspector({
 
       <fieldset className="inspector-fieldset">
         <legend>Camera</legend>
-        <div className="inspector-button-row" role="group" aria-label="Camera presets">
+        <div
+          className="inspector-button-row"
+          role="group"
+          aria-label="Camera presets"
+        >
           {CAMERA_PRESET_OPTIONS.map((option) => (
             <button
               key={option.id}
@@ -106,7 +119,10 @@ export function VisualizationInspector({
           />
           Scale markers
         </label>
-        <label className="inspector-toggle" htmlFor="inspector-power-indicators">
+        <label
+          className="inspector-toggle"
+          htmlFor="inspector-power-indicators"
+        >
           <input
             id="inspector-power-indicators"
             type="checkbox"
@@ -227,7 +243,7 @@ export function VisualizationInspector({
         <div>
           <dt>Route / camera</dt>
           <dd>
-            {settings.fibreRoute} · {settings.cameraPreset}
+            {routeLabel} · {cameraLabel}
           </dd>
         </div>
       </dl>

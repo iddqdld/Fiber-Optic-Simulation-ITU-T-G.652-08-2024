@@ -82,4 +82,28 @@ describe('VisualizationInspector', () => {
       expect.objectContaining({ cameraPreset: 'side' }),
     )
   })
+
+  test('shows a custom camera without an active preset and restores a preset on selection', () => {
+    const onChange = vi.fn()
+    render(
+      <VisualizationInspector
+        settings={{ ...defaultVisualizationSettings, cameraPreset: null }}
+        rayGuidance={null}
+        onChange={onChange}
+      />,
+    )
+
+    expect(screen.getByText('Straight · Custom')).toBeVisible()
+    for (const option of ['Perspective', 'Side', 'End-on', 'Top']) {
+      expect(screen.getByRole('button', { name: option })).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      )
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Top' }))
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ cameraPreset: 'top' }),
+    )
+  })
 })

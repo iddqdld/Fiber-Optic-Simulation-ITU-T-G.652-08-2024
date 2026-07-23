@@ -38,6 +38,7 @@ vi.mock('@react-three/fiber', () => ({
 }))
 
 import {
+  CameraPresetController,
   FibreGeometryScene,
   FibreGeometryView,
   type ModeProfileData,
@@ -54,6 +55,8 @@ import {
   shouldInvalidatePulseAnimationFrame,
 } from './pulseAnimation'
 import { PulseAnimationRuntime } from './PulseAnimationLayer'
+import type { PowerDistanceData } from './powerDistancePlot'
+import { defaultVisualizationSettings } from './visualizationSettings'
 
 type SceneElementProps = {
   args?: unknown[]
@@ -171,6 +174,18 @@ const pulseAnimation = {
   delayModelVersion: '1.0.0',
 } satisfies PulseAnimationData
 
+const attenuation = {
+  lengthKm: 12.5,
+  attenuationDbPerKm: 0.2,
+  inputPowerDbm: -3,
+  sectionLossDb: 2.5,
+  outputPowerDbm: -5.5,
+  distanceSamplesKm: [0, 3, 6.5, 12.5],
+  powerSamplesDbm: [-3, -3.6, -4.3, -5.5],
+  modelId: 'constant_fibre_attenuation',
+  modelVersion: '1.0.0',
+} satisfies PowerDistanceData
+
 afterEach(() => {
   cleanup()
 })
@@ -249,10 +264,7 @@ describe('FibreGeometryScene', () => {
       findSceneElement(transmission.scene, 'educational-ray-leakage-point'),
     ).toBeTruthy()
     expect(
-      findSceneElement(
-        transmission.scene,
-        'educational-ray-leakage-marker-0',
-      ),
+      findSceneElement(transmission.scene, 'educational-ray-leakage-marker-0'),
     ).toBeTruthy()
   })
 
@@ -333,9 +345,7 @@ describe('FibreGeometryScene', () => {
     expect(
       findSceneElement(scene, 'approximate-lp01-field-radius-ring'),
     ).toBeTruthy()
-    expect(
-      findSceneElement(scene, 'approximate-lp01-field-glow'),
-    ).toBeTruthy()
+    expect(findSceneElement(scene, 'approximate-lp01-field-glow')).toBeTruthy()
     expect(coreMaterial.props).toMatchObject({
       transparent: true,
       opacity: 0.42,
@@ -395,6 +405,75 @@ describe('FibreGeometryScene', () => {
     ).toThrow()
     expect(disabled.coreMaterial.props).not.toHaveProperty('transparent')
     expect(invalid.coreMaterial.props).not.toHaveProperty('transparent')
+  })
+
+  test('renders curved fibre bodies and keeps cladding independently optional', () => {
+    const curved = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      fibreRoute: 's_bend',
+      claddingVisible: false,
+      rayViewEnabled: false,
+      modeViewEnabled: false,
+      pulseAnimationEnabled: false,
+    })
+
+    expect(findSceneElement(curved, 'curved-fibre-body')).toBeTruthy()
+    expect(findSceneElement(curved, 'solid-core-geometry').type).toBe(
+      'tubeGeometry',
+    )
+    expect(() =>
+      findSceneElement(curved, 'illustrative-cladding-shell'),
+    ).toThrow()
+  })
+
+  test('keeps standalone power and pulse markers visible through the core', () => {
+    const powerScene = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      rayViewEnabled: false,
+      modeViewEnabled: false,
+      pulseAnimationEnabled: false,
+      powerIndicatorsEnabled: true,
+      attenuation,
+    })
+    const pulseScene = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      rayViewEnabled: false,
+      modeViewEnabled: false,
+      pulseAnimation,
+      pulseAnimationEnabled: false,
+      pulseMarkersEnabled: true,
+    })
+
+    expect(findSceneElement(powerScene, 'spatial-power-layer')).toBeTruthy()
+    expect(
+      findSceneElement(powerScene, 'solid-core-material').props,
+    ).toMatchObject({ transparent: true, opacity: 0.42, depthWrite: false })
+    expect(
+      findSceneElement(pulseScene, 'spatial-pulse-marker-layer'),
+    ).toBeTruthy()
+    expect(
+      findSceneElement(pulseScene, 'solid-core-material').props,
+    ).toMatchObject({ transparent: true, opacity: 0.42, depthWrite: false })
+  })
+
+  test('renders every optional marker layer from valid data', () => {
+    const scene = FibreGeometryScene({
+      coreRadiusUm: 4,
+      sectionLengthKm: 12.5,
+      visualLengthModelUnits: 8,
+      scaleMarkersEnabled: true,
+      powerIndicatorsEnabled: true,
+      pulseMarkersEnabled: true,
+      attenuation,
+      pulseAnimation,
+    })
+
+    expect(findSceneElement(scene, 'scale-marker-layer')).toBeTruthy()
+    expect(findSceneElement(scene, 'spatial-power-layer')).toBeTruthy()
+    expect(findSceneElement(scene, 'spatial-pulse-marker-layer')).toBeTruthy()
   })
 })
 
@@ -626,6 +705,39 @@ describe('pulse animation runtime', () => {
   })
 })
 
+describe('camera preset controller', () => {
+  test('leaves a custom camera untouched and restores a selected preset', () => {
+    const positionSet = vi.fn()
+    const lookAt = vi.fn()
+    const updateProjectionMatrix = vi.fn()
+    const invalidate = vi.fn()
+
+    vi.mocked(useThree).mockImplementation(
+      () =>
+        ({
+          camera: {
+            position: { set: positionSet },
+            lookAt,
+            updateProjectionMatrix,
+          },
+          invalidate,
+        }) as never,
+    )
+
+    const { rerender } = render(<CameraPresetController preset={null} />)
+
+    expect(positionSet).not.toHaveBeenCalled()
+    expect(invalidate).not.toHaveBeenCalled()
+
+    rerender(<CameraPresetController preset="side" />)
+
+    expect(positionSet).toHaveBeenCalledWith(0, 0, 16)
+    expect(lookAt).toHaveBeenCalledWith(0, 0, 0)
+    expect(updateProjectionMatrix).toHaveBeenCalledOnce()
+    expect(invalidate).toHaveBeenCalledOnce()
+  })
+})
+
 describe('FibreGeometryView', () => {
   const guidance: RayGuidance = {
     criticalAngleDeg: 80,
@@ -664,6 +776,42 @@ describe('FibreGeometryView', () => {
       }),
     ).toHaveAttribute('data-frameloop', 'demand')
     expect(screen.getByLabelText('Educational ray view')).toBeChecked()
+  })
+
+  test('discloses friendly route, custom camera, and exact marker values', () => {
+    render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={guidance}
+        modeProfile={null}
+        pulseAnimation={pulseAnimation}
+        attenuation={attenuation}
+        visualizationSettings={{
+          ...defaultVisualizationSettings,
+          fibreRoute: 'gentle_arc',
+          cameraPreset: null,
+        }}
+      />,
+    )
+
+    const legend = screen.getByLabelText('3D showcase legend')
+
+    expect(within(legend).getByText('Gentle arc')).toBeVisible()
+    expect(within(legend).getByText('Custom')).toBeVisible()
+    expect(
+      within(legend).getByRole('list', { name: 'Scale marker positions' }),
+    ).toHaveTextContent('L (12.50 km)')
+    expect(
+      within(legend).getByRole('list', {
+        name: 'Spatial power marker values',
+      }),
+    ).toHaveTextContent('3 km: -3.6 dBm')
+    expect(
+      within(legend).getByRole('list', {
+        name: 'Spatial pulse marker values',
+      }),
+    ).toHaveTextContent('Output FWHM: 49.30770730829005 ps')
   })
 
   test('handles null entered values and updates the visual length output', () => {
