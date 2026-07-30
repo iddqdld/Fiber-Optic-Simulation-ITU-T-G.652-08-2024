@@ -83,6 +83,12 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         "PandaGeometry",
         "PandaMaterial",
         "PandaMaterialSet",
+        "PandaMeshManifest",
+        "PandaMeshQuality",
+        "PandaMeshRegionSummary",
+        "PandaMeshRequest",
+        "PandaMeshResult",
+        "PandaMeshWarning",
         "ThermalState",
     ):
         assert name in schemas
@@ -144,10 +150,14 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         {"type": "null"},
     ]
 
+    for name in ("PandaMeshRegion", "PandaMeshWarningCode"):
+        assert name in schemas
+
     assert set(schema["paths"]) == {
         "/api/v1/health",
         "/api/v1/guidance/calculate",
         "/api/v1/photoelastic/panda/field-map",
+        "/api/v1/photoelastic/panda/mesh",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }
@@ -164,6 +174,22 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     )
     assert (
         operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+    mesh_operation = schema["paths"]["/api/v1/photoelastic/panda/mesh"]["post"]
+    assert mesh_operation["operationId"] == "generate_panda_mesh"
+    assert (
+        mesh_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaMeshRequest"
+    )
+    assert set(mesh_operation["responses"]) == {"200", "422"}
+    assert (
+        mesh_operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaMeshResult"
+    )
+    assert (
+        mesh_operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
 
@@ -253,6 +279,7 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
         "/api/v1/health",
         "/api/v1/guidance/calculate",
         "/api/v1/photoelastic/panda/field-map",
+        "/api/v1/photoelastic/panda/mesh",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }

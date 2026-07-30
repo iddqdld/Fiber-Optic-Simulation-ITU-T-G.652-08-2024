@@ -3423,6 +3423,325 @@
         "title": "PandaMaterialSet",
         "type": "object"
       },
+      "PandaMeshManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "circular cladding, core, and SAP boundaries are represented by polygonal PSLG interfaces",
+              "Triangle generates a deterministic constrained-Delaunay triangulation",
+              "all elements are first-order linear triangles"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "coordinate_units": {
+            "const": "m",
+            "default": "m",
+            "title": "Coordinate Units",
+            "type": "string"
+          },
+          "element_family": {
+            "const": "first_order_triangles",
+            "default": "first_order_triangles",
+            "title": "Element Family",
+            "type": "string"
+          },
+          "fem_compatibility_version": {
+            "const": "scikit-fem 12.0.2",
+            "default": "scikit-fem 12.0.2",
+            "title": "Fem Compatibility Version",
+            "type": "string"
+          },
+          "generator_version": {
+            "const": "triangle 20250106",
+            "default": "triangle 20250106",
+            "title": "Generator Version",
+            "type": "string"
+          },
+          "geometry_model": {
+            "const": "PandaGeometry",
+            "default": "PandaGeometry",
+            "title": "Geometry Model",
+            "type": "string"
+          },
+          "interface_model": {
+            "const": "piecewise_linear_circular_interfaces",
+            "default": "piecewise_linear_circular_interfaces",
+            "title": "Interface Model",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [
+              "the mesh is a geometry discretization and contains no solved FEM fields",
+              "polygonal interfaces approximate the configured circular boundaries"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "mesh_only": {
+            "const": true,
+            "default": true,
+            "title": "Mesh Only",
+            "type": "boolean"
+          },
+          "method": {
+            "const": "constrained_delaunay",
+            "default": "constrained_delaunay",
+            "title": "Method",
+            "type": "string"
+          },
+          "model_id": {
+            "const": "panda_constrained_delaunay_mesh",
+            "default": "panda_constrained_delaunay_mesh",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "quality_target_minimum_angle_deg": {
+            "const": 20,
+            "default": 20,
+            "title": "Quality Target Minimum Angle Deg",
+            "type": "integer"
+          },
+          "solved_fem_fields": {
+            "const": false,
+            "default": false,
+            "title": "Solved Fem Fields",
+            "type": "boolean"
+          }
+        },
+        "title": "PandaMeshManifest",
+        "type": "object"
+      },
+      "PandaMeshQuality": {
+        "additionalProperties": false,
+        "properties": {
+          "mean_normalized_quality": {
+            "maximum": 1.0,
+            "minimum": 0,
+            "title": "Mean Normalized Quality",
+            "type": "number"
+          },
+          "minimum_angle_deg": {
+            "maximum": 60.0,
+            "minimum": 0,
+            "title": "Minimum Angle Deg",
+            "type": "number"
+          },
+          "minimum_normalized_quality": {
+            "maximum": 1.0,
+            "minimum": 0,
+            "title": "Minimum Normalized Quality",
+            "type": "number"
+          }
+        },
+        "required": [
+          "minimum_angle_deg",
+          "minimum_normalized_quality",
+          "mean_normalized_quality"
+        ],
+        "title": "PandaMeshQuality",
+        "type": "object"
+      },
+      "PandaMeshRegion": {
+        "enum": [
+          "cladding",
+          "core",
+          "sap_1",
+          "sap_2"
+        ],
+        "title": "PandaMeshRegion",
+        "type": "string"
+      },
+      "PandaMeshRegionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "element_count": {
+            "minimum": 0,
+            "title": "Element Count",
+            "type": "integer"
+          },
+          "region": {
+            "$ref": "#/components/schemas/PandaMeshRegion"
+          },
+          "target_area_m2": {
+            "exclusiveMinimum": 0,
+            "title": "Target Area M2",
+            "type": "number"
+          },
+          "total_area_m2": {
+            "minimum": 0,
+            "title": "Total Area M2",
+            "type": "number"
+          }
+        },
+        "required": [
+          "region",
+          "element_count",
+          "target_area_m2",
+          "total_area_m2"
+        ],
+        "title": "PandaMeshRegionSummary",
+        "type": "object"
+      },
+      "PandaMeshRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/PandaGeometry"
+          },
+          "refinement_level": {
+            "default": 0,
+            "maximum": 2,
+            "minimum": 0,
+            "title": "Refinement Level",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "geometry"
+        ],
+        "title": "PandaMeshRequest",
+        "type": "object"
+      },
+      "PandaMeshResult": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/PandaMeshRequest"
+          },
+          "element_count": {
+            "exclusiveMinimum": 0,
+            "title": "Element Count",
+            "type": "integer"
+          },
+          "elements": {
+            "items": {
+              "maxItems": 3,
+              "minItems": 3,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Elements",
+            "type": "array"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/PandaMeshManifest"
+          },
+          "node_count": {
+            "exclusiveMinimum": 0,
+            "title": "Node Count",
+            "type": "integer"
+          },
+          "nodes_m": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Nodes M",
+            "type": "array"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/PandaMeshQuality"
+          },
+          "region_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/PandaMeshRegionSummary"
+            },
+            "title": "Region Summaries",
+            "type": "array"
+          },
+          "region_tags": {
+            "items": {
+              "$ref": "#/components/schemas/PandaMeshRegion"
+            },
+            "title": "Region Tags",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/PandaMeshWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configuration",
+          "nodes_m",
+          "elements",
+          "region_tags",
+          "node_count",
+          "element_count",
+          "region_summaries",
+          "quality",
+          "warnings",
+          "model_manifest"
+        ],
+        "title": "PandaMeshResult",
+        "type": "object"
+      },
+      "PandaMeshWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/PandaMeshWarningCode"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "PandaMeshWarning",
+        "type": "object"
+      },
+      "PandaMeshWarningCode": {
+        "enum": [
+          "quality_below_target",
+          "polygonal_interface_approximation"
+        ],
+        "title": "PandaMeshWarningCode",
+        "type": "string"
+      },
       "PhotoelasticConvention": {
         "enum": [
           "p11_p12_strain",
@@ -4259,6 +4578,44 @@
           }
         },
         "summary": "Post Panda Field Map"
+      }
+    },
+    "/api/v1/photoelastic/panda/mesh": {
+      "post": {
+        "operationId": "generate_panda_mesh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PandaMeshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PandaMeshResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation or mesh generation failed"
+          }
+        },
+        "summary": "Post Panda Mesh"
       }
     },
     "/api/v1/simulations/preview": {

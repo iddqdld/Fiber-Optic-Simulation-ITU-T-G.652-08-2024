@@ -53,6 +53,16 @@ from fibre_sim.level1 import (
     calculate_level1_simulation,
 )
 from fibre_sim.modes import GaussianModeProfileManifest, GaussianModeProfileResult
+from fibre_sim.panda_mesh import (
+    PandaMeshGenerationError,
+    PandaMeshManifest,
+    PandaMeshQuality,
+    PandaMeshRegionSummary,
+    PandaMeshRequest,
+    PandaMeshResult,
+    PandaMeshWarning,
+    generate_panda_mesh,
+)
 from fibre_sim.photoelastic import (
     AxialLoad,
     CircularSAP,
@@ -176,6 +186,35 @@ async def post_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRe
             message=(
                 "Qualitative PANDA field map could not be normalized from the supplied values."
             ),
+            field=None,
+            details={"reason": reason},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
+    "/api/v1/photoelastic/panda/mesh",
+    operation_id="generate_panda_mesh",
+    response_model=PandaMeshResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or mesh generation failed",
+        }
+    },
+)
+async def post_panda_mesh(request: PandaMeshRequest) -> PandaMeshResult:
+    try:
+        return generate_panda_mesh(request)
+    except (
+        PandaMeshGenerationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        reason = getattr(exc, "reason", "mesh_generation_failed")
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="PANDA mesh could not be generated from the supplied geometry.",
             field=None,
             details={"reason": reason},
             status_code=422,
@@ -310,6 +349,12 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     PandaGeometry,
     PandaMaterial,
     PandaMaterialSet,
+    PandaMeshManifest,
+    PandaMeshQuality,
+    PandaMeshRegionSummary,
+    PandaMeshRequest,
+    PandaMeshResult,
+    PandaMeshWarning,
     PulseSeries,
     SectionResult,
     SimulationConfig,

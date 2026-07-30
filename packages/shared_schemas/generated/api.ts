@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/photoelastic/panda/mesh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Panda Mesh */
+        post: operations["generate_panda_mesh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/simulations/preview": {
         parameters: {
             query?: never;
@@ -1848,6 +1865,169 @@ export interface components {
             sap_1: components["schemas"]["PandaMaterial"];
             sap_2: components["schemas"]["PandaMaterial"];
         };
+        /** PandaMeshManifest */
+        PandaMeshManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "circular cladding, core, and SAP boundaries are represented by polygonal PSLG interfaces",
+             *       "Triangle generates a deterministic constrained-Delaunay triangulation",
+             *       "all elements are first-order linear triangles"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Coordinate Units
+             * @default m
+             * @constant
+             */
+            coordinate_units: "m";
+            /**
+             * Element Family
+             * @default first_order_triangles
+             * @constant
+             */
+            element_family: "first_order_triangles";
+            /**
+             * Fem Compatibility Version
+             * @default scikit-fem 12.0.2
+             * @constant
+             */
+            fem_compatibility_version: "scikit-fem 12.0.2";
+            /**
+             * Generator Version
+             * @default triangle 20250106
+             * @constant
+             */
+            generator_version: "triangle 20250106";
+            /**
+             * Geometry Model
+             * @default PandaGeometry
+             * @constant
+             */
+            geometry_model: "PandaGeometry";
+            /**
+             * Interface Model
+             * @default piecewise_linear_circular_interfaces
+             * @constant
+             */
+            interface_model: "piecewise_linear_circular_interfaces";
+            /**
+             * Limitations
+             * @default [
+             *       "the mesh is a geometry discretization and contains no solved FEM fields",
+             *       "polygonal interfaces approximate the configured circular boundaries"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Mesh Only
+             * @default true
+             * @constant
+             */
+            mesh_only: true;
+            /**
+             * Method
+             * @default constrained_delaunay
+             * @constant
+             */
+            method: "constrained_delaunay";
+            /**
+             * Model Id
+             * @default panda_constrained_delaunay_mesh
+             * @constant
+             */
+            model_id: "panda_constrained_delaunay_mesh";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Quality Target Minimum Angle Deg
+             * @default 20
+             * @constant
+             */
+            quality_target_minimum_angle_deg: 20;
+            /**
+             * Solved Fem Fields
+             * @default false
+             * @constant
+             */
+            solved_fem_fields: false;
+        };
+        /** PandaMeshQuality */
+        PandaMeshQuality: {
+            /** Mean Normalized Quality */
+            mean_normalized_quality: number;
+            /** Minimum Angle Deg */
+            minimum_angle_deg: number;
+            /** Minimum Normalized Quality */
+            minimum_normalized_quality: number;
+        };
+        /**
+         * PandaMeshRegion
+         * @enum {string}
+         */
+        PandaMeshRegion: "cladding" | "core" | "sap_1" | "sap_2";
+        /** PandaMeshRegionSummary */
+        PandaMeshRegionSummary: {
+            /** Element Count */
+            element_count: number;
+            region: components["schemas"]["PandaMeshRegion"];
+            /** Target Area M2 */
+            target_area_m2: number;
+            /** Total Area M2 */
+            total_area_m2: number;
+        };
+        /** PandaMeshRequest */
+        PandaMeshRequest: {
+            geometry: components["schemas"]["PandaGeometry"];
+            /**
+             * Refinement Level
+             * @default 0
+             */
+            refinement_level: number;
+        };
+        /** PandaMeshResult */
+        PandaMeshResult: {
+            configuration: components["schemas"]["PandaMeshRequest"];
+            /** Element Count */
+            element_count: number;
+            /** Elements */
+            elements: [
+                number,
+                number,
+                number
+            ][];
+            model_manifest: components["schemas"]["PandaMeshManifest"];
+            /** Node Count */
+            node_count: number;
+            /** Nodes M */
+            nodes_m: [
+                number,
+                number
+            ][];
+            quality: components["schemas"]["PandaMeshQuality"];
+            /** Region Summaries */
+            region_summaries: components["schemas"]["PandaMeshRegionSummary"][];
+            /** Region Tags */
+            region_tags: components["schemas"]["PandaMeshRegion"][];
+            /** Warnings */
+            warnings: components["schemas"]["PandaMeshWarning"][];
+        };
+        /** PandaMeshWarning */
+        PandaMeshWarning: {
+            code: components["schemas"]["PandaMeshWarningCode"];
+            /** Message */
+            message: string;
+        };
+        /**
+         * PandaMeshWarningCode
+         * @enum {string}
+         */
+        PandaMeshWarningCode: "quality_below_target" | "polygonal_interface_approximation";
         /**
          * PhotoelasticConvention
          * @enum {string}
@@ -2215,6 +2395,39 @@ export interface operations {
                 };
             };
             /** @description Request validation or calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    generate_panda_mesh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PandaMeshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PandaMeshResult"];
+                };
+            };
+            /** @description Request validation or mesh generation failed */
             422: {
                 headers: {
                     [name: string]: unknown;
