@@ -7,9 +7,9 @@ from .geometry import PandaGeometry
 from .loads import ThermalState
 from .materials import PandaMaterialSet
 
-MIN_FIELD_MAP_GRID_POINTS = 3
-MAX_FIELD_MAP_GRID_POINTS = 65
-DEFAULT_FIELD_MAP_GRID_POINTS = 65
+MIN_FIELD_MAP_GRID_POINTS = 401
+MAX_FIELD_MAP_GRID_POINTS = 601
+DEFAULT_FIELD_MAP_GRID_POINTS = 601
 
 _PositiveStrictFiniteFloat = Annotated[
     float,

@@ -2,6 +2,9 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from fibre_sim.photoelastic import (
+    DEFAULT_FIELD_MAP_GRID_POINTS,
+    MAX_FIELD_MAP_GRID_POINTS,
+    MIN_FIELD_MAP_GRID_POINTS,
     AxialCondition,
     AxialLoad,
     CircularSAP,
@@ -256,10 +259,15 @@ def test_axial_load_rejects_inconsistent_fields(
 
 
 def test_sampling_requires_odd_bounded_strict_grid() -> None:
-    sampling = FieldMapSamplingConfig(grid_half_width_m=100.0e-6, grid_points=65)
-    assert sampling.grid_points == 65
+    sampling = FieldMapSamplingConfig(grid_half_width_m=100.0e-6, grid_points=401)
+    assert sampling.grid_points == 401
+    assert MIN_FIELD_MAP_GRID_POINTS == 401
+    assert MAX_FIELD_MAP_GRID_POINTS == 601
 
-    for value in (2, 4, 66):
+    default_sampling = FieldMapSamplingConfig(grid_half_width_m=100.0e-6)
+    assert default_sampling.grid_points == DEFAULT_FIELD_MAP_GRID_POINTS == 601
+
+    for value in (3, 400, 402, 602):
         with pytest.raises(ValidationError):
             FieldMapSamplingConfig(grid_half_width_m=100.0e-6, grid_points=value)
     with pytest.raises(ValidationError):

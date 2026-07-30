@@ -85,7 +85,7 @@ def valid_payload() -> dict[str, Any]:
         "wavelength_m": 1.55e-6,
         "sampling": {
             "grid_half_width_m": 62.5e-6,
-            "grid_points": 9,
+            "grid_points": 401,
             "interface_buffer_m": 1.0e-6,
         },
     }
@@ -116,11 +116,15 @@ async def test_panda_field_map_returns_qualitative_metadata_and_masks(
     manifest = body["model_manifest"]
     assert manifest["method"] == "qualitative_far_field_kernel"
     assert manifest["quantity_type"] == "normalized_dimensionless_kernel"
-    assert manifest["normalization"] == "max_valid_principal_difference"
+    assert manifest["normalization"] == "max_valid_absolute_deviatoric_difference"
+    assert (
+        manifest["auxiliary_normalization"]
+        == "max_valid_absolute_shear_and_max_valid_principal_difference"
+    )
     assert manifest["quantitative"] is False
     assert manifest["units"] == "1"
-    assert_square_grid(body["normalized_deviatoric_difference_kernel"], 9)
-    assert_square_grid(body["validity_mask"], 9)
+    assert_square_grid(body["normalized_deviatoric_difference_kernel"], 401)
+    assert_square_grid(body["validity_mask"], 401)
     assert any(
         value is None for row in body["normalized_deviatoric_difference_kernel"] for value in row
     )

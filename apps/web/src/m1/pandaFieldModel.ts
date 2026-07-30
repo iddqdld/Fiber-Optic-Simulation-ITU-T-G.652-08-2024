@@ -5,7 +5,7 @@ export type PandaFieldRequest =
 export type PandaFieldResult =
   operations['calculate_panda_field_map']['responses'][200]['content']['application/json']
 
-export type PandaFieldDisplay = 'deviatoric' | 'shear' | 'principal'
+export type PandaFieldPresentationMode = 'validity_aware' | 'reference_replica'
 
 export type PandaFieldInputName =
   | 'coreRadiusUm'
@@ -33,14 +33,16 @@ export type PandaFieldFieldErrors = Partial<Record<PandaFieldInputName, string>>
 
 export type PandaFieldController = {
   values: PandaFieldFormValues
-  display: PandaFieldDisplay
+  presentationMode: PandaFieldPresentationMode
+  showReferenceSpokes: boolean
   result: PandaFieldResult | null
   phase: PandaFieldPhase
   statusLabel: string
   errorMessage: string | null
   fieldErrors: PandaFieldFieldErrors
   onValueChange: (name: PandaFieldInputName, value: string) => void
-  onDisplayChange: (display: PandaFieldDisplay) => void
+  onPresentationModeChange: (mode: PandaFieldPresentationMode) => void
+  onShowReferenceSpokesChange: (show: boolean) => void
   onRetry: () => void
 }
 
@@ -66,7 +68,7 @@ export const initialPandaFieldValues: PandaFieldFormValues = {
   temperatureC: '20',
   fictiveTemperatureC: '1200',
   interfaceBufferUm: '2',
-  gridPoints: '65',
+  gridPoints: '601',
 }
 
 const inputNames = Object.keys(initialPandaFieldValues) as PandaFieldInputName[]
@@ -90,6 +92,9 @@ const materialConfidences = new Set([
   'calibrated_effective',
   'demonstration_only',
 ])
+const CORRECTED_NORMALIZATION = 'max_valid_absolute_deviatoric_difference'
+const CORRECTED_AUXILIARY_NORMALIZATION =
+  'max_valid_absolute_shear_and_max_valid_principal_difference'
 const NORMALIZED_TOLERANCE = 1e-12
 const MICROMETRES_TO_METRES = 1e-6
 const MICRO_CTE_TO_CTE = 1e-6
@@ -153,6 +158,7 @@ function demonstrationMaterial(name: string, ctePerK: number) {
 
 export function parsePandaFieldValues(
   values: PandaFieldFormValues,
+  presentationMode: PandaFieldPresentationMode = 'validity_aware',
 ): PandaFieldParseResult {
   const fieldErrors: PandaFieldFieldErrors = {}
   const parsed = Object.fromEntries(
@@ -190,14 +196,14 @@ export function parsePandaFieldValues(
   }
   if (
     !Number.isInteger(numbers.gridPoints) ||
-    numbers.gridPoints < 3 ||
-    numbers.gridPoints > 65 ||
+    numbers.gridPoints < 401 ||
+    numbers.gridPoints > 601 ||
     numbers.gridPoints % 2 === 0
   ) {
     addError(
       fieldErrors,
       'gridPoints',
-      'Grid points must be an odd integer from 3 to 65.',
+      'Grid points must be an odd integer from 401 to 601.',
     )
   }
 
@@ -339,7 +345,10 @@ export function parsePandaFieldValues(
       sampling: {
         grid_half_width_m: claddingRadiusM,
         grid_points: numbers.gridPoints,
-        interface_buffer_m: numbers.interfaceBufferUm * MICROMETRES_TO_METRES,
+        interface_buffer_m:
+          presentationMode === 'reference_replica'
+            ? 0
+            : numbers.interfaceBufferUm * MICROMETRES_TO_METRES,
       },
     },
   }
@@ -435,8 +444,8 @@ function isPandaRequest(value: unknown): value is PandaFieldRequest {
     sampling.grid_half_width_m > 0 &&
     isFiniteNumber(sampling.grid_points) &&
     Number.isInteger(sampling.grid_points) &&
-    Number(sampling.grid_points) >= 3 &&
-    Number(sampling.grid_points) <= 65 &&
+    Number(sampling.grid_points) >= 401 &&
+    Number(sampling.grid_points) <= 601 &&
     Number(sampling.grid_points) % 2 === 1 &&
     isFiniteNumber(sampling.interface_buffer_m) &&
     sampling.interface_buffer_m >= 0
@@ -501,6 +510,29 @@ function hasExactStrings(value: unknown, expected: readonly string[]) {
   )
 }
 
+function isSupportedNormalizationManifest(manifest: Record<string, unknown>) {
+  return (
+    manifest.normalization === CORRECTED_NORMALIZATION &&
+    manifest.auxiliary_normalization === CORRECTED_AUXILIARY_NORMALIZATION
+  )
+}
+
+function isPandaManifest(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    value.model_id === 'panda_qualitative_far_field_kernel' &&
+    value.model_version === '1.1.0' &&
+    value.method === 'qualitative_far_field_kernel' &&
+    value.quantity_type === 'normalized_dimensionless_kernel' &&
+    isSupportedNormalizationManifest(value) &&
+    value.quantitative === false &&
+    value.units === '1'
+  )
+}
+
 export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
   if (!isRecord(value) || !isPandaRequest(value.configuration)) {
     return false
@@ -524,14 +556,7 @@ export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
     value.kernel_scale <= 0 ||
     !Array.isArray(value.warnings) ||
     !value.warnings.every(isWarning) ||
-    !isRecord(manifest) ||
-    manifest.model_id !== 'panda_qualitative_far_field_kernel' ||
-    manifest.model_version !== '1.0.0' ||
-    manifest.method !== 'qualitative_far_field_kernel' ||
-    manifest.quantity_type !== 'normalized_dimensionless_kernel' ||
-    manifest.normalization !== 'max_valid_principal_difference' ||
-    manifest.quantitative !== false ||
-    manifest.units !== '1' ||
+    !isPandaManifest(manifest) ||
     !hasExactStrings(manifest.equation_references, equationReferences) ||
     !isStringArray(manifest.assumptions) ||
     !isStringArray(manifest.limitations) ||

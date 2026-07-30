@@ -6,10 +6,10 @@ import {
   pandaFieldRequestsMatch,
   parsePandaFieldValues,
   type PandaFieldController,
-  type PandaFieldDisplay,
   type PandaFieldFormValues,
   type PandaFieldInputName,
   type PandaFieldPhase,
+  type PandaFieldPresentationMode,
   type PandaFieldResult,
 } from './pandaFieldModel'
 
@@ -44,14 +44,19 @@ export function usePandaFieldMap(active: boolean): PandaFieldController {
   const [values, setValues] = useState<PandaFieldFormValues>(
     initialPandaFieldValues,
   )
-  const [display, setDisplay] = useState<PandaFieldDisplay>('deviatoric')
+  const [presentationMode, setPresentationMode] =
+    useState<PandaFieldPresentationMode>('validity_aware')
+  const [showReferenceSpokes, setShowReferenceSpokes] = useState(false)
   const [result, setResult] = useState<PandaFieldResult | null>(null)
   const [phase, setPhase] = useState<PandaFieldPhase>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [retrySequence, setRetrySequence] = useState(0)
   const requestSequence = useRef(0)
   const lastSuccessfulRetrySequence = useRef(0)
-  const parsed = useMemo(() => parsePandaFieldValues(values), [values])
+  const parsed = useMemo(
+    () => parsePandaFieldValues(values, presentationMode),
+    [presentationMode, values],
+  )
 
   useEffect(() => {
     requestSequence.current += 1
@@ -160,8 +165,18 @@ export function usePandaFieldMap(active: boolean): PandaFieldController {
     [],
   )
 
-  const onDisplayChange = useCallback((nextDisplay: PandaFieldDisplay) => {
-    setDisplay(nextDisplay)
+  const onPresentationModeChange = useCallback(
+    (nextMode: PandaFieldPresentationMode) => {
+      setPresentationMode(nextMode)
+      setResult(null)
+      setPhase('idle')
+      setErrorMessage(null)
+    },
+    [],
+  )
+
+  const onShowReferenceSpokesChange = useCallback((show: boolean) => {
+    setShowReferenceSpokes(show)
   }, [])
 
   const onRetry = useCallback(() => {
@@ -178,14 +193,16 @@ export function usePandaFieldMap(active: boolean): PandaFieldController {
 
   return {
     values,
-    display,
+    presentationMode,
+    showReferenceSpokes,
     result: parsed.request === null ? null : result,
     phase: controllerPhase,
     statusLabel: statusLabels[controllerPhase],
     errorMessage: controllerErrorMessage,
     fieldErrors: parsed.fieldErrors,
     onValueChange,
-    onDisplayChange,
+    onPresentationModeChange,
+    onShowReferenceSpokesChange,
     onRetry,
   }
 }

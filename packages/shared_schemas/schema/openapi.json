@@ -623,9 +623,9 @@
             "type": "number"
           },
           "grid_points": {
-            "default": 65,
-            "maximum": 65,
-            "minimum": 3,
+            "default": 601,
+            "maximum": 601,
+            "minimum": 401,
             "title": "Grid Points",
             "type": "integer"
           },
@@ -2960,13 +2960,21 @@
               "constant thermal expansion coefficients over the temperature interval",
               "circular SAP inclusions in homogeneous cladding",
               "linear superposition of two far-field inclusion kernels",
-              "K_i is undefined and omitted from each inclusion contribution"
+              "K_i is undefined and omitted from each inclusion contribution",
+              "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
+              "auxiliary shear and principal-difference kernels use their own valid extrema"
             ],
             "items": {
               "type": "string"
             },
             "title": "Assumptions",
             "type": "array"
+          },
+          "auxiliary_normalization": {
+            "const": "max_valid_absolute_shear_and_max_valid_principal_difference",
+            "default": "max_valid_absolute_shear_and_max_valid_principal_difference",
+            "title": "Auxiliary Normalization",
+            "type": "string"
           },
           "equation_references": {
             "default": [
@@ -3009,14 +3017,14 @@
             "type": "string"
           },
           "model_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
+            "const": "1.1.0",
+            "default": "1.1.0",
             "title": "Model Version",
             "type": "string"
           },
           "normalization": {
-            "const": "max_valid_principal_difference",
-            "default": "max_valid_principal_difference",
+            "const": "max_valid_absolute_deviatoric_difference",
+            "default": "max_valid_absolute_deviatoric_difference",
             "title": "Normalization",
             "type": "string"
           },

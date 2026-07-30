@@ -1,6 +1,10 @@
 import { M1FoundationCopy, PandaQualitativeNotice } from './M1Foundation'
 import { getM1WorkspaceLabel, type M1WorkspaceId } from './M1WorkspaceCatalog'
-import type { PandaFieldController, PandaFieldResult } from './pandaFieldModel'
+import type {
+  PandaFieldController,
+  PandaFieldPresentationMode,
+  PandaFieldResult,
+} from './pandaFieldModel'
 import { corePrincipalAxisAngle } from './pandaFieldView'
 
 export type M1ResultsProps = {
@@ -18,7 +22,13 @@ const warningLabels = {
   zero_interface_buffer: 'No interface buffer',
 } as const
 
-function PandaReadyResults({ result }: { result: PandaFieldResult }) {
+function PandaReadyResults({
+  result,
+  presentationMode,
+}: {
+  result: PandaFieldResult
+  presentationMode: PandaFieldPresentationMode
+}) {
   const manifest = result.model_manifest
   const gridPoints = result.configuration.sampling.grid_points
   const interfaceBufferUm = manifest.validity.interface_buffer_m * 1e6
@@ -46,7 +56,7 @@ function PandaReadyResults({ result }: { result: PandaFieldResult }) {
         </div>
         <div>
           <dt>Normalization</dt>
-          <dd>Maximum valid principal difference</dd>
+          <dd>Maximum valid absolute deviatoric difference</dd>
         </div>
         <div>
           <dt>Kernel scale</dt>
@@ -60,7 +70,12 @@ function PandaReadyResults({ result }: { result: PandaFieldResult }) {
         </div>
         <div>
           <dt>Interface buffer</dt>
-          <dd>{interfaceBufferUm.toFixed(3)} µm</dd>
+          <dd>
+            {interfaceBufferUm.toFixed(3)} µm applied
+            {presentationMode === 'reference_replica'
+              ? ' · reference replica'
+              : ' · validity-aware'}
+          </dd>
         </div>
         <div>
           <dt>Valid points</dt>
@@ -185,7 +200,10 @@ export function M1Results({ workspace, pandaField = null }: M1ResultsProps) {
     >
       <h2 id="m1-results-title">{getM1WorkspaceLabel(workspace)} results</h2>
       {readyResult ? (
-        <PandaReadyResults result={readyResult} />
+        <PandaReadyResults
+          result={readyResult}
+          presentationMode={pandaField?.presentationMode ?? 'validity_aware'}
+        />
       ) : (
         <UnavailableResults workspace={workspace} controller={pandaField} />
       )}

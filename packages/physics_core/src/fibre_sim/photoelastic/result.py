@@ -46,10 +46,15 @@ class PandaFieldMapManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["panda_qualitative_far_field_kernel"] = "panda_qualitative_far_field_kernel"
-    model_version: Literal["1.0.0"] = "1.0.0"
+    model_version: Literal["1.1.0"] = "1.1.0"
     method: Literal["qualitative_far_field_kernel"] = "qualitative_far_field_kernel"
     quantity_type: Literal["normalized_dimensionless_kernel"] = "normalized_dimensionless_kernel"
-    normalization: Literal["max_valid_principal_difference"] = "max_valid_principal_difference"
+    normalization: Literal["max_valid_absolute_deviatoric_difference"] = (
+        "max_valid_absolute_deviatoric_difference"
+    )
+    auxiliary_normalization: Literal[
+        "max_valid_absolute_shear_and_max_valid_principal_difference"
+    ] = "max_valid_absolute_shear_and_max_valid_principal_difference"
     quantitative: Literal[False] = False
     units: Literal["1"] = "1"
     equation_references: tuple[str, ...] = (
@@ -65,6 +70,8 @@ class PandaFieldMapManifest(BaseModel):
         "circular SAP inclusions in homogeneous cladding",
         "linear superposition of two far-field inclusion kernels",
         "K_i is undefined and omitted from each inclusion contribution",
+        "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
+        "auxiliary shear and principal-difference kernels use their own valid extrema",
     )
     limitations: tuple[str, ...] = (
         "outputs are normalized qualitative kernels without calibrated stress values",
@@ -166,6 +173,11 @@ class PandaFieldMapResult(BaseModel):
                     raise PydanticCustomError(
                         "principal_axis_invalid",
                         "Nonzero principal differences require a finite principal-axis angle.",
+                    )
+                elif not -math.pi / 2.0 <= angle <= math.pi / 2.0:
+                    raise PydanticCustomError(
+                        "principal_axis_out_of_range",
+                        "Principal-axis angles must be within [-pi/2, pi/2].",
                     )
 
         validity = self.model_manifest.validity

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { M1Inspector } from './M1Inspector'
 import { M1Results } from './M1Results'
 import { M1Workspace } from './M1Workspace'
+import { ISOLINE_THRESHOLDS } from './pandaFieldContours'
 import {
   initialPandaFieldValues,
   type PandaFieldController,
@@ -14,6 +15,8 @@ const canvasContext = {
   arc: vi.fn(),
   beginPath: vi.fn(),
   clearRect: vi.fn(),
+  closePath: vi.fn(),
+  fill: vi.fn(),
   fillRect: vi.fn(),
   fillText: vi.fn(),
   lineTo: vi.fn(),
@@ -119,10 +122,12 @@ function readyResult(): PandaFieldResult {
     ],
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
-      model_version: '1.0.0',
+      model_version: '1.1.0',
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
-      normalization: 'max_valid_principal_difference',
+      normalization: 'max_valid_absolute_deviatoric_difference',
+      auxiliary_normalization:
+        'max_valid_absolute_shear_and_max_valid_principal_difference',
       quantitative: false,
       units: '1',
       equation_references: [
@@ -156,14 +161,16 @@ function controller(
 ): PandaFieldController {
   return {
     values: { ...initialPandaFieldValues },
-    display: 'deviatoric',
+    presentationMode: 'validity_aware',
+    showReferenceSpokes: false,
     result: null,
     phase: 'idle',
     statusLabel: 'Waiting for PANDA field map…',
     errorMessage: null,
     fieldErrors: {},
     onValueChange: vi.fn(),
-    onDisplayChange: vi.fn(),
+    onPresentationModeChange: vi.fn(),
+    onShowReferenceSpokesChange: vi.fn(),
     onRetry: vi.fn(),
     ...overrides,
   }
@@ -184,13 +191,13 @@ afterEach(() => {
 describe('M1 PANDA field workspace', () => {
   test('groups every input, explains boundaries, and calls controller callbacks', () => {
     const onValueChange = vi.fn()
-    const onDisplayChange = vi.fn()
+    const onPresentationModeChange = vi.fn()
     const fieldController = controller({
       phase: 'validation',
       statusLabel: 'Check the highlighted values.',
       fieldErrors: { coreRadiusUm: 'Core radius must be smaller.' },
       onValueChange,
-      onDisplayChange,
+      onPresentationModeChange,
     })
     const { container } = render(
       <M1Inspector workspace="panda-field" pandaField={fieldController} />,
@@ -198,7 +205,7 @@ describe('M1 PANDA field workspace', () => {
 
     expect(screen.getByText('Geometry')).toBeVisible()
     expect(screen.getByText('Thermal mismatch')).toBeInTheDocument()
-    expect(screen.getByText('Sampling and display')).toBeInTheDocument()
+    expect(screen.getByText('Sampling and presentation')).toBeInTheDocument()
     expect(container.querySelectorAll('input[type="number"]')).toHaveLength(17)
     expect(
       screen.getByText(/Material values are demonstration-only/),
@@ -214,12 +221,16 @@ describe('M1 PANDA field workspace', () => {
     fireEvent.change(coreRadius, { target: { value: '4.3' } })
     expect(onValueChange).toHaveBeenCalledWith('coreRadiusUm', '4.3')
 
-    const display = screen.getByLabelText('Displayed field')
-    fireEvent.change(display, { target: { value: 'principal' } })
-    expect(onDisplayChange).toHaveBeenCalledWith('principal')
+    fireEvent.click(
+      screen.getByRole('radio', {
+        name: /Reference replica \(comparison-only\)/,
+      }),
+    )
+    expect(onPresentationModeChange).toHaveBeenCalledWith('reference_replica')
     expect(
-      screen.getByText(/Odd integer from 3 to 65 inclusive/),
+      screen.getByText(/Odd integer from 401 to 601 inclusive/),
     ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Displayed field')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Retry/ }),
     ).not.toBeInTheDocument()
@@ -244,6 +255,33 @@ describe('M1 PANDA field workspace', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Retry field map' }))
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  test('shows and toggles radial spokes only for reference replica mode', () => {
+    const onShowReferenceSpokesChange = vi.fn()
+    const { rerender } = render(
+      <M1Inspector
+        workspace="panda-field"
+        pandaField={controller({ onShowReferenceSpokesChange })}
+      />,
+    )
+
+    expect(
+      screen.queryByRole('checkbox', { name: /Show radial spokes/ }),
+    ).not.toBeInTheDocument()
+
+    rerender(
+      <M1Inspector
+        workspace="panda-field"
+        pandaField={controller({
+          presentationMode: 'reference_replica',
+          onShowReferenceSpokesChange,
+        })}
+      />,
+    )
+    const spokes = screen.getByRole('checkbox', { name: /Show radial spokes/ })
+    fireEvent.click(spokes)
+    expect(onShowReferenceSpokesChange).toHaveBeenCalledWith(true)
   })
 
   test.each([
@@ -282,7 +320,7 @@ describe('M1 PANDA field workspace', () => {
     )
 
     const canvas = screen.getByRole('img', {
-      name: 'Deviatoric difference normalized qualitative PANDA field map',
+      name: 'Signed normalized deviatoric difference qualitative PANDA field map',
     })
     expect(canvas).toHaveAttribute('width', '720')
     expect(canvas).toHaveAttribute('height', '720')
@@ -291,10 +329,12 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText('−1')).toBeVisible()
     expect(screen.getByText('0')).toBeVisible()
     expect(screen.getByText('+1')).toBeVisible()
-    expect(screen.getByText(/not stress in pascals/)).toBeVisible()
-    expect(screen.getByText(/Dark hatched cells/)).toBeVisible()
+    expect(screen.getByText(/does not report stress in pascals/)).toBeVisible()
+    expect(screen.getByText(/semi-transparent hatched overlay/)).toBeVisible()
     expect(screen.getByText(/30\.00° from the positive x-axis/)).toBeVisible()
-    expect(canvasContext.fillRect).toHaveBeenCalled()
+    expect(canvasContext.fillRect).toHaveBeenCalledTimes(1)
+    expect(canvasContext.fill).toHaveBeenCalledWith('evenodd')
+    expect(ISOLINE_THRESHOLDS).toContain(0)
     expect(canvasContext.arc).toHaveBeenCalledTimes(4)
     expect(canvasContext.moveTo).toHaveBeenCalled()
     expect(canvasContext.lineTo).toHaveBeenCalled()
@@ -331,34 +371,26 @@ describe('M1 PANDA field workspace', () => {
     ).toBeVisible()
   })
 
-  test('uses the selected returned field without changing the fixed scale', () => {
+  test('always uses the signed deviatoric field without changing the fixed scale', () => {
     const fieldController = controller({
       phase: 'ready',
-      display: 'shear',
       result: readyResult(),
     })
-    const { rerender } = render(
-      <M1Workspace workspace="panda-field" pandaField={fieldController} />,
-    )
+    render(<M1Workspace workspace="panda-field" pandaField={fieldController} />)
 
     expect(
-      screen.getByRole('heading', { name: 'Shear', level: 3 }),
+      screen.getByRole('heading', {
+        name: 'Signed normalized deviatoric difference',
+        level: 3,
+      }),
     ).toBeVisible()
     expect(
       screen.getByLabelText('Fixed colour scale from -1 to +1'),
     ).toBeVisible()
 
-    rerender(
-      <M1Workspace
-        workspace="panda-field"
-        pandaField={{ ...fieldController, display: 'principal' }}
-      />,
-    )
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'Principal difference', level: 3 }),
-    ).toBeVisible()
-    expect(
-      screen.getByText(/principal-difference values occupy 0 to \+1/),
+      screen.getByText(/only the signed normalized deviatoric/),
     ).toBeVisible()
   })
 
@@ -373,10 +405,12 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText('Qualitative far-field kernel')).toBeVisible()
     expect(screen.getByText('Normalized dimensionless kernel')).toBeVisible()
     expect(screen.getByText('1 — dimensionless')).toBeVisible()
-    expect(screen.getByText('Maximum valid principal difference')).toBeVisible()
+    expect(
+      screen.getByText('Maximum valid absolute deviatoric difference'),
+    ).toBeVisible()
     expect(screen.getByText('1.000000e-3')).toBeVisible()
     expect(screen.getByText('3 × 3')).toBeVisible()
-    expect(screen.getByText('2.000 µm')).toBeVisible()
+    expect(screen.getByText(/2\.000 µm applied/)).toBeVisible()
     expect(screen.getByText('30.000° from +x')).toBeVisible()
     expect(screen.getByText('Qualitative only')).toBeVisible()
     expect(screen.getByText(/K_i is undefined/)).toBeVisible()

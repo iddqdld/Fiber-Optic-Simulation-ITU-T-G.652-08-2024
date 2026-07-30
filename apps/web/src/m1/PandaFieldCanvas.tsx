@@ -1,6 +1,15 @@
 import { useEffect, useId, useRef } from 'react'
 
-import type { PandaFieldDisplay, PandaFieldResult } from './pandaFieldModel'
+import type {
+  PandaFieldPresentationMode,
+  PandaFieldResult,
+} from './pandaFieldModel'
+import {
+  drawFilledContours,
+  drawInvalidMaskOverlay,
+  drawIsolines,
+  FIGURE_FIELD_LABEL,
+} from './pandaFieldContours'
 import { corePrincipalAxisAngle } from './pandaFieldView'
 
 const CANVAS_SIZE = 720
@@ -8,82 +17,31 @@ const PLOT_LEFT = 68
 const PLOT_TOP = 34
 const PLOT_SIZE = 610
 
-const displayDefinitions = {
-  deviatoric: {
-    label: 'Deviatoric difference',
-    field: 'normalized_deviatoric_difference_kernel',
-  },
-  shear: {
-    label: 'Shear',
-    field: 'normalized_shear_kernel',
-  },
-  principal: {
-    label: 'Principal difference',
-    field: 'normalized_principal_difference_kernel',
-  },
-} as const
-
-type DisplayKey = keyof typeof displayDefinitions
-type NullableGrid = ReadonlyArray<ReadonlyArray<number | null>>
-
-function displayDefinition(display: PandaFieldDisplay) {
-  return (
-    displayDefinitions[String(display) as DisplayKey] ??
-    displayDefinitions.deviatoric
-  )
-}
-
-function fieldColor(value: number) {
-  const normalized = Math.max(-1, Math.min(1, value))
-  const neutral = [226, 231, 237]
-  const endpoint = normalized < 0 ? [36, 99, 235] : [220, 48, 48]
-  const amount = Math.abs(normalized)
-  const channels = neutral.map((channel, index) =>
-    Math.round(channel + (endpoint[index] - channel) * amount),
-  )
-  return `rgb(${channels.join(' ')})`
-}
-
-function drawMaskCell(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-) {
-  context.fillStyle = '#101720'
-  context.fillRect(x, y, width, height)
-  context.beginPath()
-  context.moveTo(x, y + height)
-  context.lineTo(x + width, y)
-  context.strokeStyle = '#273443'
-  context.lineWidth = 1
-  context.stroke()
-}
-
-function drawGrid(
+function drawReferenceSpokes(
   context: CanvasRenderingContext2D,
   result: PandaFieldResult,
-  grid: NullableGrid,
+  toX: (value: number) => number,
+  toY: (value: number) => number,
 ) {
-  const rows = result.y_coordinates_m.length
-  const columns = result.x_coordinates_m.length
-  const cellWidth = PLOT_SIZE / columns
-  const cellHeight = PLOT_SIZE / rows
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const x = PLOT_LEFT + column * cellWidth
-      const y = PLOT_TOP + (rows - row - 1) * cellHeight
-      const value = grid[row]?.[column] ?? null
-      if (!result.validity_mask[row]?.[column] || value === null) {
-        drawMaskCell(context, x, y, cellWidth + 0.5, cellHeight + 0.5)
-      } else {
-        context.fillStyle = fieldColor(value)
-        context.fillRect(x, y, cellWidth + 0.5, cellHeight + 0.5)
-      }
-    }
+  const geometry = result.configuration.geometry
+  const centerX = toX(geometry.core_center_x_m)
+  const centerY = toY(geometry.core_center_y_m)
+  context.beginPath()
+  context.strokeStyle = 'rgb(240 248 255 / 34%)'
+  context.lineWidth = 0.8
+  for (let index = 0; index < 16; index += 1) {
+    const angle = (index * Math.PI) / 8
+    context.moveTo(centerX, centerY)
+    context.lineTo(
+      toX(
+        geometry.core_center_x_m + Math.cos(angle) * geometry.cladding_radius_m,
+      ),
+      toY(
+        geometry.core_center_y_m + Math.sin(angle) * geometry.cladding_radius_m,
+      ),
+    )
   }
+  context.stroke()
 }
 
 function drawGeometry(
@@ -187,15 +145,12 @@ function drawCoreAxis(
 function drawField(
   context: CanvasRenderingContext2D,
   result: PandaFieldResult,
-  display: PandaFieldDisplay,
+  presentationMode: PandaFieldPresentationMode,
+  showReferenceSpokes: boolean,
 ) {
   context.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
   context.fillStyle = '#0b1118'
   context.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
-
-  const definition = displayDefinition(display)
-  const grid = result[definition.field] as NullableGrid
-  drawGrid(context, result, grid)
 
   const minimumX = result.x_coordinates_m[0]
   const maximumX = result.x_coordinates_m.at(-1)
@@ -217,6 +172,13 @@ function drawField(
   const toY = (value: number) =>
     PLOT_TOP + ((maximumY - value) / (maximumY - minimumY)) * PLOT_SIZE
   const radiusScale = PLOT_SIZE / (maximumX - minimumX)
+
+  drawFilledContours(context, result, toX, toY)
+  drawIsolines(context, result, toX, toY)
+  drawInvalidMaskOverlay(context, result, toX, toY, presentationMode)
+  if (presentationMode === 'reference_replica' && showReferenceSpokes) {
+    drawReferenceSpokes(context, result, toX, toY)
+  }
   drawAxes(context, toX, toY)
   drawGeometry(context, result, toX, toY, radiusScale)
   drawCoreAxis(
@@ -231,36 +193,49 @@ function drawField(
 
 export type PandaFieldCanvasProps = {
   result: PandaFieldResult
-  display: PandaFieldDisplay
+  presentationMode?: PandaFieldPresentationMode
+  showReferenceSpokes?: boolean
 }
 
-export function PandaFieldCanvas({ result, display }: PandaFieldCanvasProps) {
+export function PandaFieldCanvas({
+  result,
+  presentationMode = 'validity_aware',
+  showReferenceSpokes = false,
+}: PandaFieldCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const captionId = useId()
   const axisId = useId()
-  const definition = displayDefinition(display)
   const axisAngle = corePrincipalAxisAngle(result)
   const xMinimumUm = result.x_coordinates_m[0] * 1e6
   const xMaximumUm = result.x_coordinates_m.at(-1)! * 1e6
   const yMinimumUm = result.y_coordinates_m[0] * 1e6
   const yMaximumUm = result.y_coordinates_m.at(-1)! * 1e6
+  const isReferenceReplica = presentationMode === 'reference_replica'
 
   useEffect(() => {
     const context = canvasRef.current?.getContext('2d')
     if (context) {
-      drawField(context, result, display)
+      drawField(context, result, presentationMode, showReferenceSpokes)
     }
-  }, [display, result])
+  }, [presentationMode, result, showReferenceSpokes])
 
   return (
     <figure className="panda-field-figure" aria-labelledby={captionId}>
       <div className="panda-field-plot-heading">
         <div>
-          <p className="panda-field-eyebrow">Selected normalized field</p>
-          <h3>{definition.label}</h3>
+          <p className="panda-field-eyebrow">Figure 5.1 · fixed quantity</p>
+          <h3>{FIGURE_FIELD_LABEL}</h3>
         </div>
-        <span>dimensionless</span>
+        <span>
+          dimensionless{isReferenceReplica ? ' · comparison-only' : ''}
+        </span>
       </div>
+      {isReferenceReplica && (
+        <p className="panda-field-mode-label">
+          Reference replica (comparison-only): zero applied interface buffer;
+          SAP interiors are neutral.
+        </p>
+      )}
       <p className="panda-field-extent">
         Physical extent: x {xMinimumUm.toFixed(2)} to {xMaximumUm.toFixed(2)}
         {' µm'}; y {yMinimumUm.toFixed(2)} to {yMaximumUm.toFixed(2)} µm.
@@ -271,7 +246,7 @@ export function PandaFieldCanvas({ result, display }: PandaFieldCanvasProps) {
           width={CANVAS_SIZE}
           height={CANVAS_SIZE}
           role="img"
-          aria-label={`${definition.label} normalized qualitative PANDA field map`}
+          aria-label={`${FIGURE_FIELD_LABEL} qualitative PANDA field map`}
           aria-describedby={`${captionId} ${axisId}`}
         />
       </div>
@@ -292,12 +267,14 @@ export function PandaFieldCanvas({ result, display }: PandaFieldCanvasProps) {
           : `Core-centre principal axis: ${((axisAngle * 180) / Math.PI).toFixed(2)}° from the positive x-axis.`}
       </p>
       <figcaption id={captionId}>
-        Figure 5.1 — {definition.label.toLowerCase()} from the backend
-        normalized qualitative far-field kernel. The fixed colour range is −1 to
-        +1; principal-difference values occupy 0 to +1. Dark hatched cells are
-        outside the valid region, inside a SAP, or within its interface mask.
-        Values are normalized by the maximum valid principal-difference kernel
-        magnitude and are not stress in pascals.
+        Figure 5.1 — signed normalized deviatoric-difference kernel from the
+        backend. Filled contours use about 21 levels and thin isolines use 17
+        fixed thresholds including zero. The fixed colour range is −1 to +1;
+        values are dimensionless. Invalid samples use the backend validity mask
+        as a separate semi-transparent hatched overlay.{' '}
+        {isReferenceReplica
+          ? 'This reference replica is comparison-only and applies zero interface buffer so contours reach SAP boundaries; SAP interiors remain neutral.'
+          : 'Validity-aware mode applies the configured interface buffer and shows the explicit invalid-region mask.'}
       </figcaption>
     </figure>
   )

@@ -99,7 +99,10 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     assert "effective_fictive_temperature_k" not in schemas["PandaMaterial"]["properties"]
     assert "material" not in schemas["CircularSAP"]["properties"]
     assert "core_center_x_m" in schemas["PandaGeometry"]["properties"]
-    assert schemas["FieldMapSamplingConfig"]["properties"]["grid_points"]["maximum"] == 65
+    grid_schema = schemas["FieldMapSamplingConfig"]["properties"]["grid_points"]
+    assert grid_schema["minimum"] == 401
+    assert grid_schema["maximum"] == 601
+    assert grid_schema["default"] == 601
     assert schemas["MaterialSource"]["properties"]["confidence"]["$ref"] == (
         "#/components/schemas/MaterialConfidence"
     )
@@ -110,7 +113,12 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     manifest_properties = schemas["PandaFieldMapManifest"]["properties"]
     assert manifest_properties["method"]["const"] == "qualitative_far_field_kernel"
     assert manifest_properties["quantity_type"]["const"] == ("normalized_dimensionless_kernel")
-    assert manifest_properties["normalization"]["const"] == "max_valid_principal_difference"
+    assert manifest_properties["normalization"]["const"] == (
+        "max_valid_absolute_deviatoric_difference"
+    )
+    assert manifest_properties["auxiliary_normalization"]["const"] == (
+        "max_valid_absolute_shear_and_max_valid_principal_difference"
+    )
     assert manifest_properties["quantitative"]["const"] is False
     assert manifest_properties["units"]["const"] == "1"
 
