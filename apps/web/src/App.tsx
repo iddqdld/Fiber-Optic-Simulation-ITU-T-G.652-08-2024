@@ -753,11 +753,7 @@ function App() {
     const controller = new AbortController()
     const parsed = parseFormValues(formValues)
 
-    if (
-      isM1WorkspaceActive ||
-      parsed.error !== null ||
-      parsed.request === null
-    ) {
+    if (parsed.error !== null || parsed.request === null) {
       return () => controller.abort()
     }
 
@@ -854,7 +850,7 @@ function App() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [formValues, isM1WorkspaceActive])
+  }, [formValues])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
     clearVisualizationData()

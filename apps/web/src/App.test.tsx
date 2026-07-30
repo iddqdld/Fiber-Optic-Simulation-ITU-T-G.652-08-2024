@@ -795,7 +795,7 @@ function numberInput(name: RegExp) {
   return screen.getByRole('spinbutton', { name })
 }
 
-function selectWorkspace(name: 'Scene' | 'Graphs') {
+function selectWorkspace(name: '3D scene' | 'Graphs') {
   const tab = screen.getByRole('tab', { name })
   if (tab.getAttribute('aria-selected') !== 'true') {
     fireEvent.click(tab)
@@ -813,33 +813,33 @@ function selectGraph(
 }
 
 function modeProfileOutput() {
-  selectWorkspace('Scene')
+  selectWorkspace('3D scene')
   return screen.getByTestId('mode-profile')
 }
 
 function radialIntensityPlotOutput() {
   selectGraph('LP01 intensity')
   const output = screen.getByTestId('radial-intensity-plot')
-  selectWorkspace('Scene')
+  selectWorkspace('3D scene')
   return output
 }
 
 function powerDistancePlotOutput() {
   selectGraph('Power / distance')
   const output = screen.getByTestId('power-distance-plot')
-  selectWorkspace('Scene')
+  selectWorkspace('3D scene')
   return output
 }
 
 function pulseComparisonPlotOutput() {
   selectGraph('Pulse comparison')
   const output = screen.getByTestId('pulse-comparison-plot')
-  selectWorkspace('Scene')
+  selectWorkspace('3D scene')
   return output
 }
 
 function pulseAnimationOutput() {
-  selectWorkspace('Scene')
+  selectWorkspace('3D scene')
   return screen.getByTestId('pulse-animation')
 }
 
@@ -901,6 +901,80 @@ describe('backend health', () => {
 })
 
 describe('editor UI state', () => {
+  test('groups G.652 and PANDA views without requesting previews during navigation', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialPreviewCallCount = previewCalls(fetchMock).length
+    const navigation = within(
+      screen.getByRole('navigation', { name: 'Simulation navigation' }),
+    )
+    const visibleSecondaryLabels = () =>
+      navigation.getAllByRole('tab').map((tab) => tab.textContent?.trim() ?? '')
+
+    expect(
+      navigation.getByRole('button', { name: 'G.652' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      navigation.getByRole('button', { name: 'PANDA' }),
+    ).toBeInTheDocument()
+    expect(visibleSecondaryLabels()).toEqual([
+      '3D scene',
+      'Graphs',
+      'Standards',
+      'Compare',
+      'Sweep',
+    ])
+
+    fireEvent.click(navigation.getByRole('button', { name: 'PANDA' }))
+
+    expect(navigation.getByRole('button', { name: 'PANDA' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('heading', { name: 'PANDA field' })).toBeVisible()
+    expect(
+      within(screen.getByRole('tabpanel', { name: 'Field map' })).getByText(
+        /M1 is a 2D photoelasticity foundation/,
+      ),
+    ).toBeVisible()
+    expect(visibleSecondaryLabels()).toEqual(['Field map', 'FEM mesh'])
+
+    fireEvent.click(navigation.getByRole('tab', { name: 'FEM mesh' }))
+
+    expect(navigation.getByRole('tab', { name: 'FEM mesh' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('heading', { name: 'FEM mesh' })).toBeVisible()
+
+    fireEvent.click(navigation.getByRole('button', { name: 'G.652' }))
+
+    expect(
+      navigation.getByRole('button', { name: 'G.652' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(navigation.getByRole('tab', { name: '3D scene' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(
+      screen.getByRole('region', { name: '3D fibre geometry' }),
+    ).toBeVisible()
+    expect(visibleSecondaryLabels()).toEqual([
+      '3D scene',
+      'Graphs',
+      'Standards',
+      'Compare',
+      'Sweep',
+    ])
+
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
+    expect(sweepCalls(fetchMock)).toHaveLength(0)
+  })
+
   test('routes the M1 views to isolated 2D foundation content without M1 requests', async () => {
     vi.useFakeTimers()
     const fetchMock = mockFetch()
@@ -909,7 +983,7 @@ describe('editor UI state', () => {
     await settleDebounce()
     const initialPreviewCallCount = previewCalls(fetchMock).length
 
-    fireEvent.click(screen.getByRole('tab', { name: 'PANDA field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
 
     expect(
       screen.getByRole('heading', { name: 'PANDA field', level: 2 }),
