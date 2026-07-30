@@ -2,10 +2,13 @@ import { M1FoundationCopy, PandaQualitativeNotice } from './M1Foundation'
 import type { M1WorkspaceId } from './M1WorkspaceCatalog'
 import { PandaFieldCanvas } from './PandaFieldCanvas'
 import type { PandaFieldController } from './pandaFieldModel'
+import { PandaMeshCanvas } from './PandaMeshCanvas'
+import type { PandaMeshController } from './pandaMeshModel'
 
 export type M1WorkspaceProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
+  pandaMesh?: PandaMeshController | null
 }
 
 function PandaFieldStatus({
@@ -75,7 +78,46 @@ function PandaFieldWorkspace({
   )
 }
 
-function FemWorkspace() {
+function PandaMeshStatus({
+  controller,
+}: {
+  controller: PandaMeshController | null
+}) {
+  if (controller?.phase === 'ready' && controller.result) {
+    return <PandaMeshCanvas result={controller.result} />
+  }
+
+  let message = 'Configure the PANDA geometry to generate the Figure 9.1 mesh.'
+  if (controller?.phase === 'loading') {
+    message = 'Generating the constrained triangular PANDA mesh…'
+  } else if (controller?.phase === 'validation') {
+    message =
+      'The PANDA mesh is unavailable until the highlighted inputs are valid.'
+  } else if (controller?.phase === 'error') {
+    message =
+      controller.errorMessage ??
+      'The PANDA mesh service could not complete this calculation.'
+  } else if (controller?.phase === 'ready') {
+    message = 'The PANDA mesh result is unavailable.'
+  }
+
+  return (
+    <div
+      className="m1-workspace-placeholder panda-mesh-status"
+      role={controller?.phase === 'error' ? 'alert' : 'status'}
+      aria-live="polite"
+    >
+      <p>{message}</p>
+      <p>No stale mesh is displayed in this state.</p>
+    </div>
+  )
+}
+
+function FemWorkspace({
+  controller,
+}: {
+  controller: PandaMeshController | null
+}) {
   return (
     <section
       className="m1-workspace"
@@ -88,26 +130,14 @@ function FemWorkspace() {
           <p className="m1-workspace-kicker">M1 · 2D only · Figure 9.1</p>
           <h2 id="m1-workspace-title">FEM mesh</h2>
           <p>
-            This view will display a 2D mesh refined around the core and the two
-            SAP regions for later validation.
+            A constrained triangular mesh preview of the core, cladding and two
+            SAP regions, ready for the later FEM field step.
           </p>
         </div>
-        <span className="m1-workspace-badge">2D foundation</span>
+        <span className="m1-workspace-badge">Mesh preview</span>
       </header>
       <M1FoundationCopy />
-      <div className="m1-workspace-placeholder" role="status">
-        <p>
-          The 2D FEM mesh is not connected yet. No mesh or validation values are
-          being displayed.
-        </p>
-        <p>
-          Mesh generation and FEM calculation will be added in a later step.
-        </p>
-      </div>
-      <p className="m1-workspace-note">
-        This placeholder intentionally contains no canvas, mesh, field, or
-        calculated values.
-      </p>
+      <PandaMeshStatus controller={controller} />
       <span className="sr-only">FEM mesh is active.</span>
     </section>
   )
@@ -116,10 +146,11 @@ function FemWorkspace() {
 export function M1Workspace({
   workspace,
   pandaField = null,
+  pandaMesh = null,
 }: M1WorkspaceProps) {
   return workspace === 'panda-field' ? (
     <PandaFieldWorkspace controller={pandaField} />
   ) : (
-    <FemWorkspace />
+    <FemWorkspace controller={pandaMesh} />
   )
 }

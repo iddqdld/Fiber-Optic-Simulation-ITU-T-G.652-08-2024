@@ -26,10 +26,25 @@ export type PandaFieldInputName =
   | 'interfaceBufferUm'
   | 'gridPoints'
 
+export type PandaGeometryInputName =
+  | 'coreRadiusUm'
+  | 'claddingRadiusUm'
+  | 'coreCenterXUm'
+  | 'coreCenterYUm'
+  | 'sap1RadiusUm'
+  | 'sap1CenterXUm'
+  | 'sap1CenterYUm'
+  | 'sap2RadiusUm'
+  | 'sap2CenterXUm'
+  | 'sap2CenterYUm'
+
 export type PandaFieldFormValues = Record<PandaFieldInputName, string>
 export type PandaFieldPhase =
   'idle' | 'loading' | 'ready' | 'validation' | 'error'
 export type PandaFieldFieldErrors = Partial<Record<PandaFieldInputName, string>>
+export type PandaGeometryFieldErrors = Partial<
+  Record<PandaGeometryInputName, string>
+>
 
 export type PandaFieldController = {
   values: PandaFieldFormValues
@@ -49,6 +64,11 @@ export type PandaFieldController = {
 export type PandaFieldParseResult = {
   request: PandaFieldRequest | null
   fieldErrors: PandaFieldFieldErrors
+}
+
+export type PandaGeometryParseResult = {
+  geometry: PandaFieldRequest['geometry'] | null
+  fieldErrors: PandaGeometryFieldErrors
 }
 
 export const initialPandaFieldValues: PandaFieldFormValues = {
@@ -72,6 +92,18 @@ export const initialPandaFieldValues: PandaFieldFormValues = {
 }
 
 const inputNames = Object.keys(initialPandaFieldValues) as PandaFieldInputName[]
+const geometryInputNames: readonly PandaGeometryInputName[] = [
+  'coreRadiusUm',
+  'claddingRadiusUm',
+  'coreCenterXUm',
+  'coreCenterYUm',
+  'sap1RadiusUm',
+  'sap1CenterXUm',
+  'sap1CenterYUm',
+  'sap2RadiusUm',
+  'sap2CenterXUm',
+  'sap2CenterYUm',
+]
 const warningCodes = new Set([
   'qualitative_uncalibrated',
   'finite_cladding_approximation',
@@ -115,7 +147,7 @@ function isNonEmptyString(value: unknown): value is string {
 function parseFinite(
   values: PandaFieldFormValues,
   name: PandaFieldInputName,
-  fieldErrors: PandaFieldFieldErrors,
+  fieldErrors: Record<string, string>,
 ): number | null {
   const text = values[name].trim()
   const parsed = text === '' ? Number.NaN : Number(text)
@@ -127,8 +159,8 @@ function parseFinite(
 }
 
 function addError(
-  fieldErrors: PandaFieldFieldErrors,
-  name: PandaFieldInputName,
+  fieldErrors: Record<string, string>,
+  name: string,
   message: string,
 ) {
   fieldErrors[name] ??= message
@@ -156,55 +188,40 @@ function demonstrationMaterial(name: string, ctePerK: number) {
   }
 }
 
-export function parsePandaFieldValues(
-  values: PandaFieldFormValues,
-  presentationMode: PandaFieldPresentationMode = 'validity_aware',
-): PandaFieldParseResult {
-  const fieldErrors: PandaFieldFieldErrors = {}
-  const parsed = Object.fromEntries(
-    inputNames.map((name) => [name, parseFinite(values, name, fieldErrors)]),
-  ) as Record<PandaFieldInputName, number | null>
+type PandaGeometryNumbers = Record<PandaGeometryInputName, number>
 
-  if (Object.values(parsed).some((value) => value === null)) {
-    return { request: null, fieldErrors }
+function pandaGeometryFromNumbers(numbers: PandaGeometryNumbers) {
+  return {
+    core_radius_m: numbers.coreRadiusUm * MICROMETRES_TO_METRES,
+    cladding_radius_m: numbers.claddingRadiusUm * MICROMETRES_TO_METRES,
+    core_center_x_m: numbers.coreCenterXUm * MICROMETRES_TO_METRES,
+    core_center_y_m: numbers.coreCenterYUm * MICROMETRES_TO_METRES,
+    sap_1: {
+      radius_m: numbers.sap1RadiusUm * MICROMETRES_TO_METRES,
+      center_x_m: numbers.sap1CenterXUm * MICROMETRES_TO_METRES,
+      center_y_m: numbers.sap1CenterYUm * MICROMETRES_TO_METRES,
+    },
+    sap_2: {
+      radius_m: numbers.sap2RadiusUm * MICROMETRES_TO_METRES,
+      center_x_m: numbers.sap2CenterXUm * MICROMETRES_TO_METRES,
+      center_y_m: numbers.sap2CenterYUm * MICROMETRES_TO_METRES,
+    },
   }
+}
 
-  const numbers = parsed as Record<PandaFieldInputName, number>
-  const positiveRadiusFields = [
+function validatePandaGeometry(
+  numbers: PandaGeometryNumbers,
+  fieldErrors: Record<string, string>,
+) {
+  for (const name of [
     'coreRadiusUm',
     'claddingRadiusUm',
     'sap1RadiusUm',
     'sap2RadiusUm',
-  ] as const
-  for (const name of positiveRadiusFields) {
+  ] as const) {
     if (numbers[name] <= 0) {
       addError(fieldErrors, name, 'Radius must be greater than zero.')
     }
-  }
-
-  for (const name of ['temperatureC', 'fictiveTemperatureC'] as const) {
-    if (numbers[name] <= -CELSIUS_TO_KELVIN) {
-      addError(fieldErrors, name, 'Temperature must be above absolute zero.')
-    }
-  }
-  if (numbers.interfaceBufferUm < 0) {
-    addError(
-      fieldErrors,
-      'interfaceBufferUm',
-      'Interface buffer must be zero or greater.',
-    )
-  }
-  if (
-    !Number.isInteger(numbers.gridPoints) ||
-    numbers.gridPoints < MIN_GRID_POINTS ||
-    numbers.gridPoints > MAX_GRID_POINTS ||
-    numbers.gridPoints % 2 === 0
-  ) {
-    addError(
-      fieldErrors,
-      'gridPoints',
-      'Grid points must be an odd integer from 401 to 601.',
-    )
   }
 
   if (numbers.coreRadiusUm >= numbers.claddingRadiusUm) {
@@ -275,6 +292,75 @@ export function parsePandaFieldValues(
     }
   }
 
+  return Object.keys(fieldErrors).length === 0
+    ? pandaGeometryFromNumbers(numbers)
+    : null
+}
+
+export function parsePandaGeometryValues(
+  values: PandaFieldFormValues,
+): PandaGeometryParseResult {
+  const fieldErrors: PandaGeometryFieldErrors = {}
+  const parsed = Object.fromEntries(
+    geometryInputNames.map((name) => [
+      name,
+      parseFinite(values, name, fieldErrors),
+    ]),
+  ) as Record<PandaGeometryInputName, number | null>
+  if (Object.values(parsed).some((value) => value === null)) {
+    return { geometry: null, fieldErrors }
+  }
+
+  return {
+    geometry: validatePandaGeometry(
+      parsed as PandaGeometryNumbers,
+      fieldErrors,
+    ),
+    fieldErrors,
+  }
+}
+
+export function parsePandaFieldValues(
+  values: PandaFieldFormValues,
+  presentationMode: PandaFieldPresentationMode = 'validity_aware',
+): PandaFieldParseResult {
+  const fieldErrors: PandaFieldFieldErrors = {}
+  const parsed = Object.fromEntries(
+    inputNames.map((name) => [name, parseFinite(values, name, fieldErrors)]),
+  ) as Record<PandaFieldInputName, number | null>
+
+  if (Object.values(parsed).some((value) => value === null)) {
+    return { request: null, fieldErrors }
+  }
+
+  const numbers = parsed as Record<PandaFieldInputName, number>
+  for (const name of ['temperatureC', 'fictiveTemperatureC'] as const) {
+    if (numbers[name] <= -CELSIUS_TO_KELVIN) {
+      addError(fieldErrors, name, 'Temperature must be above absolute zero.')
+    }
+  }
+  if (numbers.interfaceBufferUm < 0) {
+    addError(
+      fieldErrors,
+      'interfaceBufferUm',
+      'Interface buffer must be zero or greater.',
+    )
+  }
+  if (
+    !Number.isInteger(numbers.gridPoints) ||
+    numbers.gridPoints < MIN_GRID_POINTS ||
+    numbers.gridPoints > MAX_GRID_POINTS ||
+    numbers.gridPoints % 2 === 0
+  ) {
+    addError(
+      fieldErrors,
+      'gridPoints',
+      'Grid points must be an odd integer from 401 to 601.',
+    )
+  }
+
+  const geometry = validatePandaGeometry(numbers, fieldErrors)
+
   if (numbers.temperatureC === numbers.fictiveTemperatureC) {
     addError(
       fieldErrors,
@@ -296,7 +382,7 @@ export function parsePandaFieldValues(
     addError(fieldErrors, 'sap2CteMicroPerK', message)
   }
 
-  if (Object.keys(fieldErrors).length > 0) {
+  if (geometry === null || Object.keys(fieldErrors).length > 0) {
     return { request: null, fieldErrors }
   }
 
@@ -308,22 +394,7 @@ export function parsePandaFieldValues(
   return {
     fieldErrors,
     request: {
-      geometry: {
-        core_radius_m: numbers.coreRadiusUm * MICROMETRES_TO_METRES,
-        cladding_radius_m: claddingRadiusM,
-        core_center_x_m: numbers.coreCenterXUm * MICROMETRES_TO_METRES,
-        core_center_y_m: numbers.coreCenterYUm * MICROMETRES_TO_METRES,
-        sap_1: {
-          radius_m: numbers.sap1RadiusUm * MICROMETRES_TO_METRES,
-          center_x_m: numbers.sap1CenterXUm * MICROMETRES_TO_METRES,
-          center_y_m: numbers.sap1CenterYUm * MICROMETRES_TO_METRES,
-        },
-        sap_2: {
-          radius_m: numbers.sap2RadiusUm * MICROMETRES_TO_METRES,
-          center_x_m: numbers.sap2CenterXUm * MICROMETRES_TO_METRES,
-          center_y_m: numbers.sap2CenterYUm * MICROMETRES_TO_METRES,
-        },
-      },
+      geometry,
       materials: {
         core: demonstrationMaterial(
           'M1 UI demonstration core',

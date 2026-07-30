@@ -2,13 +2,19 @@ import { M1FoundationCopy, PandaQualitativeNotice } from './M1Foundation'
 import { getM1WorkspaceLabel, type M1WorkspaceId } from './M1WorkspaceCatalog'
 import type {
   PandaFieldController,
+  PandaFieldFieldErrors,
   PandaFieldInputName,
   PandaFieldPresentationMode,
 } from './pandaFieldModel'
+import {
+  PANDA_MESH_REFINEMENT_LEVELS,
+  type PandaMeshController,
+} from './pandaMeshModel'
 
 export type M1InspectorProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
+  pandaMesh?: PandaMeshController | null
 }
 
 type InputDefinition = {
@@ -183,7 +189,9 @@ function NumericInput({
   controller,
 }: {
   definition: InputDefinition
-  controller: PandaFieldController
+  controller: Pick<PandaFieldController, 'values' | 'onValueChange'> & {
+    fieldErrors: PandaFieldFieldErrors
+  }
 }) {
   const id = `m1-panda-${definition.name}`
   const boundaryId = `${id}-boundary`
@@ -216,6 +224,91 @@ function NumericInput({
         </p>
       )}
     </div>
+  )
+}
+
+function MeshInspector({
+  pandaField,
+  pandaMesh,
+}: {
+  pandaField: PandaFieldController
+  pandaMesh: PandaMeshController
+}) {
+  const geometryGroup = inputGroups[0]
+  return (
+    <>
+      <p className="m1-inspector-status" role="status">
+        {pandaMesh.statusLabel}
+      </p>
+      <p className="m1-inspector-status">
+        Mesh-only geometry generation. This step creates a 2D constrained
+        triangular mesh; it is not an FEM solve and exposes no solved fields.
+      </p>
+      {pandaMesh.phase === 'error' && pandaMesh.errorMessage && (
+        <p className="m1-input-error" role="alert">
+          {pandaMesh.errorMessage}
+        </p>
+      )}
+      <form
+        className="m1-inspector-form"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <details className="m1-inspector-group" open>
+          <summary>{geometryGroup.title}</summary>
+          <div className="m1-inspector-group-content">
+            <p className="m1-group-note">
+              {geometryGroup.note} The same geometry drives the field map and
+              mesh request.
+            </p>
+            <div className="m1-input-grid">
+              {geometryGroup.inputs.map((definition) => (
+                <NumericInput
+                  key={definition.name}
+                  definition={definition}
+                  controller={{
+                    values: pandaField.values,
+                    fieldErrors: pandaMesh.fieldErrors,
+                    onValueChange: pandaField.onValueChange,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </details>
+        <fieldset className="m1-presentation-fieldset">
+          <legend>Mesh refinement</legend>
+          <label htmlFor="m1-panda-mesh-refinement">Refinement level</label>
+          <select
+            id="m1-panda-mesh-refinement"
+            value={pandaMesh.refinementLevel}
+            onChange={(event) =>
+              pandaMesh.onRefinementLevelChange(
+                Number(event.currentTarget.value) as 0 | 1 | 2,
+              )
+            }
+          >
+            {PANDA_MESH_REFINEMENT_LEVELS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="m1-boundary-note">
+            Preview is the fastest option; Fine increases the triangle count.
+            Refinement changes request a new mesh automatically.
+          </p>
+        </fieldset>
+      </form>
+      {pandaMesh.phase === 'error' && (
+        <button
+          className="m1-retry-button"
+          type="button"
+          onClick={pandaMesh.onRetry}
+        >
+          Retry mesh generation
+        </button>
+      )}
+    </>
   )
 }
 
@@ -328,21 +421,25 @@ function PandaInspector({ controller }: { controller: PandaFieldController }) {
 export function M1Inspector({
   workspace,
   pandaField = null,
+  pandaMesh = null,
 }: M1InspectorProps) {
   const isPandaField = workspace === 'panda-field'
+  const isFemMesh = workspace === 'fem-mesh'
 
   return (
     <div className="m1-inspector">
       <h2>{getM1WorkspaceLabel(workspace)} inspector</h2>
       {isPandaField && pandaField ? (
         <PandaInspector controller={pandaField} />
+      ) : isFemMesh && pandaField && pandaMesh ? (
+        <MeshInspector pandaField={pandaField} pandaMesh={pandaMesh} />
       ) : (
         <>
           <M1FoundationCopy />
           <p className="m1-inspector-status" role="status">
             {isPandaField
               ? 'PANDA field controls are unavailable.'
-              : 'The FEM mesh controls are not connected yet.'}
+              : 'The FEM mesh controls are unavailable.'}
           </p>
           <div className="m1-inspector-sections">
             <section aria-labelledby="m1-inspector-foundation-section">
@@ -350,7 +447,7 @@ export function M1Inspector({
               <p>
                 {isPandaField
                   ? 'Connect the field-map controller to configure this view.'
-                  : 'Geometry, mesh refinement and display settings will be connected here.'}
+                  : 'Connect the shared geometry and mesh controller to configure this view.'}
               </p>
             </section>
           </div>
