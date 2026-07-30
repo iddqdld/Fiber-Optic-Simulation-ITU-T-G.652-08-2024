@@ -52,6 +52,17 @@ from fibre_sim.level1 import (
     calculate_level1_simulation,
 )
 from fibre_sim.modes import GaussianModeProfileManifest, GaussianModeProfileResult
+from fibre_sim.photoelastic import (
+    AxialLoad,
+    CircularSAP,
+    FieldMapSamplingConfig,
+    MaterialSource,
+    PandaFieldMapRequest,
+    PandaGeometry,
+    PandaMaterial,
+    PandaMaterialSet,
+    ThermalState,
+)
 from fibre_sim.standards import (
     G652DAttenuationCheckManifest,
     G652DAttenuationCheckResult,
@@ -196,16 +207,19 @@ async def post_simulation_sweep(request: Level1SweepRequest) -> Level1SweepResul
 
 
 CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
+    AxialLoad,
     CableSection,
     ChromaticPulseBroadeningManifest,
     ChromaticPulseBroadeningResult,
     ConstantAttenuationManifest,
     ConstantAttenuationResult,
     Connector,
+    CircularSAP,
     DistanceSeries,
     ErrorBody,
     ErrorResponse,
     FieldCrossSection,
+    FieldMapSamplingConfig,
     FibreDefinition,
     G652DAttenuationCheckManifest,
     G652DAttenuationCheckResult,
@@ -243,9 +257,14 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     MacrobendLossPoint,
     MacrobendLossRequest,
     MacrobendLossResult,
+    MaterialSource,
     ModelManifest,
     ModelReference,
     ModelWarning,
+    PandaFieldMapRequest,
+    PandaGeometry,
+    PandaMaterial,
+    PandaMaterialSet,
     PulseSeries,
     SectionResult,
     SimulationConfig,
@@ -256,6 +275,7 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     Splice,
     StandardsCheckItem,
     StandardsCheckMetadata,
+    ThermalState,
     ValidInputRange,
     WavelengthSeries,
 )

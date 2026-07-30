@@ -66,6 +66,51 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
     )
 
 
+def test_photoelastic_foundation_contracts_are_published_without_a_calculation_path() -> None:
+    schema = main.app.openapi()
+    schemas = schema["components"]["schemas"]
+
+    for name in (
+        "AxialLoad",
+        "CircularSAP",
+        "FieldMapSamplingConfig",
+        "MaterialSource",
+        "PandaFieldMapRequest",
+        "PandaGeometry",
+        "PandaMaterial",
+        "PandaMaterialSet",
+        "ThermalState",
+    ):
+        assert name in schemas
+        assert schemas[name]["additionalProperties"] is False
+
+    assert schemas["PandaFieldMapRequest"]["properties"]["wavelength_m"]["exclusiveMinimum"] == 0
+    assert schemas["PandaFieldMapRequest"]["properties"]["geometry"] == {
+        "$ref": "#/components/schemas/PandaGeometry"
+    }
+    assert schemas["PandaFieldMapRequest"]["properties"]["materials"] == {
+        "$ref": "#/components/schemas/PandaMaterialSet"
+    }
+    assert "axial" not in schemas["PandaFieldMapRequest"]["properties"]
+    assert "effective_fictive_temperature_k" not in schemas["PandaMaterial"]["properties"]
+    assert "material" not in schemas["CircularSAP"]["properties"]
+    assert "core_center_x_m" in schemas["PandaGeometry"]["properties"]
+    assert schemas["FieldMapSamplingConfig"]["properties"]["grid_points"]["maximum"] == 65
+    assert schemas["MaterialSource"]["properties"]["confidence"]["$ref"] == (
+        "#/components/schemas/MaterialConfidence"
+    )
+    assert schemas["PhotoelasticConvention"]["enum"] == [
+        "p11_p12_strain",
+        "c1_c2_stress_optic",
+    ]
+    assert set(schema["paths"]) == {
+        "/api/v1/health",
+        "/api/v1/guidance/calculate",
+        "/api/v1/simulations/preview",
+        "/api/v1/simulations/sweep",
+    }
+
+
 def test_constant_attenuation_result_publishes_bounded_power_samples() -> None:
     result = main.app.openapi()["components"]["schemas"]["ConstantAttenuationResult"]
 

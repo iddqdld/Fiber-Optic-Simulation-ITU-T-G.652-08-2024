@@ -76,6 +76,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AxialCondition
+         * @enum {string}
+         */
+        AxialCondition: "free_resultant" | "prescribed_force" | "prescribed_strain";
+        /** AxialLoad */
+        AxialLoad: {
+            condition: components["schemas"]["AxialCondition"];
+            /**
+             * Prescribed Force N
+             * @default null
+             */
+            prescribed_force_n: number | null;
+            /**
+             * Prescribed Strain
+             * @default null
+             */
+            prescribed_strain: number | null;
+        };
         /** Bend */
         Bend: {
             /** Angle Deg */
@@ -170,6 +189,15 @@ export interface components {
             output_pulse_fwhm_ps: number;
             /** Spectral Width Fwhm Nm */
             spectral_width_fwhm_nm: number;
+        };
+        /** CircularSAP */
+        CircularSAP: {
+            /** Center X M */
+            center_x_m: number;
+            /** Center Y M */
+            center_y_m: number;
+            /** Radius M */
+            radius_m: number;
         };
         /** Connector */
         Connector: {
@@ -312,6 +340,21 @@ export interface components {
             x_um?: number[];
             /** Y Um */
             y_um?: number[];
+        };
+        /** FieldMapSamplingConfig */
+        FieldMapSamplingConfig: {
+            /** Grid Half Width M */
+            grid_half_width_m: number;
+            /**
+             * Grid Points
+             * @default 65
+             */
+            grid_points: number;
+            /**
+             * Interface Buffer M
+             * @default 0
+             */
+            interface_buffer_m: number;
         };
         /**
          * G652DAttenuationApplication
@@ -1506,6 +1549,27 @@ export interface components {
             total_bend_loss_db: number;
         };
         /**
+         * MaterialConfidence
+         * @enum {string}
+         */
+        MaterialConfidence: "measured_sample" | "manufacturer" | "literature_composition" | "calibrated_effective" | "demonstration_only";
+        /** MaterialSource */
+        MaterialSource: {
+            /** Citation */
+            citation: string;
+            confidence: components["schemas"]["MaterialConfidence"];
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Source Date
+             * @default null
+             */
+            source_date: string | null;
+        };
+        /**
          * ModeRegime
          * @enum {string}
          */
@@ -1562,6 +1626,80 @@ export interface components {
             /** @default WARNING */
             severity: components["schemas"]["WarningSeverity"];
         };
+        /** PandaFieldMapRequest */
+        PandaFieldMapRequest: {
+            geometry: components["schemas"]["PandaGeometry"];
+            materials: components["schemas"]["PandaMaterialSet"];
+            sampling: components["schemas"]["FieldMapSamplingConfig"];
+            thermal: components["schemas"]["ThermalState"];
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /** PandaGeometry */
+        PandaGeometry: {
+            /** Cladding Radius M */
+            cladding_radius_m: number;
+            /** Core Center X M */
+            core_center_x_m: number;
+            /** Core Center Y M */
+            core_center_y_m: number;
+            /** Core Radius M */
+            core_radius_m: number;
+            sap_1: components["schemas"]["CircularSAP"];
+            sap_2: components["schemas"]["CircularSAP"];
+        };
+        /** PandaMaterial */
+        PandaMaterial: {
+            /**
+             * C1 Per Pa
+             * @default null
+             */
+            c1_per_pa: number | null;
+            /**
+             * C2 Per Pa
+             * @default null
+             */
+            c2_per_pa: number | null;
+            /**
+             * Composition
+             * @default null
+             */
+            composition: string | null;
+            /** Cte Per K */
+            cte_per_k: number;
+            /** Name */
+            name: string;
+            /**
+             * P11
+             * @default null
+             */
+            p11: number | null;
+            /**
+             * P12
+             * @default null
+             */
+            p12: number | null;
+            photoelastic_convention: components["schemas"]["PhotoelasticConvention"];
+            /** Poisson Ratio */
+            poisson_ratio: number;
+            /** Refractive Index */
+            refractive_index: number;
+            source: components["schemas"]["MaterialSource"];
+            /** Young Modulus Pa */
+            young_modulus_pa: number;
+        };
+        /** PandaMaterialSet */
+        PandaMaterialSet: {
+            cladding: components["schemas"]["PandaMaterial"];
+            core: components["schemas"]["PandaMaterial"];
+            sap_1: components["schemas"]["PandaMaterial"];
+            sap_2: components["schemas"]["PandaMaterial"];
+        };
+        /**
+         * PhotoelasticConvention
+         * @enum {string}
+         */
+        PhotoelasticConvention: "p11_p12_strain" | "c1_c2_stress_optic";
         /** PulseSeries */
         PulseSeries: {
             /** Power Dbm */
@@ -1777,6 +1915,13 @@ export interface components {
          * @enum {string}
          */
         StandardsCheckStatus: "PASS" | "FAIL" | "NOT_CHECKED";
+        /** ThermalState */
+        ThermalState: {
+            /** Effective Fictive Temperature K */
+            effective_fictive_temperature_k: number;
+            /** Temperature K */
+            temperature_k: number;
+        };
         /** ValidInputRange */
         ValidInputRange: {
             /**
