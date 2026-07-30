@@ -66,7 +66,7 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
     )
 
 
-def test_photoelastic_foundation_contracts_are_published_without_a_calculation_path() -> None:
+def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     schema = main.app.openapi()
     schemas = schema["components"]["schemas"]
 
@@ -75,7 +75,11 @@ def test_photoelastic_foundation_contracts_are_published_without_a_calculation_p
         "CircularSAP",
         "FieldMapSamplingConfig",
         "MaterialSource",
+        "PandaFieldMapManifest",
         "PandaFieldMapRequest",
+        "PandaFieldMapResult",
+        "PandaFieldMapValidity",
+        "PandaFieldMapWarning",
         "PandaGeometry",
         "PandaMaterial",
         "PandaMaterialSet",
@@ -103,12 +107,47 @@ def test_photoelastic_foundation_contracts_are_published_without_a_calculation_p
         "p11_p12_strain",
         "c1_c2_stress_optic",
     ]
+    manifest_properties = schemas["PandaFieldMapManifest"]["properties"]
+    assert manifest_properties["method"]["const"] == "qualitative_far_field_kernel"
+    assert manifest_properties["quantity_type"]["const"] == ("normalized_dimensionless_kernel")
+    assert manifest_properties["normalization"]["const"] == "max_valid_principal_difference"
+    assert manifest_properties["quantitative"]["const"] is False
+    assert manifest_properties["units"]["const"] == "1"
+
+    result_properties = schemas["PandaFieldMapResult"]["properties"]
+    for field_name in (
+        "normalized_deviatoric_difference_kernel",
+        "normalized_shear_kernel",
+        "normalized_principal_difference_kernel",
+        "principal_axis_angle_rad",
+    ):
+        assert result_properties[field_name]["items"]["items"]["anyOf"] == [
+            {"type": "number"},
+            {"type": "null"},
+        ]
+
     assert set(schema["paths"]) == {
         "/api/v1/health",
         "/api/v1/guidance/calculate",
+        "/api/v1/photoelastic/panda/field-map",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }
+    operation = schema["paths"]["/api/v1/photoelastic/panda/field-map"]["post"]
+    assert operation["operationId"] == "calculate_panda_field_map"
+    assert (
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaFieldMapRequest"
+    )
+    assert set(operation["responses"]) == {"200", "422"}
+    assert (
+        operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaFieldMapResult"
+    )
+    assert (
+        operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
 
 
 def test_constant_attenuation_result_publishes_bounded_power_samples() -> None:
@@ -195,6 +234,7 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
     assert set(paths) == {
         "/api/v1/health",
         "/api/v1/guidance/calculate",
+        "/api/v1/photoelastic/panda/field-map",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }
