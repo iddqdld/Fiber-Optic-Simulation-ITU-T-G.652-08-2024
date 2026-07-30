@@ -76,6 +76,8 @@ describe('EditorShell', () => {
       'Standards',
       'Compare',
       'Sweep',
+      'PANDA field',
+      'FEM mesh',
     ])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(tabs[0]).toHaveAttribute('tabindex', '0')
@@ -112,10 +114,10 @@ describe('EditorShell', () => {
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Scene' }), {
       key: 'End',
     })
-    expect(onWorkspaceChange).toHaveBeenLastCalledWith('sweep')
-    expect(screen.getByRole('tab', { name: 'Sweep' })).toHaveFocus()
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('fem-mesh')
+    expect(screen.getByRole('tab', { name: 'FEM mesh' })).toHaveFocus()
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Sweep' }), {
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'FEM mesh' }), {
       key: 'Home',
     })
     expect(onWorkspaceChange).toHaveBeenLastCalledWith('scene')

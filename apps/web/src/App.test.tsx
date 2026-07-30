@@ -901,6 +901,66 @@ describe('backend health', () => {
 })
 
 describe('editor UI state', () => {
+  test('routes the M1 views to isolated 2D foundation content without M1 requests', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const initialPreviewCallCount = previewCalls(fetchMock).length
+
+    fireEvent.click(screen.getByRole('tab', { name: 'PANDA field' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'PANDA field', level: 2 }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'PANDA field inspector', level: 2 }),
+    ).toBeVisible()
+    expect(
+      within(screen.getAllByRole('status')[0]).getByText(
+        'M1 2D foundation · not calculated',
+      ),
+    ).toBeVisible()
+    expect(
+      within(screen.getAllByRole('status')[0]).getByText('Backend available'),
+    ).toBeVisible()
+    const resultsButton = screen.getByRole('button', {
+      name: 'Results, 0 warnings',
+    })
+    expect(resultsButton).toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('canvas')).not.toBeInTheDocument()
+
+    if (resultsButton.getAttribute('aria-expanded') !== 'true') {
+      fireEvent.click(resultsButton)
+    }
+
+    expect(
+      screen.getByRole('heading', { name: 'PANDA field results', level: 2 }),
+    ).toBeVisible()
+    expect(screen.getByText('M1 warnings')).toBeVisible()
+    expect(
+      within(
+        screen.getByRole('complementary', { name: 'Result drawer' }),
+      ).getAllByText('Not evaluated'),
+    ).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'FEM mesh' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'FEM mesh', level: 2 }),
+    ).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'FEM mesh inspector', level: 2 }),
+    ).toBeVisible()
+    expect(screen.getByText(/No mesh or validation values/)).toBeVisible()
+    expect(screen.queryByText('PANDA field results')).not.toBeInTheDocument()
+
+    await settleDebounce()
+    expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
+  })
+
   test('does not request a preview for workspace, graph, drawer, accordion, or display changes', async () => {
     vi.useFakeTimers()
     const fetchMock = mockFetch()

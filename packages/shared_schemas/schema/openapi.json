@@ -1,6 +1,52 @@
 {
   "components": {
     "schemas": {
+      "AxialCondition": {
+        "enum": [
+          "free_resultant",
+          "prescribed_force",
+          "prescribed_strain"
+        ],
+        "title": "AxialCondition",
+        "type": "string"
+      },
+      "AxialLoad": {
+        "additionalProperties": false,
+        "properties": {
+          "condition": {
+            "$ref": "#/components/schemas/AxialCondition"
+          },
+          "prescribed_force_n": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prescribed Force N"
+          },
+          "prescribed_strain": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Prescribed Strain"
+          }
+        },
+        "required": [
+          "condition"
+        ],
+        "title": "AxialLoad",
+        "type": "object"
+      },
       "Bend": {
         "additionalProperties": false,
         "properties": {
@@ -202,6 +248,31 @@
           "model_manifest"
         ],
         "title": "ChromaticPulseBroadeningResult",
+        "type": "object"
+      },
+      "CircularSAP": {
+        "additionalProperties": false,
+        "properties": {
+          "center_x_m": {
+            "title": "Center X M",
+            "type": "number"
+          },
+          "center_y_m": {
+            "title": "Center Y M",
+            "type": "number"
+          },
+          "radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Radius M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "radius_m",
+          "center_x_m",
+          "center_y_m"
+        ],
+        "title": "CircularSAP",
         "type": "object"
       },
       "Connector": {
@@ -541,6 +612,34 @@
           }
         },
         "title": "FieldCrossSection",
+        "type": "object"
+      },
+      "FieldMapSamplingConfig": {
+        "additionalProperties": false,
+        "properties": {
+          "grid_half_width_m": {
+            "exclusiveMinimum": 0,
+            "title": "Grid Half Width M",
+            "type": "number"
+          },
+          "grid_points": {
+            "default": 65,
+            "maximum": 65,
+            "minimum": 3,
+            "title": "Grid Points",
+            "type": "integer"
+          },
+          "interface_buffer_m": {
+            "default": 0.0,
+            "minimum": 0,
+            "title": "Interface Buffer M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "grid_half_width_m"
+        ],
+        "title": "FieldMapSamplingConfig",
         "type": "object"
       },
       "G652DAttenuationApplication": {
@@ -2659,6 +2758,54 @@
         "title": "MacrobendLossResult",
         "type": "object"
       },
+      "MaterialConfidence": {
+        "enum": [
+          "measured_sample",
+          "manufacturer",
+          "literature_composition",
+          "calibrated_effective",
+          "demonstration_only"
+        ],
+        "title": "MaterialConfidence",
+        "type": "string"
+      },
+      "MaterialSource": {
+        "additionalProperties": false,
+        "properties": {
+          "citation": {
+            "minLength": 1,
+            "title": "Citation",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/MaterialConfidence"
+          },
+          "notes": {
+            "default": "",
+            "title": "Notes",
+            "type": "string"
+          },
+          "source_date": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Source Date"
+          }
+        },
+        "required": [
+          "citation",
+          "confidence"
+        ],
+        "title": "MaterialSource",
+        "type": "object"
+      },
       "ModeRegime": {
         "enum": [
           "single_mode",
@@ -2804,6 +2951,217 @@
         ],
         "title": "ModelWarning",
         "type": "object"
+      },
+      "PandaFieldMapRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "geometry": {
+            "$ref": "#/components/schemas/PandaGeometry"
+          },
+          "materials": {
+            "$ref": "#/components/schemas/PandaMaterialSet"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/FieldMapSamplingConfig"
+          },
+          "thermal": {
+            "$ref": "#/components/schemas/ThermalState"
+          },
+          "wavelength_m": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "geometry",
+          "materials",
+          "thermal",
+          "wavelength_m",
+          "sampling"
+        ],
+        "title": "PandaFieldMapRequest",
+        "type": "object"
+      },
+      "PandaGeometry": {
+        "additionalProperties": false,
+        "properties": {
+          "cladding_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Cladding Radius M",
+            "type": "number"
+          },
+          "core_center_x_m": {
+            "title": "Core Center X M",
+            "type": "number"
+          },
+          "core_center_y_m": {
+            "title": "Core Center Y M",
+            "type": "number"
+          },
+          "core_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Core Radius M",
+            "type": "number"
+          },
+          "sap_1": {
+            "$ref": "#/components/schemas/CircularSAP"
+          },
+          "sap_2": {
+            "$ref": "#/components/schemas/CircularSAP"
+          }
+        },
+        "required": [
+          "core_radius_m",
+          "cladding_radius_m",
+          "core_center_x_m",
+          "core_center_y_m",
+          "sap_1",
+          "sap_2"
+        ],
+        "title": "PandaGeometry",
+        "type": "object"
+      },
+      "PandaMaterial": {
+        "additionalProperties": false,
+        "properties": {
+          "c1_per_pa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "C1 Per Pa"
+          },
+          "c2_per_pa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "C2 Per Pa"
+          },
+          "composition": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Composition"
+          },
+          "cte_per_k": {
+            "title": "Cte Per K",
+            "type": "number"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "p11": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "P11"
+          },
+          "p12": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "P12"
+          },
+          "photoelastic_convention": {
+            "$ref": "#/components/schemas/PhotoelasticConvention"
+          },
+          "poisson_ratio": {
+            "exclusiveMaximum": 0.5,
+            "exclusiveMinimum": -1,
+            "title": "Poisson Ratio",
+            "type": "number"
+          },
+          "refractive_index": {
+            "exclusiveMinimum": 0,
+            "title": "Refractive Index",
+            "type": "number"
+          },
+          "source": {
+            "$ref": "#/components/schemas/MaterialSource"
+          },
+          "young_modulus_pa": {
+            "exclusiveMinimum": 0,
+            "title": "Young Modulus Pa",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "young_modulus_pa",
+          "poisson_ratio",
+          "cte_per_k",
+          "refractive_index",
+          "photoelastic_convention",
+          "source"
+        ],
+        "title": "PandaMaterial",
+        "type": "object"
+      },
+      "PandaMaterialSet": {
+        "additionalProperties": false,
+        "properties": {
+          "cladding": {
+            "$ref": "#/components/schemas/PandaMaterial"
+          },
+          "core": {
+            "$ref": "#/components/schemas/PandaMaterial"
+          },
+          "sap_1": {
+            "$ref": "#/components/schemas/PandaMaterial"
+          },
+          "sap_2": {
+            "$ref": "#/components/schemas/PandaMaterial"
+          }
+        },
+        "required": [
+          "core",
+          "cladding",
+          "sap_1",
+          "sap_2"
+        ],
+        "title": "PandaMaterialSet",
+        "type": "object"
+      },
+      "PhotoelasticConvention": {
+        "enum": [
+          "p11_p12_strain",
+          "c1_c2_stress_optic"
+        ],
+        "title": "PhotoelasticConvention",
+        "type": "string"
       },
       "PulseSeries": {
         "additionalProperties": false,
@@ -3378,6 +3736,27 @@
         ],
         "title": "StandardsCheckStatus",
         "type": "string"
+      },
+      "ThermalState": {
+        "additionalProperties": false,
+        "properties": {
+          "effective_fictive_temperature_k": {
+            "exclusiveMinimum": 0,
+            "title": "Effective Fictive Temperature K",
+            "type": "number"
+          },
+          "temperature_k": {
+            "exclusiveMinimum": 0,
+            "title": "Temperature K",
+            "type": "number"
+          }
+        },
+        "required": [
+          "temperature_k",
+          "effective_fictive_temperature_k"
+        ],
+        "title": "ThermalState",
+        "type": "object"
       },
       "ValidInputRange": {
         "additionalProperties": false,
