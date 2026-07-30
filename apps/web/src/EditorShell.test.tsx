@@ -58,7 +58,7 @@ function Harness({
 }
 
 describe('EditorShell', () => {
-  test('renders semantic editor regions and associated workspace tabs', () => {
+  test('renders grouped navigation and associated workspace panels', () => {
     render(<Harness />)
 
     expect(
@@ -68,23 +68,44 @@ describe('EditorShell', () => {
       screen.getByRole('complementary', { name: 'Inspector' }),
     ).toBeInTheDocument()
 
-    const tablist = screen.getByRole('tablist', { name: 'Workspace' })
-    const tabs = screen.getAllByRole('tab')
+    const navigation = screen.getByRole('navigation', {
+      name: 'Simulation navigation',
+    })
+    const moduleButtons = [
+      screen.getByRole('button', { name: 'G.652' }),
+      screen.getByRole('button', { name: 'PANDA' }),
+    ]
+    expect(moduleButtons.map((button) => button.textContent)).toEqual([
+      'G.652',
+      'PANDA',
+    ])
+    expect(moduleButtons[0]).toHaveAttribute('aria-pressed', 'true')
+    expect(moduleButtons[1]).toHaveAttribute('aria-pressed', 'false')
+
+    const tablist = screen.getByRole('tablist', {
+      name: 'G.652 workspaces',
+    })
+    const tabs = within(tablist).getAllByRole('tab')
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'Scene',
+      '3D scene',
       'Graphs',
       'Standards',
       'Compare',
       'Sweep',
-      'PANDA field',
-      'FEM mesh',
     ])
+    expect(
+      screen.queryByRole('tab', { name: 'Field map' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('tab', { name: 'FEM mesh' }),
+    ).not.toBeInTheDocument()
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(tabs[0]).toHaveAttribute('tabindex', '0')
     expect(tabs[1]).toHaveAttribute('tabindex', '-1')
     expect(tabs[4]).not.toBeDisabled()
 
     const panel = screen.getByRole('tabpanel')
+    expect(navigation).toContainElement(tablist)
     expect(tablist).toContainElement(tabs[0])
     expect(panel).toHaveAttribute('id', tabs[0].getAttribute('aria-controls'))
     expect(panel).toHaveAttribute('aria-labelledby', tabs[0].id)
@@ -92,11 +113,13 @@ describe('EditorShell', () => {
     expect(screen.getByText('Workspace slot')).toBeInTheDocument()
   })
 
-  test('moves the roving tab with arrows, Home, and End and invokes the callback', () => {
+  test('moves the roving tab within each visible module with arrows, Home, and End', () => {
     const onWorkspaceChange = vi.fn()
     render(<Harness onWorkspaceChange={onWorkspaceChange} />)
 
-    const tabs = screen.getAllByRole('tab')
+    const tabs = within(
+      screen.getByRole('tablist', { name: 'G.652 workspaces' }),
+    ).getAllByRole('tab')
     tabs[0].focus()
     fireEvent.keyDown(tabs[0], { key: 'ArrowRight' })
     expect(onWorkspaceChange).toHaveBeenLastCalledWith('graphs')
@@ -111,7 +134,39 @@ describe('EditorShell', () => {
     })
     expect(onWorkspaceChange).toHaveBeenLastCalledWith('scene')
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Scene' }), {
+    fireEvent.keyDown(screen.getByRole('tab', { name: '3D scene' }), {
+      key: 'End',
+    })
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('sweep')
+    expect(screen.getByRole('tab', { name: 'Sweep' })).toHaveFocus()
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Sweep' }), {
+      key: 'Home',
+    })
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('scene')
+    expect(screen.getByRole('tab', { name: '3D scene' })).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+    const pandaTabs = within(
+      screen.getByRole('tablist', { name: 'PANDA workspaces' }),
+    ).getAllByRole('tab')
+    expect(pandaTabs.map((tab) => tab.textContent)).toEqual([
+      'Field map',
+      'FEM mesh',
+    ])
+
+    pandaTabs[0].focus()
+    fireEvent.keyDown(pandaTabs[0], { key: 'ArrowRight' })
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('fem-mesh')
+    expect(screen.getByRole('tab', { name: 'FEM mesh' })).toHaveFocus()
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'FEM mesh' }), {
+      key: 'ArrowLeft',
+    })
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('panda-field')
+    expect(screen.getByRole('tab', { name: 'Field map' })).toHaveFocus()
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Field map' }), {
       key: 'End',
     })
     expect(onWorkspaceChange).toHaveBeenLastCalledWith('fem-mesh')
@@ -120,8 +175,33 @@ describe('EditorShell', () => {
     fireEvent.keyDown(screen.getByRole('tab', { name: 'FEM mesh' }), {
       key: 'Home',
     })
+    expect(onWorkspaceChange).toHaveBeenLastCalledWith('panda-field')
+    expect(screen.getByRole('tab', { name: 'Field map' })).toHaveFocus()
+  })
+
+  test('switches modules through their primary buttons', () => {
+    const onWorkspaceChange = vi.fn()
+    render(<Harness onWorkspaceChange={onWorkspaceChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+
+    expect(onWorkspaceChange).toHaveBeenCalledWith('panda-field')
+    expect(
+      screen.getByRole('tablist', { name: 'PANDA workspaces' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('tablist', { name: 'G.652 workspaces' }),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'G.652' }))
+
     expect(onWorkspaceChange).toHaveBeenLastCalledWith('scene')
-    expect(screen.getByRole('tab', { name: 'Scene' })).toHaveFocus()
+    expect(
+      screen.getByRole('tablist', { name: 'G.652 workspaces' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('tablist', { name: 'PANDA workspaces' }),
+    ).not.toBeInTheDocument()
   })
 
   test('calls the workspace callback when a tab is selected', () => {
