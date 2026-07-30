@@ -2952,6 +2952,102 @@
         "title": "ModelWarning",
         "type": "object"
       },
+      "PandaFieldMapManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "constant thermal expansion coefficients over the temperature interval",
+              "circular SAP inclusions in homogeneous cladding",
+              "linear superposition of two far-field inclusion kernels",
+              "K_i is undefined and omitted from each inclusion contribution"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "equation_references": {
+            "default": [
+              "M1-3.3",
+              "M1-5.3",
+              "M1-5.4",
+              "M1-5.5",
+              "M1-5.6",
+              "M1-5.7"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Equation References",
+            "type": "array"
+          },
+          "limitations": {
+            "default": [
+              "outputs are normalized qualitative kernels without calibrated stress values",
+              "the finite cladding boundary is not solved",
+              "SAP interiors and configured interface regions are excluded",
+              "elastic and photoelastic material coefficients do not enter this kernel"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "method": {
+            "const": "qualitative_far_field_kernel",
+            "default": "qualitative_far_field_kernel",
+            "title": "Method",
+            "type": "string"
+          },
+          "model_id": {
+            "const": "panda_qualitative_far_field_kernel",
+            "default": "panda_qualitative_far_field_kernel",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "normalization": {
+            "const": "max_valid_principal_difference",
+            "default": "max_valid_principal_difference",
+            "title": "Normalization",
+            "type": "string"
+          },
+          "quantitative": {
+            "const": false,
+            "default": false,
+            "title": "Quantitative",
+            "type": "boolean"
+          },
+          "quantity_type": {
+            "const": "normalized_dimensionless_kernel",
+            "default": "normalized_dimensionless_kernel",
+            "title": "Quantity Type",
+            "type": "string"
+          },
+          "units": {
+            "const": "1",
+            "default": "1",
+            "title": "Units",
+            "type": "string"
+          },
+          "validity": {
+            "$ref": "#/components/schemas/PandaFieldMapValidity"
+          }
+        },
+        "required": [
+          "validity"
+        ],
+        "title": "PandaFieldMapManifest",
+        "type": "object"
+      },
       "PandaFieldMapRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2982,6 +3078,218 @@
         ],
         "title": "PandaFieldMapRequest",
         "type": "object"
+      },
+      "PandaFieldMapResult": {
+        "additionalProperties": false,
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/PandaFieldMapRequest"
+          },
+          "kernel_scale": {
+            "exclusiveMinimum": 0,
+            "title": "Kernel Scale",
+            "type": "number"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/PandaFieldMapManifest"
+          },
+          "normalized_deviatoric_difference_kernel": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Normalized Deviatoric Difference Kernel",
+            "type": "array"
+          },
+          "normalized_principal_difference_kernel": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Normalized Principal Difference Kernel",
+            "type": "array"
+          },
+          "normalized_shear_kernel": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Normalized Shear Kernel",
+            "type": "array"
+          },
+          "principal_axis_angle_rad": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Principal Axis Angle Rad",
+            "type": "array"
+          },
+          "sap_thermal_mismatch_strains": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Sap Thermal Mismatch Strains",
+            "type": "array"
+          },
+          "validity_mask": {
+            "items": {
+              "items": {
+                "type": "boolean"
+              },
+              "type": "array"
+            },
+            "title": "Validity Mask",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/PandaFieldMapWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "x_coordinates_m": {
+            "items": {
+              "type": "number"
+            },
+            "title": "X Coordinates M",
+            "type": "array"
+          },
+          "y_coordinates_m": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Y Coordinates M",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configuration",
+          "x_coordinates_m",
+          "y_coordinates_m",
+          "validity_mask",
+          "normalized_deviatoric_difference_kernel",
+          "normalized_shear_kernel",
+          "normalized_principal_difference_kernel",
+          "principal_axis_angle_rad",
+          "sap_thermal_mismatch_strains",
+          "kernel_scale",
+          "warnings",
+          "model_manifest"
+        ],
+        "title": "PandaFieldMapResult",
+        "type": "object"
+      },
+      "PandaFieldMapValidity": {
+        "additionalProperties": false,
+        "properties": {
+          "interface_buffer_m": {
+            "minimum": 0,
+            "title": "Interface Buffer M",
+            "type": "number"
+          },
+          "outside_cladding_masked": {
+            "const": true,
+            "default": true,
+            "title": "Outside Cladding Masked",
+            "type": "boolean"
+          },
+          "sap_interiors_masked": {
+            "const": true,
+            "default": true,
+            "title": "Sap Interiors Masked",
+            "type": "boolean"
+          },
+          "valid_point_count": {
+            "minimum": 0,
+            "title": "Valid Point Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "interface_buffer_m",
+          "valid_point_count"
+        ],
+        "title": "PandaFieldMapValidity",
+        "type": "object"
+      },
+      "PandaFieldMapWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/PandaFieldMapWarningCode"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "output_field": {
+            "minLength": 1,
+            "title": "Output Field",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "output_field"
+        ],
+        "title": "PandaFieldMapWarning",
+        "type": "object"
+      },
+      "PandaFieldMapWarningCode": {
+        "enum": [
+          "qualitative_uncalibrated",
+          "finite_cladding_approximation",
+          "zero_interface_buffer"
+        ],
+        "title": "PandaFieldMapWarningCode",
+        "type": "string"
       },
       "PandaGeometry": {
         "additionalProperties": false,
@@ -3953,6 +4261,44 @@
           }
         },
         "summary": "Get Health"
+      }
+    },
+    "/api/v1/photoelastic/panda/field-map": {
+      "post": {
+        "operationId": "calculate_panda_field_map",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PandaFieldMapRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PandaFieldMapResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation or calculation failed"
+          }
+        },
+        "summary": "Post Panda Field Map"
       }
     },
     "/api/v1/simulations/preview": {

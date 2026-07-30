@@ -1,3 +1,4 @@
+from .calculations import PandaFieldMapCalculationError, calculate_panda_field_map
 from .conventions import PhotoelasticConvention
 from .geometry import CircularSAP, PandaGeometry
 from .loads import AxialCondition, AxialLoad, ThermalState
@@ -8,6 +9,13 @@ from .request import (
     MIN_FIELD_MAP_GRID_POINTS,
     FieldMapSamplingConfig,
     PandaFieldMapRequest,
+)
+from .result import (
+    PandaFieldMapManifest,
+    PandaFieldMapResult,
+    PandaFieldMapValidity,
+    PandaFieldMapWarning,
+    PandaFieldMapWarningCode,
 )
 
 __all__ = [
@@ -20,10 +28,17 @@ __all__ = [
     "MIN_FIELD_MAP_GRID_POINTS",
     "MaterialConfidence",
     "MaterialSource",
+    "PandaFieldMapCalculationError",
+    "PandaFieldMapManifest",
     "PandaFieldMapRequest",
+    "PandaFieldMapResult",
+    "PandaFieldMapValidity",
+    "PandaFieldMapWarning",
+    "PandaFieldMapWarningCode",
     "PandaGeometry",
     "PandaMaterial",
     "PandaMaterialSet",
     "PhotoelasticConvention",
     "ThermalState",
+    "calculate_panda_field_map",
 ]

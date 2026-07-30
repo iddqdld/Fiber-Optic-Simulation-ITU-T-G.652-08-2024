@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/photoelastic/panda/field-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Panda Field Map */
+        post: operations["calculate_panda_field_map"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/simulations/preview": {
         parameters: {
             query?: never;
@@ -1626,6 +1643,84 @@ export interface components {
             /** @default WARNING */
             severity: components["schemas"]["WarningSeverity"];
         };
+        /** PandaFieldMapManifest */
+        PandaFieldMapManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "constant thermal expansion coefficients over the temperature interval",
+             *       "circular SAP inclusions in homogeneous cladding",
+             *       "linear superposition of two far-field inclusion kernels",
+             *       "K_i is undefined and omitted from each inclusion contribution"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Equation References
+             * @default [
+             *       "M1-3.3",
+             *       "M1-5.3",
+             *       "M1-5.4",
+             *       "M1-5.5",
+             *       "M1-5.6",
+             *       "M1-5.7"
+             *     ]
+             */
+            equation_references: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "outputs are normalized qualitative kernels without calibrated stress values",
+             *       "the finite cladding boundary is not solved",
+             *       "SAP interiors and configured interface regions are excluded",
+             *       "elastic and photoelastic material coefficients do not enter this kernel"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Method
+             * @default qualitative_far_field_kernel
+             * @constant
+             */
+            method: "qualitative_far_field_kernel";
+            /**
+             * Model Id
+             * @default panda_qualitative_far_field_kernel
+             * @constant
+             */
+            model_id: "panda_qualitative_far_field_kernel";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Normalization
+             * @default max_valid_principal_difference
+             * @constant
+             */
+            normalization: "max_valid_principal_difference";
+            /**
+             * Quantitative
+             * @default false
+             * @constant
+             */
+            quantitative: false;
+            /**
+             * Quantity Type
+             * @default normalized_dimensionless_kernel
+             * @constant
+             */
+            quantity_type: "normalized_dimensionless_kernel";
+            /**
+             * Units
+             * @default 1
+             * @constant
+             */
+            units: "1";
+            validity: components["schemas"]["PandaFieldMapValidity"];
+        };
         /** PandaFieldMapRequest */
         PandaFieldMapRequest: {
             geometry: components["schemas"]["PandaGeometry"];
@@ -1635,6 +1730,66 @@ export interface components {
             /** Wavelength M */
             wavelength_m: number;
         };
+        /** PandaFieldMapResult */
+        PandaFieldMapResult: {
+            configuration: components["schemas"]["PandaFieldMapRequest"];
+            /** Kernel Scale */
+            kernel_scale: number;
+            model_manifest: components["schemas"]["PandaFieldMapManifest"];
+            /** Normalized Deviatoric Difference Kernel */
+            normalized_deviatoric_difference_kernel: (number | null)[][];
+            /** Normalized Principal Difference Kernel */
+            normalized_principal_difference_kernel: (number | null)[][];
+            /** Normalized Shear Kernel */
+            normalized_shear_kernel: (number | null)[][];
+            /** Principal Axis Angle Rad */
+            principal_axis_angle_rad: (number | null)[][];
+            /** Sap Thermal Mismatch Strains */
+            sap_thermal_mismatch_strains: [
+                number,
+                number
+            ];
+            /** Validity Mask */
+            validity_mask: boolean[][];
+            /** Warnings */
+            warnings: components["schemas"]["PandaFieldMapWarning"][];
+            /** X Coordinates M */
+            x_coordinates_m: number[];
+            /** Y Coordinates M */
+            y_coordinates_m: number[];
+        };
+        /** PandaFieldMapValidity */
+        PandaFieldMapValidity: {
+            /** Interface Buffer M */
+            interface_buffer_m: number;
+            /**
+             * Outside Cladding Masked
+             * @default true
+             * @constant
+             */
+            outside_cladding_masked: true;
+            /**
+             * Sap Interiors Masked
+             * @default true
+             * @constant
+             */
+            sap_interiors_masked: true;
+            /** Valid Point Count */
+            valid_point_count: number;
+        };
+        /** PandaFieldMapWarning */
+        PandaFieldMapWarning: {
+            code: components["schemas"]["PandaFieldMapWarningCode"];
+            /** Message */
+            message: string;
+            /** Output Field */
+            output_field: string;
+        };
+        /**
+         * PandaFieldMapWarningCode
+         * @enum {string}
+         */
+        PandaFieldMapWarningCode: "qualitative_uncalibrated" | "finite_cladding_approximation" | "zero_interface_buffer";
         /** PandaGeometry */
         PandaGeometry: {
             /** Cladding Radius M */
@@ -2035,6 +2190,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    calculate_panda_field_map: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PandaFieldMapRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PandaFieldMapResult"];
+                };
+            };
+            /** @description Request validation or calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

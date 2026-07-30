@@ -57,11 +57,17 @@ from fibre_sim.photoelastic import (
     CircularSAP,
     FieldMapSamplingConfig,
     MaterialSource,
+    PandaFieldMapCalculationError,
+    PandaFieldMapManifest,
     PandaFieldMapRequest,
+    PandaFieldMapResult,
+    PandaFieldMapValidity,
+    PandaFieldMapWarning,
     PandaGeometry,
     PandaMaterial,
     PandaMaterialSet,
     ThermalState,
+    calculate_panda_field_map,
 )
 from fibre_sim.standards import (
     G652DAttenuationCheckManifest,
@@ -139,6 +145,39 @@ def get_health() -> dict[str, str]:
 )
 async def post_guidance_calculate(request: GuidanceRequest) -> GuidanceResult:
     return calculate_guidance(request)
+
+
+@app.post(
+    "/api/v1/photoelastic/panda/field-map",
+    operation_id="calculate_panda_field_map",
+    response_model=PandaFieldMapResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or calculation failed",
+        }
+    },
+)
+async def post_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapResult:
+    try:
+        return calculate_panda_field_map(request)
+    except (
+        PandaFieldMapCalculationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        reason = (
+            exc.reason if isinstance(exc, PandaFieldMapCalculationError) else "non_finite_result"
+        )
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message=(
+                "Qualitative PANDA field map could not be normalized from the supplied values."
+            ),
+            field=None,
+            details={"reason": reason},
+            status_code=422,
+        ) from exc
 
 
 @app.post(
@@ -261,7 +300,11 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     ModelManifest,
     ModelReference,
     ModelWarning,
+    PandaFieldMapManifest,
     PandaFieldMapRequest,
+    PandaFieldMapResult,
+    PandaFieldMapValidity,
+    PandaFieldMapWarning,
     PandaGeometry,
     PandaMaterial,
     PandaMaterialSet,
