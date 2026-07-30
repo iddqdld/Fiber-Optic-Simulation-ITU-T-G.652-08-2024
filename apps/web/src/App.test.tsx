@@ -16,6 +16,7 @@ import type {
 import App from './App'
 import type { ModeProfileData } from './FibreGeometryView'
 import type { PulseAnimationData } from './FibreGeometryView'
+import type { PandaFieldRequest, PandaFieldResult } from './m1/pandaFieldModel'
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseComparisonData } from './pulseComparisonPlot'
 
@@ -152,6 +153,173 @@ type SweepRequest =
 type SweepResult =
   operations['sweep_level1_parameter']['responses'][200]['content']['application/json']
 type FetchOutcome = Response | Promise<Response> | Error
+
+function pandaMaterial(name: string, ctePerK: number) {
+  return {
+    name,
+    composition: null,
+    young_modulus_pa: 72e9,
+    poisson_ratio: 0.17,
+    cte_per_k: ctePerK,
+    refractive_index: 1.45,
+    p11: 0.121,
+    p12: 0.27,
+    c1_per_pa: null,
+    c2_per_pa: null,
+    photoelastic_convention: 'p11_p12_strain' as const,
+    source: {
+      citation: 'M1 UI demonstration values, not manufacturer data',
+      confidence: 'demonstration_only' as const,
+      source_date: null,
+      notes: 'M1 UI demonstration values only; not manufacturer data.',
+    },
+  }
+}
+
+function pandaRequest(gridPoints = 65): PandaFieldRequest {
+  const claddingCte = 0.55 * 1e-6
+  return {
+    geometry: {
+      core_radius_m: 4.1 * 1e-6,
+      cladding_radius_m: 62.5 * 1e-6,
+      core_center_x_m: 0,
+      core_center_y_m: 0,
+      sap_1: {
+        radius_m: 15 * 1e-6,
+        center_x_m: -30 * 1e-6,
+        center_y_m: 0,
+      },
+      sap_2: {
+        radius_m: 15 * 1e-6,
+        center_x_m: 30 * 1e-6,
+        center_y_m: 0,
+      },
+    },
+    materials: {
+      core: pandaMaterial('M1 UI demonstration core', claddingCte),
+      cladding: pandaMaterial('M1 UI demonstration cladding', claddingCte),
+      sap_1: pandaMaterial('M1 UI demonstration SAP 1', 1.2 * 1e-6),
+      sap_2: pandaMaterial('M1 UI demonstration SAP 2', 1.2 * 1e-6),
+    },
+    thermal: {
+      temperature_k: 20 + 273.15,
+      effective_fictive_temperature_k: 1200 + 273.15,
+    },
+    wavelength_m: 1.55e-6,
+    sampling: {
+      grid_half_width_m: 62.5 * 1e-6,
+      grid_points: gridPoints,
+      interface_buffer_m: 2 * 1e-6,
+    },
+  }
+}
+
+function buildPandaFieldResult(
+  configuration: PandaFieldRequest,
+): PandaFieldResult {
+  const size = configuration.sampling.grid_points
+  const halfWidth = configuration.sampling.grid_half_width_m
+  const midpoint = (size - 1) / 2
+  const axis = Array.from(
+    { length: size },
+    (_, index) => halfWidth * ((index - midpoint) / midpoint),
+  )
+  const validityMask = axis.map((y) =>
+    axis.map((x) => {
+      if (Math.hypot(x, y) > configuration.geometry.cladding_radius_m) {
+        return false
+      }
+      return [configuration.geometry.sap_1, configuration.geometry.sap_2].every(
+        (sap) =>
+          Math.hypot(x - sap.center_x_m, y - sap.center_y_m) >
+          sap.radius_m + configuration.sampling.interface_buffer_m,
+      )
+    }),
+  )
+  const grid = (kind: 'deviatoric' | 'shear' | 'principal' | 'axis') =>
+    axis.map((y, row) =>
+      axis.map((x, column) => {
+        if (!validityMask[row][column]) {
+          return null
+        }
+        const normalizedX = x / halfWidth
+        const normalizedY = y / halfWidth
+        const principal = Math.hypot(normalizedX, normalizedY) / Math.SQRT2
+        if (kind === 'deviatoric') {
+          return normalizedX * 0.7
+        }
+        if (kind === 'shear') {
+          return normalizedY * 0.3
+        }
+        if (kind === 'principal') {
+          return principal
+        }
+        return principal <= 1e-12
+          ? null
+          : 0.5 * Math.atan2(normalizedY, normalizedX)
+      }),
+    )
+  const interval =
+    configuration.thermal.effective_fictive_temperature_k -
+    configuration.thermal.temperature_k
+  const claddingCte = configuration.materials.cladding.cte_per_k
+  const validPointCount = validityMask.flat().filter(Boolean).length
+
+  return {
+    configuration,
+    x_coordinates_m: axis,
+    y_coordinates_m: axis,
+    validity_mask: validityMask,
+    normalized_deviatoric_difference_kernel: grid('deviatoric'),
+    normalized_shear_kernel: grid('shear'),
+    normalized_principal_difference_kernel: grid('principal'),
+    principal_axis_angle_rad: grid('axis'),
+    sap_thermal_mismatch_strains: [
+      (configuration.materials.sap_1.cte_per_k - claddingCte) * interval,
+      (configuration.materials.sap_2.cte_per_k - claddingCte) * interval,
+    ],
+    kernel_scale: 0.001,
+    warnings: [
+      {
+        code: 'qualitative_uncalibrated',
+        message: 'K_i is undefined and omitted.',
+        output_field: 'normalized_deviatoric_difference_kernel',
+      },
+      {
+        code: 'finite_cladding_approximation',
+        message: 'The finite cladding boundary is not solved.',
+        output_field: 'normalized_deviatoric_difference_kernel',
+      },
+    ],
+    model_manifest: {
+      model_id: 'panda_qualitative_far_field_kernel',
+      model_version: '1.0.0',
+      method: 'qualitative_far_field_kernel',
+      quantity_type: 'normalized_dimensionless_kernel',
+      normalization: 'max_valid_principal_difference',
+      quantitative: false,
+      units: '1',
+      equation_references: [
+        'M1-3.3',
+        'M1-5.3',
+        'M1-5.4',
+        'M1-5.5',
+        'M1-5.6',
+        'M1-5.7',
+      ],
+      assumptions: ['constant thermal expansion coefficients'],
+      limitations: ['normalized qualitative kernel only'],
+      validity: {
+        outside_cladding_masked: true,
+        sap_interiors_masked: true,
+        interface_buffer_m: configuration.sampling.interface_buffer_m,
+        valid_point_count: validPointCount,
+      },
+    },
+  }
+}
+
+const pandaField9x9Result = buildPandaFieldResult(pandaRequest(9))
 
 const initialConfiguration = {
   preset: 'custom',
@@ -689,10 +857,12 @@ function mockFetch(
     health?: FetchOutcome
     preview?: FetchOutcome[]
     sweep?: FetchOutcome[]
+    pandaField?: FetchOutcome[]
   } = {},
 ) {
   let previewIndex = 0
   let sweepIndex = 0
+  let pandaFieldIndex = 0
   const fetchMock = vi
     .fn<typeof fetch>()
     .mockImplementation(async (input, init) => {
@@ -726,6 +896,20 @@ function mockFetch(
         return outcome
       }
 
+      if (url === '/api/v1/photoelastic/panda/field-map' && method === 'POST') {
+        const configuration = JSON.parse(
+          String(init?.body),
+        ) as PandaFieldRequest
+        const outcome =
+          options.pandaField?.[pandaFieldIndex] ??
+          jsonResponse(buildPandaFieldResult(configuration))
+        pandaFieldIndex += 1
+        if (outcome instanceof Error) {
+          throw outcome
+        }
+        return outcome
+      }
+
       throw new Error(`Unexpected ${method} ${url}`)
     })
 
@@ -749,6 +933,22 @@ function previewCalls(fetchMock: ReturnType<typeof mockFetch>) {
   )
 }
 
+function pandaFieldCalls(fetchMock: ReturnType<typeof mockFetch>) {
+  return fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      String(input) === '/api/v1/photoelastic/panda/field-map' &&
+      (init?.method ?? 'GET') === 'POST',
+  )
+}
+
+function pandaFieldPayload(fetchMock: ReturnType<typeof mockFetch>) {
+  const lastCall = pandaFieldCalls(fetchMock).at(-1)
+  if (!lastCall) {
+    throw new Error('Expected a PANDA field request')
+  }
+  return JSON.parse(String(lastCall[1]?.body)) as PandaFieldRequest
+}
+
 function previewPayload(fetchMock: ReturnType<typeof mockFetch>) {
   const calls = previewCalls(fetchMock)
   const lastCall = calls.at(-1)
@@ -766,6 +966,10 @@ async function settleDebounce() {
   await act(async () => {
     await Promise.resolve()
   })
+}
+
+function disableCanvasDrawing() {
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 }
 
 function numberInput(name: RegExp) {
@@ -914,9 +1118,10 @@ describe('editor UI state', () => {
     const visibleSecondaryLabels = () =>
       navigation.getAllByRole('tab').map((tab) => tab.textContent?.trim() ?? '')
 
-    expect(
-      navigation.getByRole('button', { name: 'G.652' }),
-    ).toHaveAttribute('aria-pressed', 'true')
+    expect(navigation.getByRole('button', { name: 'G.652' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     expect(
       navigation.getByRole('button', { name: 'PANDA' }),
     ).toBeInTheDocument()
@@ -937,7 +1142,7 @@ describe('editor UI state', () => {
     expect(screen.getByRole('heading', { name: 'PANDA field' })).toBeVisible()
     expect(
       within(screen.getByRole('tabpanel', { name: 'Field map' })).getByText(
-        /M1 is a 2D photoelasticity foundation/,
+        /Normalized qualitative fields from the backend/,
       ),
     ).toBeVisible()
     expect(visibleSecondaryLabels()).toEqual(['Field map', 'FEM mesh'])
@@ -952,9 +1157,10 @@ describe('editor UI state', () => {
 
     fireEvent.click(navigation.getByRole('button', { name: 'G.652' }))
 
-    expect(
-      navigation.getByRole('button', { name: 'G.652' }),
-    ).toHaveAttribute('aria-pressed', 'true')
+    expect(navigation.getByRole('button', { name: 'G.652' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     expect(navigation.getByRole('tab', { name: '3D scene' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -975,8 +1181,80 @@ describe('editor UI state', () => {
     expect(sweepCalls(fetchMock)).toHaveLength(0)
   })
 
-  test('routes the M1 views to isolated 2D foundation content without M1 requests', async () => {
+  test('requests and renders the guarded qualitative PANDA field result', async () => {
     vi.useFakeTimers()
+    disableCanvasDrawing()
+    const fetchMock = mockFetch({
+      pandaField: [jsonResponse(pandaField9x9Result)],
+    })
+
+    render(<App />)
+    await settleDebounce()
+    const initialPreviewCallCount = previewCalls(fetchMock).length
+
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+    fireEvent.change(
+      screen.getByRole('spinbutton', { name: /Grid points per axis/ }),
+      { target: { value: '9' } },
+    )
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
+    const payload = pandaFieldPayload(fetchMock)
+    expect(payload.sampling.grid_points).toBe(9)
+    expect(payload.geometry.core_radius_m).toBeCloseTo(4.1e-6, 16)
+    expect(payload.geometry.cladding_radius_m).toBeCloseTo(62.5e-6, 16)
+    expect(payload.geometry.sap_1.radius_m).toBeCloseTo(15e-6, 16)
+    expect(payload.geometry.sap_1.center_x_m).toBeCloseTo(-30e-6, 16)
+    expect(payload.geometry.sap_2.center_x_m).toBeCloseTo(30e-6, 16)
+    expect(payload.sampling.grid_half_width_m).toBeCloseTo(62.5e-6, 16)
+    expect(payload.sampling.interface_buffer_m).toBeCloseTo(2e-6, 16)
+    expect(payload.thermal.temperature_k).toBeCloseTo(293.15, 12)
+    expect(payload.thermal.effective_fictive_temperature_k).toBeCloseTo(
+      1473.15,
+      12,
+    )
+    expect(payload.wavelength_m).toBeCloseTo(1.55e-6, 16)
+    expect(payload.materials.core.cte_per_k).toBe(
+      payload.materials.cladding.cte_per_k,
+    )
+    expect(payload.materials.sap_1.source.confidence).toBe('demonstration_only')
+    expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
+    expect(
+      screen.getByRole('img', {
+        name: 'Deviatoric difference normalized qualitative PANDA field map',
+      }),
+    ).toBeVisible()
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent(
+      'PANDA field ready',
+    )
+    const resultsButton = screen.getByRole('button', {
+      name: 'Results, 2 warnings',
+    })
+
+    if (resultsButton.getAttribute('aria-expanded') !== 'true') {
+      fireEvent.click(resultsButton)
+    }
+
+    const drawer = screen.getByRole('complementary', {
+      name: 'Result drawer',
+    })
+    expect(
+      within(drawer).getByText('Qualitative far-field kernel'),
+    ).toBeVisible()
+    expect(
+      within(drawer).getByText('Maximum valid principal difference'),
+    ).toBeVisible()
+    expect(
+      within(drawer).getByText('Normalized dimensionless kernel'),
+    ).toBeVisible()
+    expect(within(drawer).getByText('1.000000e-3')).toBeVisible()
+    expect(within(drawer).getByText(/Qualitative only/)).toBeVisible()
+  })
+
+  test('reuses a successful field result and display changes stay local', async () => {
+    vi.useFakeTimers()
+    disableCanvasDrawing()
     const fetchMock = mockFetch()
 
     render(<App />)
@@ -984,55 +1262,112 @@ describe('editor UI state', () => {
     const initialPreviewCallCount = previewCalls(fetchMock).length
 
     fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+    await settleDebounce()
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
 
-    expect(
-      screen.getByRole('heading', { name: 'PANDA field', level: 2 }),
-    ).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'PANDA field inspector', level: 2 }),
-    ).toBeVisible()
-    expect(
-      within(screen.getAllByRole('status')[0]).getByText(
-        'M1 2D foundation · not calculated',
-      ),
-    ).toBeVisible()
-    expect(
-      within(screen.getAllByRole('status')[0]).getByText('Backend available'),
-    ).toBeVisible()
-    const resultsButton = screen.getByRole('button', {
-      name: 'Results, 0 warnings',
-    })
-    expect(resultsButton).toBeInTheDocument()
-    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
-    expect(screen.queryByRole('canvas')).not.toBeInTheDocument()
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'Displayed field' }),
+      { target: { value: 'shear' } },
+    )
 
-    if (resultsButton.getAttribute('aria-expanded') !== 'true') {
-      fireEvent.click(resultsButton)
-    }
-
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
     expect(
-      screen.getByRole('heading', { name: 'PANDA field results', level: 2 }),
+      screen.getByRole('img', {
+        name: 'Shear normalized qualitative PANDA field map',
+      }),
     ).toBeVisible()
-    expect(screen.getByText('M1 warnings')).toBeVisible()
-    expect(
-      within(
-        screen.getByRole('complementary', { name: 'Result drawer' }),
-      ).getAllByText('Not evaluated'),
-    ).toHaveLength(2)
 
     fireEvent.click(screen.getByRole('tab', { name: 'FEM mesh' }))
-
     expect(
       screen.getByRole('heading', { name: 'FEM mesh', level: 2 }),
     ).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: 'FEM mesh inspector', level: 2 }),
-    ).toBeVisible()
     expect(screen.getByText(/No mesh or validation values/)).toBeVisible()
-    expect(screen.queryByText('PANDA field results')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Field map' }))
+    await settleDebounce()
+
+    expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
+    expect(
+      screen.getByRole('img', {
+        name: 'Shear normalized qualitative PANDA field map',
+      }),
+    ).toBeVisible()
+  })
+
+  test('requests a new field when a validated PANDA input changes', async () => {
+    vi.useFakeTimers()
+    disableCanvasDrawing()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
+    fireEvent.change(screen.getByRole('spinbutton', { name: /Core radius/ }), {
+      target: { value: '4.2' },
+    })
+    expect(
+      screen.queryByRole('img', {
+        name: /normalized qualitative PANDA field map/,
+      }),
+    ).not.toBeInTheDocument()
 
     await settleDebounce()
-    expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(2)
+    const payload = pandaFieldPayload(fetchMock)
+    expect(payload.geometry.core_radius_m).toBeCloseTo(4.2e-6, 16)
+    expect(payload.geometry.cladding_radius_m).toBeCloseTo(62.5e-6, 16)
+    expect(payload.sampling.grid_half_width_m).toBeCloseTo(62.5e-6, 16)
+    expect(payload.sampling.grid_points).toBe(65)
+  })
+
+  test('surfaces structured and malformed field-map failures', async () => {
+    vi.useFakeTimers()
+    const malformedResult = {
+      ...buildPandaFieldResult(pandaRequest()),
+      kernel_scale: 0,
+    }
+    const fetchMock = mockFetch({
+      pandaField: [
+        jsonResponse(
+          {
+            error: {
+              code: 'CALCULATION_ERROR',
+              message: 'The supplied PANDA field cannot be normalized.',
+              field: null,
+              details: { reason: 'normalization_unavailable' },
+              trace_id: 'panda-test',
+            },
+          },
+          422,
+        ),
+        jsonResponse(malformedResult),
+      ],
+    })
+
+    render(<App />)
+    await settleDebounce()
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
+    expect(
+      screen.getAllByText('The supplied PANDA field cannot be normalized.')
+        .length,
+    ).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry field map' }))
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(2)
+    expect(
+      screen.getAllByText('PANDA field service returned a malformed response.')
+        .length,
+    ).toBeGreaterThan(0)
   })
 
   test('does not request a preview for workspace, graph, drawer, accordion, or display changes', async () => {
