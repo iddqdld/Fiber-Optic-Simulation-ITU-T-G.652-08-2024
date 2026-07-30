@@ -236,27 +236,14 @@ function buildPandaFieldResult(
       )
     }),
   )
-  const grid = (kind: 'deviatoric' | 'shear' | 'principal' | 'axis') =>
+  const grid = () =>
     axis.map((y, row) =>
       axis.map((x, column) => {
         if (!validityMask[row][column]) {
           return null
         }
         const normalizedX = x / halfWidth
-        const normalizedY = y / halfWidth
-        const principal = Math.hypot(normalizedX, normalizedY) / Math.SQRT2
-        if (kind === 'deviatoric') {
-          return normalizedX * 0.7
-        }
-        if (kind === 'shear') {
-          return normalizedY * 0.3
-        }
-        if (kind === 'principal') {
-          return principal
-        }
-        return principal <= 1e-12
-          ? null
-          : 0.5 * Math.atan2(normalizedY, normalizedX)
+        return normalizedX * 0.7
       }),
     )
   const interval =
@@ -270,10 +257,8 @@ function buildPandaFieldResult(
     x_coordinates_m: axis,
     y_coordinates_m: axis,
     validity_mask: validityMask,
-    normalized_deviatoric_difference_kernel: grid('deviatoric'),
-    normalized_shear_kernel: grid('shear'),
-    normalized_principal_difference_kernel: grid('principal'),
-    principal_axis_angle_rad: grid('axis'),
+    normalized_deviatoric_difference_kernel: grid(),
+    core_principal_axis_angle_rad: 0,
     sap_thermal_mismatch_strains: [
       (configuration.materials.sap_1.cte_per_k - claddingCte) * interval,
       (configuration.materials.sap_2.cte_per_k - claddingCte) * interval,
@@ -293,12 +278,10 @@ function buildPandaFieldResult(
     ],
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
-      model_version: '1.1.0',
+      model_version: '1.2.0',
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
       normalization: 'max_valid_absolute_deviatoric_difference',
-      auxiliary_normalization:
-        'max_valid_absolute_shear_and_max_valid_principal_difference',
       quantitative: false,
       units: '1',
       equation_references: [
@@ -1201,6 +1184,12 @@ describe('editor UI state', () => {
     )
     await settleDebounce()
 
+    expect(
+      screen.getByRole('spinbutton', { name: /Grid points per axis/ }),
+    ).toHaveValue(401)
+    expect(
+      screen.getAllByText(/601 × 601 is an optional high-quality output/),
+    ).not.toHaveLength(0)
     expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
     const payload = pandaFieldPayload(fetchMock)
     expect(payload.sampling.grid_points).toBe(401)
@@ -1279,6 +1268,12 @@ describe('editor UI state', () => {
     expect(
       screen.getByRole('checkbox', { name: /Show radial spokes/ }),
     ).toBeInTheDocument()
+    const requestCount = pandaFieldCalls(fetchMock).length
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /Show radial spokes/ }),
+    )
+    await settleDebounce()
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(requestCount)
 
     fireEvent.click(screen.getByRole('radio', { name: /Validity-aware/ }))
     await settleDebounce()
@@ -1333,7 +1328,7 @@ describe('editor UI state', () => {
     expect(payload.geometry.core_radius_m).toBeCloseTo(4.2e-6, 16)
     expect(payload.geometry.cladding_radius_m).toBeCloseTo(62.5e-6, 16)
     expect(payload.sampling.grid_half_width_m).toBeCloseTo(62.5e-6, 16)
-    expect(payload.sampling.grid_points).toBe(601)
+    expect(payload.sampling.grid_points).toBe(401)
   })
 
   test('surfaces structured and malformed field-map failures', async () => {

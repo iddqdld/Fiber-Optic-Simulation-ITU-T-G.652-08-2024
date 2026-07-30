@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { M1Inspector } from './M1Inspector'
 import { M1Results } from './M1Results'
 import { M1Workspace } from './M1Workspace'
+import * as pandaFieldContours from './pandaFieldContours'
 import { ISOLINE_THRESHOLDS } from './pandaFieldContours'
 import {
   initialPandaFieldValues,
@@ -15,12 +16,15 @@ const canvasContext = {
   arc: vi.fn(),
   beginPath: vi.fn(),
   clearRect: vi.fn(),
+  clip: vi.fn(),
   closePath: vi.fn(),
   fill: vi.fn(),
   fillRect: vi.fn(),
   fillText: vi.fn(),
   lineTo: vi.fn(),
   moveTo: vi.fn(),
+  restore: vi.fn(),
+  save: vi.fn(),
   stroke: vi.fn(),
   fillStyle: '',
   font: '',
@@ -99,13 +103,7 @@ function readyResult(): PandaFieldResult {
       [null, -0.75, null],
       invalid,
     ],
-    normalized_shear_kernel: [invalid, [null, 0.25, null], invalid],
-    normalized_principal_difference_kernel: [
-      invalid,
-      [null, 0.8, null],
-      invalid,
-    ],
-    principal_axis_angle_rad: [invalid, [null, Math.PI / 6, null], invalid],
+    core_principal_axis_angle_rad: Math.PI / 6,
     sap_thermal_mismatch_strains: [0.000767, 0.000767],
     kernel_scale: 0.001,
     warnings: [
@@ -122,12 +120,10 @@ function readyResult(): PandaFieldResult {
     ],
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
-      model_version: '1.1.0',
+      model_version: '1.2.0',
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
       normalization: 'max_valid_absolute_deviatoric_difference',
-      auxiliary_normalization:
-        'max_valid_absolute_shear_and_max_valid_principal_difference',
       quantitative: false,
       units: '1',
       equation_references: [
@@ -335,7 +331,7 @@ describe('M1 PANDA field workspace', () => {
     expect(canvasContext.fillRect).toHaveBeenCalledTimes(1)
     expect(canvasContext.fill).toHaveBeenCalledWith('evenodd')
     expect(ISOLINE_THRESHOLDS).toContain(0)
-    expect(canvasContext.arc).toHaveBeenCalledTimes(4)
+    expect(canvasContext.arc).toHaveBeenCalledTimes(10)
     expect(canvasContext.moveTo).toHaveBeenCalled()
     expect(canvasContext.lineTo).toHaveBeenCalled()
     expect(canvasContext.fillText).toHaveBeenCalledWith(
@@ -356,11 +352,7 @@ describe('M1 PANDA field workspace', () => {
       phase: 'ready',
       result: {
         ...result,
-        principal_axis_angle_rad: [
-          ...result.principal_axis_angle_rad.slice(0, 1),
-          [null, null, null],
-          ...result.principal_axis_angle_rad.slice(2),
-        ],
+        core_principal_axis_angle_rad: null,
       },
     })
 
@@ -392,6 +384,68 @@ describe('M1 PANDA field workspace', () => {
     expect(
       screen.getByText(/only the signed normalized deviatoric/),
     ).toBeVisible()
+  })
+
+  test('memoizes contours when reference spokes are toggled', () => {
+    const buildContours = vi.spyOn(
+      pandaFieldContours,
+      'buildPandaFieldContourGeometries',
+    )
+    const result = readyResult()
+    const { rerender } = render(
+      <M1Workspace
+        workspace="panda-field"
+        pandaField={controller({
+          phase: 'ready',
+          result,
+          presentationMode: 'reference_replica',
+        })}
+      />,
+    )
+
+    expect(buildContours).toHaveBeenCalledOnce()
+    rerender(
+      <M1Workspace
+        workspace="panda-field"
+        pandaField={controller({
+          phase: 'ready',
+          result,
+          presentationMode: 'reference_replica',
+          showReferenceSpokes: true,
+        })}
+      />,
+    )
+    expect(buildContours).toHaveBeenCalledOnce()
+  })
+
+  test('draws fixed vector mask paths independent of invalid cell count', () => {
+    const result = readyResult()
+    const denseResult = {
+      ...result,
+      validity_mask: result.validity_mask.map((row) => row.map(() => false)),
+    }
+    const toCoordinate = (value: number) => value
+
+    pandaFieldContours.drawInvalidMaskOverlay(
+      canvasContext as unknown as CanvasRenderingContext2D,
+      result,
+      toCoordinate,
+      toCoordinate,
+      'validity_aware',
+    )
+    const sparseArcCalls = canvasContext.arc.mock.calls.length
+    canvasContext.arc.mockClear()
+    pandaFieldContours.drawInvalidMaskOverlay(
+      canvasContext as unknown as CanvasRenderingContext2D,
+      denseResult,
+      toCoordinate,
+      toCoordinate,
+      'validity_aware',
+    )
+
+    expect(canvasContext.arc).toHaveBeenCalledTimes(sparseArcCalls)
+    expect(canvasContext.arc).toHaveBeenCalledTimes(6)
+    expect(canvasContext.fillRect).not.toHaveBeenCalled()
   })
 
   test('reports qualitative metadata, warnings, validity, and core-axis result', () => {

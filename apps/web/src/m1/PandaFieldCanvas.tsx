@@ -1,16 +1,17 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useMemo, useRef } from 'react'
 
 import type {
   PandaFieldPresentationMode,
   PandaFieldResult,
 } from './pandaFieldModel'
 import {
+  buildPandaFieldContourGeometries,
   drawFilledContours,
   drawInvalidMaskOverlay,
   drawIsolines,
   FIGURE_FIELD_LABEL,
 } from './pandaFieldContours'
-import { corePrincipalAxisAngle } from './pandaFieldView'
+import type { PandaFieldContourGeometries } from './pandaFieldContours'
 
 const CANVAS_SIZE = 720
 const PLOT_LEFT = 68
@@ -147,6 +148,7 @@ function drawField(
   result: PandaFieldResult,
   presentationMode: PandaFieldPresentationMode,
   showReferenceSpokes: boolean,
+  contourGeometries: PandaFieldContourGeometries,
 ) {
   context.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
   context.fillStyle = '#0b1118'
@@ -173,8 +175,8 @@ function drawField(
     PLOT_TOP + ((maximumY - value) / (maximumY - minimumY)) * PLOT_SIZE
   const radiusScale = PLOT_SIZE / (maximumX - minimumX)
 
-  drawFilledContours(context, result, toX, toY)
-  drawIsolines(context, result, toX, toY)
+  drawFilledContours(context, result, toX, toY, contourGeometries.filled)
+  drawIsolines(context, result, toX, toY, contourGeometries.isolines)
   drawInvalidMaskOverlay(context, result, toX, toY, presentationMode)
   if (presentationMode === 'reference_replica' && showReferenceSpokes) {
     drawReferenceSpokes(context, result, toX, toY)
@@ -184,7 +186,7 @@ function drawField(
   drawCoreAxis(
     context,
     result,
-    corePrincipalAxisAngle(result),
+    result.core_principal_axis_angle_rad,
     toX,
     toY,
     radiusScale,
@@ -205,19 +207,29 @@ export function PandaFieldCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const captionId = useId()
   const axisId = useId()
-  const axisAngle = corePrincipalAxisAngle(result)
+  const axisAngle = result.core_principal_axis_angle_rad
   const xMinimumUm = result.x_coordinates_m[0] * 1e6
   const xMaximumUm = result.x_coordinates_m.at(-1)! * 1e6
   const yMinimumUm = result.y_coordinates_m[0] * 1e6
   const yMaximumUm = result.y_coordinates_m.at(-1)! * 1e6
   const isReferenceReplica = presentationMode === 'reference_replica'
+  const contourGeometries = useMemo(
+    () => buildPandaFieldContourGeometries(result),
+    [result],
+  )
 
   useEffect(() => {
     const context = canvasRef.current?.getContext('2d')
     if (context) {
-      drawField(context, result, presentationMode, showReferenceSpokes)
+      drawField(
+        context,
+        result,
+        presentationMode,
+        showReferenceSpokes,
+        contourGeometries,
+      )
     }
-  }, [presentationMode, result, showReferenceSpokes])
+  }, [contourGeometries, presentationMode, result, showReferenceSpokes])
 
   return (
     <figure className="panda-field-figure" aria-labelledby={captionId}>

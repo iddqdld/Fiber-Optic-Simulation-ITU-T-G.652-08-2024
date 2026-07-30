@@ -116,23 +116,33 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     assert manifest_properties["normalization"]["const"] == (
         "max_valid_absolute_deviatoric_difference"
     )
-    assert manifest_properties["auxiliary_normalization"]["const"] == (
-        "max_valid_absolute_shear_and_max_valid_principal_difference"
-    )
+    assert manifest_properties["model_version"]["const"] == "1.2.0"
+    assert "auxiliary_normalization" not in manifest_properties
     assert manifest_properties["quantitative"]["const"] is False
     assert manifest_properties["units"]["const"] == "1"
 
     result_properties = schemas["PandaFieldMapResult"]["properties"]
-    for field_name in (
+    assert set(result_properties) == {
+        "configuration",
+        "x_coordinates_m",
+        "y_coordinates_m",
+        "validity_mask",
         "normalized_deviatoric_difference_kernel",
-        "normalized_shear_kernel",
-        "normalized_principal_difference_kernel",
-        "principal_axis_angle_rad",
-    ):
+        "sap_thermal_mismatch_strains",
+        "kernel_scale",
+        "core_principal_axis_angle_rad",
+        "warnings",
+        "model_manifest",
+    }
+    for field_name in ("normalized_deviatoric_difference_kernel",):
         assert result_properties[field_name]["items"]["items"]["anyOf"] == [
             {"type": "number"},
             {"type": "null"},
         ]
+    assert result_properties["core_principal_axis_angle_rad"]["anyOf"] == [
+        {"type": "number"},
+        {"type": "null"},
+    ]
 
     assert set(schema["paths"]) == {
         "/api/v1/health",

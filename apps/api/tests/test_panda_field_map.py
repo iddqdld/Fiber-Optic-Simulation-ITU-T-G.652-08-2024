@@ -106,9 +106,12 @@ async def test_panda_field_map_returns_qualitative_metadata_and_masks(
     response = await client.post(
         "/api/v1/photoelastic/panda/field-map",
         json=payload,
+        headers={"Accept-Encoding": "gzip"},
     )
 
     assert response.status_code == 200, response.text
+    assert response.headers["content-encoding"] == "gzip"
+    assert response.headers["vary"] == "Accept-Encoding"
     body = response.json()
     expected = calculate_panda_field_map(request)
     assert body == json.loads(expected.model_dump_json())
@@ -117,12 +120,22 @@ async def test_panda_field_map_returns_qualitative_metadata_and_masks(
     assert manifest["method"] == "qualitative_far_field_kernel"
     assert manifest["quantity_type"] == "normalized_dimensionless_kernel"
     assert manifest["normalization"] == "max_valid_absolute_deviatoric_difference"
-    assert (
-        manifest["auxiliary_normalization"]
-        == "max_valid_absolute_shear_and_max_valid_principal_difference"
-    )
+    assert manifest["model_version"] == "1.2.0"
+    assert "auxiliary_normalization" not in manifest
     assert manifest["quantitative"] is False
     assert manifest["units"] == "1"
+    assert set(body) == {
+        "configuration",
+        "x_coordinates_m",
+        "y_coordinates_m",
+        "validity_mask",
+        "normalized_deviatoric_difference_kernel",
+        "sap_thermal_mismatch_strains",
+        "kernel_scale",
+        "core_principal_axis_angle_rad",
+        "warnings",
+        "model_manifest",
+    }
     assert_square_grid(body["normalized_deviatoric_difference_kernel"], 401)
     assert_square_grid(body["validity_mask"], 401)
     assert any(

@@ -54,6 +54,8 @@ def request(
     *,
     sap_1: CircularSAP | None = None,
     sap_2: CircularSAP | None = None,
+    core_center_x_m: float = 0.0,
+    core_center_y_m: float = 0.0,
     cladding_cte_per_k: float = 5.5e-7,
     sap_1_cte_per_k: float = 2.0e-6,
     sap_2_cte_per_k: float = 2.0e-6,
@@ -67,8 +69,8 @@ def request(
         geometry=PandaGeometry(
             core_radius_m=4.1e-6,
             cladding_radius_m=62.5e-6,
-            core_center_x_m=0.0,
-            core_center_y_m=0.0,
+            core_center_x_m=core_center_x_m,
+            core_center_y_m=core_center_y_m,
             sap_1=sap_1 or sap(-30.0e-6, 0.0),
             sap_2=sap_2 or sap(30.0e-6, 0.0),
         ),
@@ -130,18 +132,11 @@ def test_field_map_is_deterministic_and_carries_qualitative_metadata() -> None:
     assert all(len(row) == configuration.sampling.grid_points for row in result.validity_mask)
     assert result.validity_mask[0][0] is False
     assert result.normalized_deviatoric_difference_kernel[0][0] is None
-    assert result.normalized_shear_kernel[0][0] is None
-    assert result.normalized_principal_difference_kernel[0][0] is None
-    assert result.principal_axis_angle_rad[0][0] is None
+    assert result.core_principal_axis_angle_rad == 0.0
     assert result.kernel_scale > 0.0
     assert all(
         -1.0 <= value <= 1.0
         for value in numeric_values(result.normalized_deviatoric_difference_kernel)
-    )
-    assert all(-1.0 <= value <= 1.0 for value in numeric_values(result.normalized_shear_kernel))
-    assert all(
-        0.0 <= value <= 1.0
-        for value in numeric_values(result.normalized_principal_difference_kernel)
     )
 
     expected_mismatch = (2.0e-6 - 5.5e-7) * (1200.0 - 293.15)
@@ -149,14 +144,10 @@ def test_field_map_is_deterministic_and_carries_qualitative_metadata() -> None:
         (expected_mismatch, expected_mismatch)
     )
     assert result.model_manifest.model_id == "panda_qualitative_far_field_kernel"
-    assert result.model_manifest.model_version == "1.1.0"
+    assert result.model_manifest.model_version == "1.2.0"
     assert result.model_manifest.method == "qualitative_far_field_kernel"
     assert result.model_manifest.quantity_type == "normalized_dimensionless_kernel"
     assert result.model_manifest.normalization == "max_valid_absolute_deviatoric_difference"
-    assert (
-        result.model_manifest.auxiliary_normalization
-        == "max_valid_absolute_shear_and_max_valid_principal_difference"
-    )
     assert result.model_manifest.quantitative is False
     assert result.model_manifest.units == "1"
     assert result.model_manifest.equation_references == (
@@ -189,14 +180,28 @@ def test_public_result_models_are_frozen_and_forbid_extra_fields() -> None:
         assert model.model_config["frozen"] is True
         assert model.model_config["extra"] == "forbid"
 
+    assert set(PandaFieldMapResult.model_fields) == {
+        "configuration",
+        "x_coordinates_m",
+        "y_coordinates_m",
+        "validity_mask",
+        "normalized_deviatoric_difference_kernel",
+        "sap_thermal_mismatch_strains",
+        "kernel_scale",
+        "core_principal_axis_angle_rad",
+        "warnings",
+        "model_manifest",
+    }
+    assert "auxiliary_normalization" not in PandaFieldMapManifest.model_fields
+
 
 def test_result_validator_rejects_invalid_cell_values_and_shapes() -> None:
     result = calculate_panda_field_map(request())
     invalid_payload = result.model_dump()
-    invalid_payload["normalized_shear_kernel"] = [
-        list(row) for row in result.normalized_shear_kernel
+    invalid_payload["normalized_deviatoric_difference_kernel"] = [
+        list(row) for row in result.normalized_deviatoric_difference_kernel
     ]
-    invalid_payload["normalized_shear_kernel"][0][0] = 0.0
+    invalid_payload["normalized_deviatoric_difference_kernel"][0][0] = 0.0
     with pytest.raises(ValidationError, match="Invalid field-map cells"):
         PandaFieldMapResult.model_validate(invalid_payload)
 
@@ -207,28 +212,21 @@ def test_result_validator_rejects_invalid_cell_values_and_shapes() -> None:
         PandaFieldMapResult.model_validate(shape_payload)
 
 
-def test_aligned_saps_have_centerline_symmetry_and_zero_center_shear() -> None:
+def test_aligned_saps_have_centerline_symmetry_and_zero_center_axis() -> None:
     result = calculate_panda_field_map(request())
     center = len(result.x_coordinates_m) // 2
 
     assert result.validity_mask[center][center] is True
-    assert result.normalized_shear_kernel[center][center] == 0.0
-    assert result.principal_axis_angle_rad[center][center] == 0.0
+    assert result.core_principal_axis_angle_rad == 0.0
 
     for row_index in range(len(result.y_coordinates_m)):
         mirrored_row = len(result.y_coordinates_m) - 1 - row_index
         for column_index in range(len(result.x_coordinates_m)):
             if result.validity_mask[row_index][column_index]:
-                mirrored_shear = result.normalized_shear_kernel[mirrored_row][column_index]
-                assert mirrored_shear is not None
                 assert result.normalized_deviatoric_difference_kernel[row_index][
                     column_index
                 ] == pytest.approx(
                     result.normalized_deviatoric_difference_kernel[mirrored_row][column_index],
-                    abs=1.0e-14,
-                )
-                assert result.normalized_shear_kernel[row_index][column_index] == pytest.approx(
-                    -mirrored_shear,
                     abs=1.0e-14,
                 )
 
@@ -358,13 +356,8 @@ def test_sap_permutation_preserves_the_field() -> None:
         first.normalized_deviatoric_difference_kernel,
         permuted.normalized_deviatoric_difference_kernel,
     )
-    assert_optional_grids_close(
-        first.normalized_shear_kernel,
-        permuted.normalized_shear_kernel,
-    )
-    assert_optional_grids_close(
-        first.normalized_principal_difference_kernel,
-        permuted.normalized_principal_difference_kernel,
+    assert first.core_principal_axis_angle_rad == pytest.approx(
+        permuted.core_principal_axis_angle_rad
     )
     assert first.sap_thermal_mismatch_strains == pytest.approx(
         tuple(reversed(permuted.sap_thermal_mismatch_strains))
@@ -398,39 +391,19 @@ def test_global_ninety_degree_rotation_covariance() -> None:
             original_deviatoric = original.normalized_deviatoric_difference_kernel[row_index][
                 column_index
             ]
-            original_shear = original.normalized_shear_kernel[row_index][column_index]
-            original_principal = original.normalized_principal_difference_kernel[row_index][
-                column_index
-            ]
             assert original_deviatoric is not None
-            assert original_shear is not None
-            assert original_principal is not None
             assert rotated.normalized_deviatoric_difference_kernel[rotated_row][
                 rotated_column
             ] == pytest.approx(
                 -original_deviatoric,
                 abs=1.0e-13,
             )
-            assert rotated.normalized_shear_kernel[rotated_row][rotated_column] == pytest.approx(
-                -original_shear,
-                abs=1.0e-13,
-            )
-            assert rotated.normalized_principal_difference_kernel[rotated_row][
-                rotated_column
-            ] == pytest.approx(
-                original_principal,
-                abs=1.0e-13,
-            )
-            original_axis = original.principal_axis_angle_rad[row_index][column_index]
-            rotated_axis = rotated.principal_axis_angle_rad[rotated_row][rotated_column]
-            if original_axis is None:
-                assert rotated_axis is None
-            else:
-                assert rotated_axis is not None
-                assert axis_difference_mod_pi(
-                    rotated_axis,
-                    original_axis + math.pi / 2.0,
-                ) == pytest.approx(0.0, abs=1.0e-12)
+    assert original.core_principal_axis_angle_rad is not None
+    assert rotated.core_principal_axis_angle_rad is not None
+    assert axis_difference_mod_pi(
+        rotated.core_principal_axis_angle_rad,
+        original.core_principal_axis_angle_rad + math.pi / 2.0,
+    ) == pytest.approx(0.0, abs=1.0e-12)
 
 
 def test_thirty_degree_rotation_preserves_center_magnitude_and_rotates_axis() -> None:
@@ -449,18 +422,10 @@ def test_thirty_degree_rotation_preserves_center_magnitude_and_rotates_axis() ->
 
     original = calculate_panda_field_map(request(sap_1=sap_1, sap_2=sap_2))
     rotated = calculate_panda_field_map(request(sap_1=rotate(sap_1), sap_2=rotate(sap_2)))
-    center = len(original.x_coordinates_m) // 2
-    original_principal = original.normalized_principal_difference_kernel[center][center]
-    rotated_principal = rotated.normalized_principal_difference_kernel[center][center]
-    original_axis = original.principal_axis_angle_rad[center][center]
-    rotated_axis = rotated.principal_axis_angle_rad[center][center]
-
-    assert original_principal is not None
-    assert rotated_principal is not None
+    original_axis = original.core_principal_axis_angle_rad
+    rotated_axis = rotated.core_principal_axis_angle_rad
     assert original_axis is not None
     assert rotated_axis is not None
-    assert 0.0 <= original_principal <= 1.0
-    assert 0.0 <= rotated_principal <= 1.0
     assert axis_difference_mod_pi(
         rotated_axis,
         original_axis + angle_rad,
@@ -506,21 +471,21 @@ def test_nonzero_interface_buffer_masks_the_near_interface_region() -> None:
 
 
 @pytest.mark.parametrize(
-    ("x_m", "y_m", "deviatoric_sign", "shear_sign"),
+    ("x_m", "y_m"),
     [
-        (-10.0e-6, 10.0e-6, 1.0, 1.0),
-        (-20.0e-6, 20.0e-6, -1.0, 1.0),
-        (-20.0e-6, -20.0e-6, -1.0, -1.0),
-        (-10.0e-6, -10.0e-6, 1.0, -1.0),
+        (-10.0e-6, 10.0e-6),
+        (-20.0e-6, 20.0e-6),
+        (-20.0e-6, -20.0e-6),
+        (-10.0e-6, -10.0e-6),
     ],
 )
-def test_principal_axis_uses_atan2_quadrants(
+def test_core_principal_axis_uses_nearest_valid_sample(
     x_m: float,
     y_m: float,
-    deviatoric_sign: float,
-    shear_sign: float,
 ) -> None:
     configuration = request(
+        core_center_x_m=x_m,
+        core_center_y_m=y_m,
         sap_1=sap(-30.0e-6, 0.0, 5.0e-6),
         sap_2=sap(35.0e-6, 0.0, 5.0e-6),
         sap_2_cte_per_k=5.5e-7,
@@ -528,15 +493,8 @@ def test_principal_axis_uses_atan2_quadrants(
     result = calculate_panda_field_map(configuration)
     row = closest_index(result.y_coordinates_m, y_m)
     column = closest_index(result.x_coordinates_m, x_m)
-    deviatoric = result.normalized_deviatoric_difference_kernel[row][column]
-    shear = result.normalized_shear_kernel[row][column]
-    axis = result.principal_axis_angle_rad[row][column]
-
-    assert deviatoric is not None
-    assert shear is not None
+    axis = result.core_principal_axis_angle_rad
     assert axis is not None
-    assert math.copysign(1.0, deviatoric) == deviatoric_sign
-    assert math.copysign(1.0, shear) == shear_sign
     assert axis == pytest.approx(
         math.atan2(
             result.y_coordinates_m[row],
@@ -544,3 +502,15 @@ def test_principal_axis_uses_atan2_quadrants(
         ),
         abs=1.0e-12,
     )
+
+
+def test_core_principal_axis_is_none_at_a_zero_magnitude_sample() -> None:
+    result = calculate_panda_field_map(
+        request(
+            sap_1_cte_per_k=2.0e-6,
+            sap_2_cte_per_k=-0.9e-6,
+        )
+    )
+
+    assert result.kernel_scale > 0.0
+    assert result.core_principal_axis_angle_rad is None
