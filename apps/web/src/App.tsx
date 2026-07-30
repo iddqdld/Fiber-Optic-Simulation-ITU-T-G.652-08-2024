@@ -33,6 +33,7 @@ import { M1Inspector } from './m1/M1Inspector'
 import { M1Results } from './m1/M1Results'
 import { M1Workspace } from './m1/M1Workspace'
 import type { M1WorkspaceId } from './m1/M1WorkspaceCatalog'
+import { usePandaFieldMap } from './m1/usePandaFieldMap'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
 import { SweepWorkspace } from './SweepWorkspace'
@@ -689,6 +690,9 @@ function App() {
       ? activeWorkspace
       : null
   const isM1WorkspaceActive = activeM1Workspace !== null
+  const isPandaFieldWorkspaceActive = activeM1Workspace === 'panda-field'
+  const pandaField = usePandaFieldMap(isPandaFieldWorkspaceActive)
+  const activePandaField = isPandaFieldWorkspaceActive ? pandaField : null
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
@@ -891,31 +895,51 @@ function App() {
     }
   }
 
-  const displayPreviewStatus = isM1WorkspaceActive
-    ? 'M1 2D foundation · not calculated'
-    : formValidation.error !== null
-      ? 'Validation issue'
-      : previewStatus
-  const previewStateTone: PreviewStateTone = isM1WorkspaceActive
-    ? 'neutral'
-    : formValidation.error !== null
-      ? 'warning'
-      : serviceError !== null
-        ? 'error'
-        : previewStatus === 'Preview ready'
-          ? 'success'
-          : previewStatus.includes('Loading') ||
-              previewStatus.includes('Updating') ||
-              previewStatus.includes('scheduled')
-            ? 'info'
+  const displayPreviewStatus = isPandaFieldWorkspaceActive
+    ? pandaField.statusLabel
+    : isM1WorkspaceActive
+      ? 'M1 2D foundation · not calculated'
+      : formValidation.error !== null
+        ? 'Validation issue'
+        : previewStatus
+  const previewStateTone: PreviewStateTone = isPandaFieldWorkspaceActive
+    ? pandaField.phase === 'ready'
+      ? 'success'
+      : pandaField.phase === 'loading'
+        ? 'info'
+        : pandaField.phase === 'validation'
+          ? 'warning'
+          : pandaField.phase === 'error'
+            ? 'error'
             : 'neutral'
+    : isM1WorkspaceActive
+      ? 'neutral'
+      : formValidation.error !== null
+        ? 'warning'
+        : serviceError !== null
+          ? 'error'
+          : previewStatus === 'Preview ready'
+            ? 'success'
+            : previewStatus.includes('Loading') ||
+                previewStatus.includes('Updating') ||
+                previewStatus.includes('scheduled')
+              ? 'info'
+              : 'neutral'
   const backendHealthy = backendStatus === 'Backend available'
-  const warningCount = isM1WorkspaceActive ? 0 : (result?.warnings.length ?? 0)
-  const modelLabel = isM1WorkspaceActive
-    ? 'M1 2D foundation · no calculation'
-    : result
-      ? `${result.model_manifest.model_id} · ${result.model_manifest.model_version}`
-      : 'Level 1 single-section model'
+  const warningCount = isPandaFieldWorkspaceActive
+    ? (pandaField.result?.warnings.length ?? 0)
+    : isM1WorkspaceActive
+      ? 0
+      : (result?.warnings.length ?? 0)
+  const modelLabel = isPandaFieldWorkspaceActive
+    ? pandaField.result
+      ? `${pandaField.result.model_manifest.model_id} · ${pandaField.result.model_manifest.model_version}`
+      : `PANDA field · ${pandaField.phase}`
+    : isM1WorkspaceActive
+      ? 'M1 2D foundation · no calculation'
+      : result
+        ? `${result.model_manifest.model_id} · ${result.model_manifest.model_version}`
+        : 'Level 1 single-section model'
   const sweepConfigurationKey =
     formValidation.request === null
       ? 'invalid-configuration'
@@ -924,7 +948,12 @@ function App() {
   let workspace: ReactNode
 
   if (activeM1Workspace !== null) {
-    workspace = <M1Workspace workspace={activeM1Workspace} />
+    workspace = (
+      <M1Workspace
+        workspace={activeM1Workspace}
+        pandaField={activePandaField}
+      />
+    )
   } else if (activeWorkspace === 'scene') {
     workspace = (
       <div className="scene-workspace">
@@ -975,7 +1004,10 @@ function App() {
 
   const inspector =
     activeM1Workspace !== null ? (
-      <M1Inspector workspace={activeM1Workspace} />
+      <M1Inspector
+        workspace={activeM1Workspace}
+        pandaField={activePandaField}
+      />
     ) : (
       <SimulationInspector
         values={formValues}
@@ -993,7 +1025,7 @@ function App() {
 
   const resultDrawer =
     activeM1Workspace !== null ? (
-      <M1Results workspace={activeM1Workspace} />
+      <M1Results workspace={activeM1Workspace} pandaField={activePandaField} />
     ) : result ? (
       <Level1Preview result={result} />
     ) : (

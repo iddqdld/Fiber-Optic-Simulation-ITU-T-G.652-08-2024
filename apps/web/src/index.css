@@ -1813,6 +1813,251 @@ summary:focus-visible,
   font-weight: 700;
 }
 
+.m1-qualitative-notice {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.7rem;
+  color: #d9eaf8;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  background: #132534;
+  border: 1px solid #315673;
+  border-radius: 4px;
+}
+
+.m1-qualitative-notice strong {
+  color: #9bd7ff;
+}
+
+.m1-qualitative-notice p {
+  margin: 0.25rem 0 0;
+}
+
+.m1-inspector-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+
+.m1-inspector-group {
+  background: var(--editor-panel-raised);
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
+}
+
+.m1-inspector-group summary {
+  padding: 0.65rem 0.7rem;
+  color: var(--editor-text);
+  font-size: 0.75rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.m1-inspector-group[open] summary {
+  border-bottom: 1px solid var(--editor-border);
+}
+
+.m1-inspector-group-content {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+}
+
+.m1-input-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.6rem;
+}
+
+.m1-input-field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.m1-input-field label {
+  color: var(--editor-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.m1-input-field--error {
+  margin: -0.25rem;
+  padding: 0.45rem;
+  background: #35151b;
+  border: 1px solid #ff6b78;
+  border-radius: 4px;
+}
+
+.m1-input-field--error label,
+.m1-input-field--error input {
+  color: #ffe2e5;
+}
+
+.m1-input-field--error input {
+  background: #241015;
+  border-color: #ff6b78;
+}
+
+.m1-input-error {
+  margin: 0;
+  color: #ff9ba5;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.m1-boundary-note,
+.m1-group-note {
+  margin: 0;
+  color: var(--editor-text-muted);
+  font-size: 0.67rem;
+  line-height: 1.4;
+}
+
+.m1-boundary-note {
+  padding-left: 0.45rem;
+  border-left: 2px solid #596576;
+}
+
+.m1-retry-button {
+  justify-self: start;
+  padding: 0.45rem 0.7rem;
+  color: #eff8ff;
+  font-size: 0.72rem;
+  font-weight: 750;
+  background: #244d69;
+  border: 1px solid #4f87ad;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.panda-field-figure {
+  max-width: 58rem;
+  margin: 1rem auto 0;
+  padding: clamp(0.65rem, 1.5vw, 1rem);
+  background: #121923;
+  border: 1px solid var(--editor-border-strong);
+  border-radius: 5px;
+}
+
+.panda-field-plot-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.panda-field-eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--editor-text-muted);
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.panda-field-plot-heading h3 {
+  margin: 0;
+  color: var(--editor-text);
+  font-size: 0.9rem;
+}
+
+.panda-field-plot-heading > span {
+  padding: 0.25rem 0.4rem;
+  color: #d7e5f1;
+  font-size: 0.68rem;
+  background: #1d2935;
+  border: 1px solid #3a4b5d;
+  border-radius: 3px;
+}
+
+.panda-field-extent {
+  margin: -0.15rem 0 0.65rem;
+  color: var(--editor-text-muted);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.panda-field-canvas-frame {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  overflow: hidden;
+  background: #0b1118;
+  border: 1px solid #3b4a5c;
+  border-radius: 3px;
+}
+
+.panda-field-canvas-frame canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.panda-field-scale {
+  display: grid;
+  gap: 0.2rem;
+  max-width: 34rem;
+  margin: 0.7rem auto 0;
+  color: var(--editor-text-muted);
+  font-size: 0.68rem;
+}
+
+.panda-field-scale-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.panda-field-scale-bar {
+  height: 0.65rem;
+  background: linear-gradient(90deg, #2463eb, #e2e7ed 50%, #dc3030);
+  border: 1px solid #647184;
+}
+
+.panda-field-axis-text,
+.panda-field-figure figcaption {
+  color: var(--editor-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+.panda-field-axis-text {
+  margin: 0.7rem 0 0;
+  color: #b8eaf3;
+  text-align: center;
+}
+
+.panda-field-figure figcaption {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--editor-border);
+}
+
+.m1-result-section {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--editor-border);
+}
+
+.m1-result-section h3 {
+  margin: 0 0 0.55rem;
+  color: var(--editor-text);
+  font-size: 0.76rem;
+}
+
+.m1-result-section ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.05rem;
+  color: var(--editor-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.m1-results-warning {
+  color: #ffe6a6;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
