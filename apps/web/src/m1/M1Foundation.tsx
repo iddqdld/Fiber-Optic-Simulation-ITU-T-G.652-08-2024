@@ -20,8 +20,9 @@ export function PandaQualitativeNotice() {
     <div className="m1-qualitative-notice">
       <strong>Normalized qualitative model</strong>
       <p>
-        This far-field kernel shows relative patterns only. It is dimensionless
-        and does not report stress in pascals.
+        Figure 5.1 plots only the signed normalized deviatoric-difference
+        kernel. It is dimensionless, uses a fixed −1 to +1 range, and does not
+        report stress in pascals.
       </p>
     </div>
   )

@@ -364,7 +364,7 @@ export interface components {
             grid_half_width_m: number;
             /**
              * Grid Points
-             * @default 65
+             * @default 601
              */
             grid_points: number;
             /**
@@ -1651,10 +1651,18 @@ export interface components {
              *       "constant thermal expansion coefficients over the temperature interval",
              *       "circular SAP inclusions in homogeneous cladding",
              *       "linear superposition of two far-field inclusion kernels",
-             *       "K_i is undefined and omitted from each inclusion contribution"
+             *       "K_i is undefined and omitted from each inclusion contribution",
+             *       "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
+             *       "auxiliary shear and principal-difference kernels use their own valid extrema"
              *     ]
              */
             assumptions: string[];
+            /**
+             * Auxiliary Normalization
+             * @default max_valid_absolute_shear_and_max_valid_principal_difference
+             * @constant
+             */
+            auxiliary_normalization: "max_valid_absolute_shear_and_max_valid_principal_difference";
             /**
              * Equation References
              * @default [
@@ -1691,16 +1699,16 @@ export interface components {
             model_id: "panda_qualitative_far_field_kernel";
             /**
              * Model Version
-             * @default 1.0.0
+             * @default 1.1.0
              * @constant
              */
-            model_version: "1.0.0";
+            model_version: "1.1.0";
             /**
              * Normalization
-             * @default max_valid_principal_difference
+             * @default max_valid_absolute_deviatoric_difference
              * @constant
              */
-            normalization: "max_valid_principal_difference";
+            normalization: "max_valid_absolute_deviatoric_difference";
             /**
              * Quantitative
              * @default false

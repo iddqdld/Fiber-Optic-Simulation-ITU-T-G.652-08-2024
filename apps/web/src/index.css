@@ -1917,6 +1917,59 @@ summary:focus-visible,
   border-left: 2px solid #596576;
 }
 
+.m1-presentation-fieldset {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.1rem;
+  padding: 0.65rem;
+  background: #141c26;
+  border-color: var(--editor-border);
+}
+
+.m1-presentation-fieldset legend {
+  color: var(--editor-text);
+  font-size: 0.72rem;
+}
+
+.m1-presentation-options {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.m1-radio-label {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--editor-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.m1-radio-label span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.m1-radio-label input {
+  width: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  accent-color: #4fa5d3;
+}
+
+.m1-radio-label small {
+  padding-left: 1.35rem;
+  color: var(--editor-text-muted);
+  font-size: 0.67rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.m1-spokes-label {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--editor-border);
+}
+
 .m1-retry-button {
   justify-self: start;
   padding: 0.45rem 0.7rem;
@@ -1967,6 +2020,17 @@ summary:focus-visible,
   font-size: 0.68rem;
   background: #1d2935;
   border: 1px solid #3a4b5d;
+  border-radius: 3px;
+}
+
+.panda-field-mode-label {
+  margin: -0.15rem 0 0.65rem;
+  padding: 0.4rem 0.5rem;
+  color: #f7d99a;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  background: #2a2418;
+  border: 1px solid #735b2b;
   border-radius: 3px;
 }
 

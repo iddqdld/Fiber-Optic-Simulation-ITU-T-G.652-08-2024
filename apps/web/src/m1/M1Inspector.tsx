@@ -2,8 +2,8 @@ import { M1FoundationCopy, PandaQualitativeNotice } from './M1Foundation'
 import { getM1WorkspaceLabel, type M1WorkspaceId } from './M1WorkspaceCatalog'
 import type {
   PandaFieldController,
-  PandaFieldDisplay,
   PandaFieldInputName,
+  PandaFieldPresentationMode,
 } from './pandaFieldModel'
 
 export type M1InspectorProps = {
@@ -138,8 +138,8 @@ const inputGroups: readonly InputGroup[] = [
   },
   {
     id: 'sampling-display',
-    title: 'Sampling and display',
-    note: 'Sampling changes backend resolution. Display selection changes only which returned grid is drawn.',
+    title: 'Sampling and presentation',
+    note: 'Sampling changes backend resolution. Figure 5.1 always draws the signed, dimensionless deviatoric-difference kernel.',
     inputs: [
       {
         name: 'interfaceBufferUm',
@@ -151,20 +151,30 @@ const inputGroups: readonly InputGroup[] = [
         name: 'gridPoints',
         label: 'Grid points per axis',
         unit: 'points',
-        boundary: 'Odd integer from 3 to 65 inclusive.',
+        boundary: 'Odd integer from 401 to 601 inclusive.',
         step: '1',
       },
     ],
   },
 ]
 
-const displayOptions: ReadonlyArray<{
-  value: PandaFieldDisplay
+const presentationModeOptions: ReadonlyArray<{
+  value: PandaFieldPresentationMode
   label: string
+  description: string
 }> = [
-  { value: 'deviatoric', label: 'Deviatoric difference' },
-  { value: 'shear', label: 'Shear' },
-  { value: 'principal', label: 'Principal difference' },
+  {
+    value: 'validity_aware',
+    label: 'Validity-aware (default)',
+    description:
+      'Applies the configured interface buffer and shows the backend validity mask.',
+  },
+  {
+    value: 'reference_replica',
+    label: 'Reference replica (comparison-only)',
+    description:
+      'Requests zero applied interface buffer so contours reach SAP boundaries; SAP interiors remain neutral.',
+  },
 ]
 
 function NumericInput({
@@ -248,28 +258,54 @@ function PandaInspector({ controller }: { controller: PandaFieldController }) {
                 ))}
               </div>
               {group.id === 'sampling-display' && (
-                <div className="m1-input-field">
-                  <label htmlFor="m1-panda-display">Displayed field</label>
-                  <select
-                    id="m1-panda-display"
-                    value={controller.display}
-                    onChange={(event) =>
-                      controller.onDisplayChange(
-                        event.currentTarget.value as PandaFieldDisplay,
-                      )
-                    }
-                  >
-                    {displayOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
+                <fieldset className="m1-presentation-fieldset">
+                  <legend>Figure 5.1 presentation</legend>
+                  <div className="m1-presentation-options">
+                    {presentationModeOptions.map((option) => (
+                      <label key={option.value} className="m1-radio-label">
+                        <span>
+                          <input
+                            type="radio"
+                            name="m1-panda-presentation-mode"
+                            value={option.value}
+                            checked={
+                              controller.presentationMode === option.value
+                            }
+                            onChange={() =>
+                              controller.onPresentationModeChange(option.value)
+                            }
+                          />{' '}
+                          {option.label}
+                        </span>
+                        <small>{option.description}</small>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {controller.presentationMode === 'reference_replica' && (
+                    <label className="m1-radio-label m1-spokes-label">
+                      <span>
+                        <input
+                          type="checkbox"
+                          checked={controller.showReferenceSpokes}
+                          onChange={(event) =>
+                            controller.onShowReferenceSpokesChange(
+                              event.currentTarget.checked,
+                            )
+                          }
+                        />{' '}
+                        Show radial spokes
+                      </span>
+                      <small>
+                        Comparison aid; available only in reference replica
+                        mode.
+                      </small>
+                    </label>
+                  )}
                   <p className="m1-boundary-note">
-                    Fixed display range −1 to +1; principal difference occupies
-                    0 to +1.
+                    The configured interface-buffer input is retained when
+                    switching modes; only the applied request value changes.
                   </p>
-                </div>
+                </fieldset>
               )}
             </div>
           </details>

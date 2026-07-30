@@ -17,7 +17,8 @@ function PandaFieldStatus({
     return (
       <PandaFieldCanvas
         result={controller.result}
-        display={controller.display}
+        presentationMode={controller.presentationMode}
+        showReferenceSpokes={controller.showReferenceSpokes}
       />
     )
   }
@@ -61,8 +62,8 @@ function PandaFieldWorkspace({
           <p className="m1-workspace-kicker">M1 · 2D only · Figure 5.1</p>
           <h2 id="m1-workspace-title">PANDA field</h2>
           <p>
-            Normalized qualitative fields from the backend two-SAP far-field
-            kernel, with invalid regions explicitly masked.
+            Signed normalized deviatoric difference from the backend two-SAP
+            far-field kernel, with invalid regions explicitly masked.
           </p>
         </div>
         <span className="m1-workspace-badge">Qualitative</span>

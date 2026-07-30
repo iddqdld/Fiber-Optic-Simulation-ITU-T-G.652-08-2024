@@ -176,7 +176,7 @@ function pandaMaterial(name: string, ctePerK: number) {
   }
 }
 
-function pandaRequest(gridPoints = 65): PandaFieldRequest {
+function pandaRequest(gridPoints = 401): PandaFieldRequest {
   const claddingCte = 0.55 * 1e-6
   return {
     geometry: {
@@ -293,10 +293,12 @@ function buildPandaFieldResult(
     ],
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
-      model_version: '1.0.0',
+      model_version: '1.1.0',
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
-      normalization: 'max_valid_principal_difference',
+      normalization: 'max_valid_absolute_deviatoric_difference',
+      auxiliary_normalization:
+        'max_valid_absolute_shear_and_max_valid_principal_difference',
       quantitative: false,
       units: '1',
       equation_references: [
@@ -319,7 +321,7 @@ function buildPandaFieldResult(
   }
 }
 
-const pandaField9x9Result = buildPandaFieldResult(pandaRequest(9))
+const pandaField401x401Result = buildPandaFieldResult(pandaRequest(401))
 
 const initialConfiguration = {
   preset: 'custom',
@@ -1142,7 +1144,7 @@ describe('editor UI state', () => {
     expect(screen.getByRole('heading', { name: 'PANDA field' })).toBeVisible()
     expect(
       within(screen.getByRole('tabpanel', { name: 'Field map' })).getByText(
-        /Normalized qualitative fields from the backend/,
+        /Signed normalized deviatoric difference from the backend/,
       ),
     ).toBeVisible()
     expect(visibleSecondaryLabels()).toEqual(['Field map', 'FEM mesh'])
@@ -1185,7 +1187,7 @@ describe('editor UI state', () => {
     vi.useFakeTimers()
     disableCanvasDrawing()
     const fetchMock = mockFetch({
-      pandaField: [jsonResponse(pandaField9x9Result)],
+      pandaField: [jsonResponse(pandaField401x401Result)],
     })
 
     render(<App />)
@@ -1195,13 +1197,13 @@ describe('editor UI state', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
     fireEvent.change(
       screen.getByRole('spinbutton', { name: /Grid points per axis/ }),
-      { target: { value: '9' } },
+      { target: { value: '401' } },
     )
     await settleDebounce()
 
     expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
     const payload = pandaFieldPayload(fetchMock)
-    expect(payload.sampling.grid_points).toBe(9)
+    expect(payload.sampling.grid_points).toBe(401)
     expect(payload.geometry.core_radius_m).toBeCloseTo(4.1e-6, 16)
     expect(payload.geometry.cladding_radius_m).toBeCloseTo(62.5e-6, 16)
     expect(payload.geometry.sap_1.radius_m).toBeCloseTo(15e-6, 16)
@@ -1222,7 +1224,7 @@ describe('editor UI state', () => {
     expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
     expect(
       screen.getByRole('img', {
-        name: 'Deviatoric difference normalized qualitative PANDA field map',
+        name: 'Signed normalized deviatoric difference qualitative PANDA field map',
       }),
     ).toBeVisible()
     expect(screen.getAllByRole('status')[0]).toHaveTextContent(
@@ -1243,7 +1245,7 @@ describe('editor UI state', () => {
       within(drawer).getByText('Qualitative far-field kernel'),
     ).toBeVisible()
     expect(
-      within(drawer).getByText('Maximum valid principal difference'),
+      within(drawer).getByText('Maximum valid absolute deviatoric difference'),
     ).toBeVisible()
     expect(
       within(drawer).getByText('Normalized dimensionless kernel'),
@@ -1252,7 +1254,7 @@ describe('editor UI state', () => {
     expect(within(drawer).getByText(/Qualitative only/)).toBeVisible()
   })
 
-  test('reuses a successful field result and display changes stay local', async () => {
+  test('switches presentation buffers without changing the configured form value', async () => {
     vi.useFakeTimers()
     disableCanvasDrawing()
     const fetchMock = mockFetch()
@@ -1265,17 +1267,26 @@ describe('editor UI state', () => {
     await settleDebounce()
     expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
 
-    fireEvent.change(
-      screen.getByRole('combobox', { name: 'Displayed field' }),
-      { target: { value: 'shear' } },
-    )
-
-    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
-    expect(
-      screen.getByRole('img', {
-        name: 'Shear normalized qualitative PANDA field map',
+    fireEvent.click(
+      screen.getByRole('radio', {
+        name: /Reference replica \(comparison-only\)/,
       }),
-    ).toBeVisible()
+    )
+    await settleDebounce()
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(2)
+    expect(pandaFieldPayload(fetchMock).sampling.interface_buffer_m).toBe(0)
+    expect(screen.getByLabelText('Interface buffer (µm)')).toHaveValue(2)
+    expect(
+      screen.getByRole('checkbox', { name: /Show radial spokes/ }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: /Validity-aware/ }))
+    await settleDebounce()
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(3)
+    expect(
+      pandaFieldPayload(fetchMock).sampling.interface_buffer_m,
+    ).toBeCloseTo(2e-6, 16)
+    expect(screen.getByLabelText('Interface buffer (µm)')).toHaveValue(2)
 
     fireEvent.click(screen.getByRole('tab', { name: 'FEM mesh' }))
     expect(
@@ -1287,10 +1298,10 @@ describe('editor UI state', () => {
     await settleDebounce()
 
     expect(previewCalls(fetchMock)).toHaveLength(initialPreviewCallCount)
-    expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(3)
     expect(
       screen.getByRole('img', {
-        name: 'Shear normalized qualitative PANDA field map',
+        name: 'Signed normalized deviatoric difference qualitative PANDA field map',
       }),
     ).toBeVisible()
   })
@@ -1322,7 +1333,7 @@ describe('editor UI state', () => {
     expect(payload.geometry.core_radius_m).toBeCloseTo(4.2e-6, 16)
     expect(payload.geometry.cladding_radius_m).toBeCloseTo(62.5e-6, 16)
     expect(payload.sampling.grid_half_width_m).toBeCloseTo(62.5e-6, 16)
-    expect(payload.sampling.grid_points).toBe(65)
+    expect(payload.sampling.grid_points).toBe(601)
   })
 
   test('surfaces structured and malformed field-map failures', async () => {
