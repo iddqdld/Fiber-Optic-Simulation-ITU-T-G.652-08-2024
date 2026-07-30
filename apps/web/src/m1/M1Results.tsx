@@ -5,15 +5,29 @@ import type {
   PandaFieldPresentationMode,
   PandaFieldResult,
 } from './pandaFieldModel'
+import type { PandaMeshController, PandaMeshResult } from './pandaMeshModel'
 
 export type M1ResultsProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
+  pandaMesh?: PandaMeshController | null
 }
 
 function formatScientific(value: number) {
   return value.toExponential(6)
 }
+
+const meshRegionLabels = {
+  cladding: 'Cladding',
+  core: 'Core',
+  sap_1: 'SAP 1',
+  sap_2: 'SAP 2',
+} as const
+
+const meshWarningLabels = {
+  quality_below_target: 'Quality below target',
+  polygonal_interface_approximation: 'Polygonal interface approximation',
+} as const
 
 const warningLabels = {
   qualitative_uncalibrated: 'Qualitative only',
@@ -147,20 +161,31 @@ function PandaReadyResults({
 function UnavailableResults({
   workspace,
   controller,
+  pandaMesh,
 }: {
   workspace: M1WorkspaceId
   controller: PandaFieldController | null
+  pandaMesh: PandaMeshController | null
 }) {
   const isPandaField = workspace === 'panda-field'
   const calculation =
-    controller?.phase === 'loading' ? 'In progress' : 'Not run'
-  let note = 'FEM mesh and validation results are not connected yet.'
+    (isPandaField ? controller?.phase : pandaMesh?.phase) === 'loading'
+      ? 'In progress'
+      : 'Not run'
+  let note = 'Mesh-only geometry results are not available yet.'
   if (isPandaField) {
     note =
       controller?.phase === 'validation'
         ? 'Correct the highlighted inputs before calculating the qualitative field map.'
         : (controller?.errorMessage ??
           'A validated qualitative field result is not available in the current state.')
+  }
+  if (!isPandaField) {
+    note =
+      pandaMesh?.phase === 'validation'
+        ? 'Correct the highlighted geometry inputs before generating the mesh.'
+        : (pandaMesh?.errorMessage ??
+          'A validated mesh-only result is not available in the current state.')
   }
 
   return (
@@ -185,10 +210,126 @@ function UnavailableResults({
   )
 }
 
-export function M1Results({ workspace, pandaField = null }: M1ResultsProps) {
+function MeshReadyResults({ result }: { result: PandaMeshResult }) {
+  const manifest = result.model_manifest
+  return (
+    <>
+      <p className="m1-inspector-status">
+        Mesh-only result · no FEM fields solved
+      </p>
+      <dl className="m1-results-list">
+        <div>
+          <dt>Refinement</dt>
+          <dd>{result.configuration.refinement_level}</dd>
+        </div>
+        <div>
+          <dt>Nodes</dt>
+          <dd>{result.node_count}</dd>
+        </div>
+        <div>
+          <dt>Elements</dt>
+          <dd>{result.element_count}</dd>
+        </div>
+        <div>
+          <dt>Minimum angle</dt>
+          <dd>{result.quality.minimum_angle_deg.toFixed(3)}°</dd>
+        </div>
+        <div>
+          <dt>Minimum normalized quality</dt>
+          <dd>{result.quality.minimum_normalized_quality.toFixed(6)}</dd>
+        </div>
+        <div>
+          <dt>Mean normalized quality</dt>
+          <dd>{result.quality.mean_normalized_quality.toFixed(6)}</dd>
+        </div>
+        <div>
+          <dt>Generator</dt>
+          <dd>{manifest.generator_version}</dd>
+        </div>
+        <div>
+          <dt>FEM compatibility</dt>
+          <dd>{manifest.fem_compatibility_version}</dd>
+        </div>
+      </dl>
+
+      <section
+        className="m1-result-section"
+        aria-labelledby="m1-mesh-region-title"
+      >
+        <h3 id="m1-mesh-region-title">Mesh-only region summaries</h3>
+        <ul>
+          {result.region_summaries.map((summary) => (
+            <li key={summary.region}>
+              <strong>{meshRegionLabels[summary.region]}</strong>:{' '}
+              {summary.element_count} elements · target area{' '}
+              {formatScientific(summary.target_area_m2)} m² · total area{' '}
+              {formatScientific(summary.total_area_m2)} m²
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section
+        className="m1-result-section"
+        aria-labelledby="m1-mesh-warning-title"
+      >
+        <h3 id="m1-mesh-warning-title">Mesh warnings</h3>
+        {result.warnings.length === 0 ? (
+          <p className="m1-results-note">No mesh warnings.</p>
+        ) : (
+          <ul>
+            {result.warnings.map((warning) => (
+              <li
+                key={`${warning.code}-${warning.message}`}
+                className="m1-results-warning"
+              >
+                <strong>{meshWarningLabels[warning.code]}</strong>:{' '}
+                {warning.message}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section
+        className="m1-result-section"
+        aria-labelledby="m1-mesh-assumption-title"
+      >
+        <h3 id="m1-mesh-assumption-title">Mesh assumptions</h3>
+        <ul>
+          {manifest.assumptions.map((assumption) => (
+            <li key={assumption}>{assumption}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section
+        className="m1-result-section"
+        aria-labelledby="m1-mesh-limitation-title"
+      >
+        <h3 id="m1-mesh-limitation-title">Mesh limitations</h3>
+        <ul>
+          {manifest.limitations.map((limitation) => (
+            <li key={limitation}>{limitation}</li>
+          ))}
+        </ul>
+      </section>
+    </>
+  )
+}
+
+export function M1Results({
+  workspace,
+  pandaField = null,
+  pandaMesh = null,
+}: M1ResultsProps) {
   const readyResult =
     workspace === 'panda-field' && pandaField?.phase === 'ready'
       ? pandaField.result
+      : null
+  const meshResult =
+    workspace === 'fem-mesh' && pandaMesh?.phase === 'ready'
+      ? pandaMesh.result
       : null
 
   return (
@@ -203,8 +344,14 @@ export function M1Results({ workspace, pandaField = null }: M1ResultsProps) {
           result={readyResult}
           presentationMode={pandaField?.presentationMode ?? 'validity_aware'}
         />
+      ) : meshResult ? (
+        <MeshReadyResults result={meshResult} />
       ) : (
-        <UnavailableResults workspace={workspace} controller={pandaField} />
+        <UnavailableResults
+          workspace={workspace}
+          controller={pandaField}
+          pandaMesh={pandaMesh}
+        />
       )}
     </section>
   )

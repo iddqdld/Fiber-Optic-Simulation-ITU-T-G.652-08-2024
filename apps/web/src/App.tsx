@@ -34,6 +34,7 @@ import { M1Results } from './m1/M1Results'
 import { M1Workspace } from './m1/M1Workspace'
 import type { M1WorkspaceId } from './m1/M1WorkspaceCatalog'
 import { usePandaFieldMap } from './m1/usePandaFieldMap'
+import { usePandaMesh } from './m1/usePandaMesh'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
 import { SweepWorkspace } from './SweepWorkspace'
@@ -691,8 +692,9 @@ function App() {
       : null
   const isM1WorkspaceActive = activeM1Workspace !== null
   const isPandaFieldWorkspaceActive = activeM1Workspace === 'panda-field'
+  const isPandaMeshWorkspaceActive = activeM1Workspace === 'fem-mesh'
   const pandaField = usePandaFieldMap(isPandaFieldWorkspaceActive)
-  const activePandaField = isPandaFieldWorkspaceActive ? pandaField : null
+  const pandaMesh = usePandaMesh(isPandaMeshWorkspaceActive, pandaField.values)
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
@@ -897,11 +899,13 @@ function App() {
 
   const displayPreviewStatus = isPandaFieldWorkspaceActive
     ? pandaField.statusLabel
-    : isM1WorkspaceActive
-      ? 'M1 2D foundation · not calculated'
-      : formValidation.error !== null
-        ? 'Validation issue'
-        : previewStatus
+    : isPandaMeshWorkspaceActive
+      ? pandaMesh.statusLabel
+      : isM1WorkspaceActive
+        ? 'M1 2D foundation · not calculated'
+        : formValidation.error !== null
+          ? 'Validation issue'
+          : previewStatus
   const previewStateTone: PreviewStateTone = isPandaFieldWorkspaceActive
     ? pandaField.phase === 'ready'
       ? 'success'
@@ -912,34 +916,50 @@ function App() {
           : pandaField.phase === 'error'
             ? 'error'
             : 'neutral'
-    : isM1WorkspaceActive
-      ? 'neutral'
-      : formValidation.error !== null
-        ? 'warning'
-        : serviceError !== null
-          ? 'error'
-          : previewStatus === 'Preview ready'
-            ? 'success'
-            : previewStatus.includes('Loading') ||
-                previewStatus.includes('Updating') ||
-                previewStatus.includes('scheduled')
-              ? 'info'
+    : isPandaMeshWorkspaceActive
+      ? pandaMesh.phase === 'ready'
+        ? 'success'
+        : pandaMesh.phase === 'loading'
+          ? 'info'
+          : pandaMesh.phase === 'validation'
+            ? 'warning'
+            : pandaMesh.phase === 'error'
+              ? 'error'
               : 'neutral'
+      : isM1WorkspaceActive
+        ? 'neutral'
+        : formValidation.error !== null
+          ? 'warning'
+          : serviceError !== null
+            ? 'error'
+            : previewStatus === 'Preview ready'
+              ? 'success'
+              : previewStatus.includes('Loading') ||
+                  previewStatus.includes('Updating') ||
+                  previewStatus.includes('scheduled')
+                ? 'info'
+                : 'neutral'
   const backendHealthy = backendStatus === 'Backend available'
   const warningCount = isPandaFieldWorkspaceActive
     ? (pandaField.result?.warnings.length ?? 0)
-    : isM1WorkspaceActive
-      ? 0
-      : (result?.warnings.length ?? 0)
+    : isPandaMeshWorkspaceActive
+      ? (pandaMesh.result?.warnings.length ?? 0)
+      : isM1WorkspaceActive
+        ? 0
+        : (result?.warnings.length ?? 0)
   const modelLabel = isPandaFieldWorkspaceActive
     ? pandaField.result
       ? `${pandaField.result.model_manifest.model_id} · ${pandaField.result.model_manifest.model_version}`
       : `PANDA field · ${pandaField.phase}`
-    : isM1WorkspaceActive
-      ? 'M1 2D foundation · no calculation'
-      : result
-        ? `${result.model_manifest.model_id} · ${result.model_manifest.model_version}`
-        : 'Level 1 single-section model'
+    : isPandaMeshWorkspaceActive
+      ? pandaMesh.result
+        ? `${pandaMesh.result.model_manifest.model_id} · ${pandaMesh.result.model_manifest.model_version}`
+        : `PANDA mesh · ${pandaMesh.phase}`
+      : isM1WorkspaceActive
+        ? 'M1 2D foundation · no calculation'
+        : result
+          ? `${result.model_manifest.model_id} · ${result.model_manifest.model_version}`
+          : 'Level 1 single-section model'
   const sweepConfigurationKey =
     formValidation.request === null
       ? 'invalid-configuration'
@@ -951,7 +971,8 @@ function App() {
     workspace = (
       <M1Workspace
         workspace={activeM1Workspace}
-        pandaField={activePandaField}
+        pandaField={pandaField}
+        pandaMesh={pandaMesh}
       />
     )
   } else if (activeWorkspace === 'scene') {
@@ -1006,7 +1027,8 @@ function App() {
     activeM1Workspace !== null ? (
       <M1Inspector
         workspace={activeM1Workspace}
-        pandaField={activePandaField}
+        pandaField={pandaField}
+        pandaMesh={pandaMesh}
       />
     ) : (
       <SimulationInspector
@@ -1025,7 +1047,11 @@ function App() {
 
   const resultDrawer =
     activeM1Workspace !== null ? (
-      <M1Results workspace={activeM1Workspace} pandaField={activePandaField} />
+      <M1Results
+        workspace={activeM1Workspace}
+        pandaField={pandaField}
+        pandaMesh={pandaMesh}
+      />
     ) : result ? (
       <Level1Preview result={result} />
     ) : (

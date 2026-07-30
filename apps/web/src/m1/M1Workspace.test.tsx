@@ -6,11 +6,14 @@ import { M1Results } from './M1Results'
 import { M1Workspace } from './M1Workspace'
 import * as pandaFieldContours from './pandaFieldContours'
 import { ISOLINE_THRESHOLDS } from './pandaFieldContours'
+import * as pandaMeshDrawing from './pandaMeshDrawing'
+import { buildPandaMeshDrawingGeometry } from './pandaMeshDrawing'
 import {
   initialPandaFieldValues,
   type PandaFieldController,
   type PandaFieldResult,
 } from './pandaFieldModel'
+import type { PandaMeshController, PandaMeshResult } from './pandaMeshModel'
 
 const canvasContext = {
   arc: vi.fn(),
@@ -30,6 +33,14 @@ const canvasContext = {
   font: '',
   lineWidth: 1,
   strokeStyle: '',
+  setTransform: vi.fn(),
+}
+
+class MockPath2D {
+  moveTo = vi.fn()
+  lineTo = vi.fn()
+  closePath = vi.fn()
+  arc = vi.fn()
 }
 
 function demonstrationMaterial(name: string, ctePerK: number) {
@@ -172,7 +183,104 @@ function controller(
   }
 }
 
+function meshResult(): PandaMeshResult {
+  return {
+    configuration: {
+      geometry: {
+        cladding_radius_m: 62.5e-6,
+        core_radius_m: 4.1e-6,
+        core_center_x_m: 0,
+        core_center_y_m: 0,
+        sap_1: { radius_m: 15e-6, center_x_m: -30e-6, center_y_m: 0 },
+        sap_2: { radius_m: 15e-6, center_x_m: 30e-6, center_y_m: 0 },
+      },
+      refinement_level: 1,
+    },
+    nodes_m: [
+      [-62.5e-6, -62.5e-6],
+      [62.5e-6, -62.5e-6],
+      [62.5e-6, 62.5e-6],
+      [-62.5e-6, 62.5e-6],
+      [0, -4e-6],
+      [0, 4e-6],
+      [-15e-6, 0],
+      [15e-6, 0],
+    ],
+    elements: [
+      [0, 1, 4],
+      [1, 2, 5],
+      [2, 3, 5],
+      [3, 0, 4],
+      [4, 5, 6],
+      [4, 7, 5],
+    ],
+    region_tags: ['cladding', 'core', 'sap_1', 'sap_2', 'cladding', 'core'],
+    node_count: 8,
+    element_count: 6,
+    region_summaries: [
+      {
+        region: 'cladding',
+        element_count: 2,
+        target_area_m2: 1,
+        total_area_m2: 1,
+      },
+      { region: 'core', element_count: 2, target_area_m2: 1, total_area_m2: 1 },
+      {
+        region: 'sap_1',
+        element_count: 1,
+        target_area_m2: 1,
+        total_area_m2: 1,
+      },
+      {
+        region: 'sap_2',
+        element_count: 1,
+        target_area_m2: 1,
+        total_area_m2: 1,
+      },
+    ],
+    quality: {
+      minimum_angle_deg: 30,
+      minimum_normalized_quality: 0.5,
+      mean_normalized_quality: 0.8,
+    },
+    warnings: [],
+    model_manifest: {
+      model_id: 'panda_constrained_delaunay_mesh',
+      model_version: '1.0.0',
+      geometry_model: 'PandaGeometry',
+      interface_model: 'piecewise_linear_circular_interfaces',
+      method: 'constrained_delaunay',
+      element_family: 'first_order_triangles',
+      generator_version: 'triangle 20250106',
+      fem_compatibility_version: 'scikit-fem 12.0.2',
+      quality_target_minimum_angle_deg: 20,
+      mesh_only: true,
+      solved_fem_fields: false,
+      coordinate_units: 'm',
+      assumptions: [],
+      limitations: [],
+    },
+  } as PandaMeshResult
+}
+
+function meshController(
+  overrides: Partial<PandaMeshController> = {},
+): PandaMeshController {
+  return {
+    refinementLevel: 0,
+    result: null,
+    phase: 'idle',
+    statusLabel: 'Waiting for PANDA mesh…',
+    errorMessage: null,
+    fieldErrors: {},
+    onRefinementLevelChange: vi.fn(),
+    onRetry: vi.fn(),
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
+  vi.stubGlobal('Path2D', MockPath2D)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
     canvasContext as unknown as CanvasRenderingContext2D,
   )
@@ -182,6 +290,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('M1 PANDA field workspace', () => {
@@ -477,7 +586,117 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText(/does not report stress in pascals/)).toBeVisible()
   })
 
-  test('keeps FEM unconnected and free of PANDA controls and canvas', () => {
+  test.each([
+    ['idle', 'Configure the PANDA geometry'],
+    ['loading', 'Generating the constrained triangular PANDA mesh'],
+    ['validation', 'highlighted inputs are valid'],
+    ['error', 'Mesh service unavailable'],
+  ] as const)('does not show a stale mesh in %s state', (phase, message) => {
+    render(
+      <M1Workspace
+        workspace="fem-mesh"
+        pandaMesh={meshController({
+          phase,
+          result: meshResult(),
+          errorMessage: phase === 'error' ? 'Mesh service unavailable' : null,
+        })}
+      />,
+    )
+
+    expect(
+      screen.getByRole(phase === 'error' ? 'alert' : 'status'),
+    ).toHaveTextContent(message)
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText(/No stale mesh/)).toBeVisible()
+  })
+
+  test('draws all mesh regions and retained deduplicated interfaces when ready', () => {
+    const result = meshResult()
+    const geometry = buildPandaMeshDrawingGeometry(result)
+    expect(geometry.nodeCount).toBe(result.node_count)
+    expect(geometry.elementCount).toBe(result.element_count)
+    expect(geometry.edgeCount).toBeLessThan(result.element_count * 3)
+    expect(geometry.interfaceEdgeCount).toBeGreaterThan(0)
+    expect(geometry.outerEdgeCount).toBeGreaterThan(0)
+
+    render(
+      <M1Workspace
+        workspace="fem-mesh"
+        pandaMesh={meshController({ phase: 'ready', result })}
+      />,
+    )
+
+    expect(
+      screen.getByRole('img', {
+        name: 'Figure 9.1 PANDA triangular mesh preview',
+      }),
+    ).toBeVisible()
+    expect(screen.getByText('Cladding')).toBeVisible()
+    expect(screen.getByText('Core')).toBeVisible()
+    expect(screen.getByText('SAP 1')).toBeVisible()
+    expect(screen.getByText('SAP 2')).toBeVisible()
+    expect(
+      screen.getByText(/Mesh preview · no solved FEM fields/),
+    ).toBeVisible()
+    expect(screen.getByText(/Level 1/)).toBeVisible()
+    expect(screen.getByText(/8/)).toBeVisible()
+    expect(canvasContext.fill).toHaveBeenCalled()
+    expect(canvasContext.stroke).toHaveBeenCalled()
+  })
+
+  test('keeps mesh view controls local, bounded, and accessible', () => {
+    render(
+      <M1Workspace
+        workspace="fem-mesh"
+        pandaMesh={meshController({ phase: 'ready', result: meshResult() })}
+      />,
+    )
+
+    const canvas = screen.getByRole('img', {
+      name: 'Figure 9.1 PANDA triangular mesh preview',
+    })
+    const zoom = screen.getByLabelText('Mesh zoom')
+    expect(zoom).toHaveAttribute('min', '0.5')
+    expect(zoom).toHaveAttribute('max', '4')
+    expect(screen.getByText('100%', { selector: 'output' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in mesh' }))
+    expect(screen.getByText('120%', { selector: 'output' })).toBeVisible()
+    fireEvent.change(zoom, { target: { value: '4' } })
+    expect(screen.getByText('400%', { selector: 'output' })).toBeVisible()
+    fireEvent.keyDown(canvas, { key: '0' })
+    expect(screen.getByText('100%', { selector: 'output' })).toBeVisible()
+    fireEvent.wheel(canvas, { deltaY: -100, clientX: 30, clientY: 30 })
+    expect(screen.getByText('120%', { selector: 'output' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Reset mesh view' }))
+    expect(screen.getByText('100%', { selector: 'output' })).toBeVisible()
+  })
+
+  test('retains mesh topology while view controls change', () => {
+    const buildGeometry = vi.spyOn(
+      pandaMeshDrawing,
+      'buildPandaMeshDrawingGeometry',
+    )
+    render(
+      <M1Workspace
+        workspace="fem-mesh"
+        pandaMesh={meshController({ phase: 'ready', result: meshResult() })}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in mesh' }))
+    fireEvent.keyDown(
+      screen.getByRole('img', {
+        name: 'Figure 9.1 PANDA triangular mesh preview',
+      }),
+      { key: 'ArrowRight' },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Reset mesh view' }))
+
+    expect(buildGeometry).toHaveBeenCalledOnce()
+  })
+
+  test('keeps mesh workspace free of field controls', () => {
     const fieldController = controller({
       phase: 'ready',
       result: readyResult(),
@@ -491,8 +710,8 @@ describe('M1 PANDA field workspace', () => {
     )
 
     expect(screen.getByRole('heading', { name: 'FEM mesh' })).toBeVisible()
-    expect(screen.getByText(/Figure 9\.1/)).toBeVisible()
-    expect(screen.getByText(/No mesh or validation values/)).toBeVisible()
+    expect(screen.getByText('M1 · 2D only · Figure 9.1')).toBeVisible()
+    expect(screen.getByText(/Configure the PANDA geometry/)).toBeVisible()
     expect(container.querySelector('canvas')).not.toBeInTheDocument()
     expect(container.querySelector('input')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Displayed field')).not.toBeInTheDocument()

@@ -17,6 +17,7 @@ import App from './App'
 import type { ModeProfileData } from './FibreGeometryView'
 import type { PulseAnimationData } from './FibreGeometryView'
 import type { PandaFieldRequest, PandaFieldResult } from './m1/pandaFieldModel'
+import type { PandaMeshRequest, PandaMeshResult } from './m1/pandaMeshModel'
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseComparisonData } from './pulseComparisonPlot'
 
@@ -305,6 +306,59 @@ function buildPandaFieldResult(
 }
 
 const pandaField401x401Result = buildPandaFieldResult(pandaRequest(401))
+
+function buildPandaMeshResult(
+  configuration: PandaMeshRequest,
+): PandaMeshResult {
+  return {
+    configuration,
+    nodes_m: [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [1, 1],
+    ],
+    elements: [
+      [0, 1, 2],
+      [0, 2, 3],
+      [1, 3, 2],
+      [0, 3, 1],
+    ],
+    region_tags: ['cladding', 'core', 'sap_1', 'sap_2'],
+    node_count: 4,
+    element_count: 4,
+    region_summaries: (['cladding', 'core', 'sap_1', 'sap_2'] as const).map(
+      (region) => ({
+        region,
+        element_count: 1,
+        target_area_m2: 1,
+        total_area_m2: 1,
+      }),
+    ),
+    quality: {
+      minimum_angle_deg: 30,
+      minimum_normalized_quality: 0.5,
+      mean_normalized_quality: 0.8,
+    },
+    warnings: [],
+    model_manifest: {
+      model_id: 'panda_constrained_delaunay_mesh',
+      model_version: '1.0.0',
+      geometry_model: 'PandaGeometry',
+      interface_model: 'piecewise_linear_circular_interfaces',
+      method: 'constrained_delaunay',
+      element_family: 'first_order_triangles',
+      generator_version: 'triangle 20250106',
+      fem_compatibility_version: 'scikit-fem 12.0.2',
+      quality_target_minimum_angle_deg: 20,
+      mesh_only: true,
+      solved_fem_fields: false,
+      coordinate_units: 'm',
+      assumptions: ['Constrained triangular geometry preview.'],
+      limitations: ['No FEM fields are solved.'],
+    },
+  }
+}
 
 const initialConfiguration = {
   preset: 'custom',
@@ -843,11 +897,13 @@ function mockFetch(
     preview?: FetchOutcome[]
     sweep?: FetchOutcome[]
     pandaField?: FetchOutcome[]
+    pandaMesh?: FetchOutcome[]
   } = {},
 ) {
   let previewIndex = 0
   let sweepIndex = 0
   let pandaFieldIndex = 0
+  let pandaMeshIndex = 0
   const fetchMock = vi
     .fn<typeof fetch>()
     .mockImplementation(async (input, init) => {
@@ -895,6 +951,18 @@ function mockFetch(
         return outcome
       }
 
+      if (url === '/api/v1/photoelastic/panda/mesh' && method === 'POST') {
+        const configuration = JSON.parse(String(init?.body)) as PandaMeshRequest
+        const outcome =
+          options.pandaMesh?.[pandaMeshIndex] ??
+          jsonResponse(buildPandaMeshResult(configuration))
+        pandaMeshIndex += 1
+        if (outcome instanceof Error) {
+          throw outcome
+        }
+        return outcome
+      }
+
       throw new Error(`Unexpected ${method} ${url}`)
     })
 
@@ -932,6 +1000,22 @@ function pandaFieldPayload(fetchMock: ReturnType<typeof mockFetch>) {
     throw new Error('Expected a PANDA field request')
   }
   return JSON.parse(String(lastCall[1]?.body)) as PandaFieldRequest
+}
+
+function pandaMeshCalls(fetchMock: ReturnType<typeof mockFetch>) {
+  return fetchMock.mock.calls.filter(
+    ([input, init]) =>
+      String(input) === '/api/v1/photoelastic/panda/mesh' &&
+      (init?.method ?? 'GET') === 'POST',
+  )
+}
+
+function pandaMeshPayload(fetchMock: ReturnType<typeof mockFetch>) {
+  const lastCall = pandaMeshCalls(fetchMock).at(-1)
+  if (!lastCall) {
+    throw new Error('Expected a PANDA mesh request')
+  }
+  return JSON.parse(String(lastCall[1]?.body)) as PandaMeshRequest
 }
 
 function previewPayload(fetchMock: ReturnType<typeof mockFetch>) {
@@ -1166,6 +1250,70 @@ describe('editor UI state', () => {
     expect(sweepCalls(fetchMock)).toHaveLength(0)
   })
 
+  test('requests, refines, renders, and reuses the PANDA mesh preview', async () => {
+    vi.useFakeTimers()
+    disableCanvasDrawing()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'PANDA' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'FEM mesh' }))
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(0)
+    expect(pandaMeshCalls(fetchMock)).toHaveLength(1)
+    expect(pandaMeshPayload(fetchMock).refinement_level).toBe(0)
+    expect(pandaMeshPayload(fetchMock).geometry.core_radius_m).toBeCloseTo(
+      4.1e-6,
+      16,
+    )
+    expect(
+      screen.getByRole('img', {
+        name: 'Figure 9.1 PANDA triangular mesh preview',
+      }),
+    ).toBeVisible()
+    expect(screen.getByText('Mesh preview')).toBeVisible()
+    expect(screen.getByText(/no solved FEM fields/i)).toBeVisible()
+
+    fireEvent.change(screen.getByLabelText('Refinement level'), {
+      target: { value: '2' },
+    })
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText(/No stale mesh/)).toBeVisible()
+    await settleDebounce()
+
+    expect(pandaMeshCalls(fetchMock)).toHaveLength(2)
+    expect(pandaMeshPayload(fetchMock).refinement_level).toBe(2)
+    expect(screen.getByRole('img')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Field map' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'FEM mesh' }))
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(0)
+    expect(pandaMeshCalls(fetchMock)).toHaveLength(2)
+    expect(screen.getByRole('img')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Field map' }))
+    fireEvent.change(screen.getByLabelText('Core radius (µm)'), {
+      target: { value: '4.2' },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'FEM mesh' }))
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByText(/No stale mesh/)).toBeVisible()
+    await settleDebounce()
+
+    expect(pandaFieldCalls(fetchMock)).toHaveLength(0)
+    expect(pandaMeshCalls(fetchMock)).toHaveLength(3)
+    expect(pandaMeshPayload(fetchMock).geometry.core_radius_m).toBeCloseTo(
+      4.2e-6,
+      16,
+    )
+    expect(screen.getByRole('img')).toBeVisible()
+  })
+
   test('requests and renders the guarded qualitative PANDA field result', async () => {
     vi.useFakeTimers()
     disableCanvasDrawing()
@@ -1287,7 +1435,7 @@ describe('editor UI state', () => {
     expect(
       screen.getByRole('heading', { name: 'FEM mesh', level: 2 }),
     ).toBeVisible()
-    expect(screen.getByText(/No mesh or validation values/)).toBeVisible()
+    expect(screen.getByText(/No stale mesh/)).toBeVisible()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Field map' }))
     await settleDebounce()
