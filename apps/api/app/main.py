@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import GZipMiddleware
 
 from fibre_sim.attenuation import (
     ConstantAttenuationCalculationError,
@@ -130,6 +131,7 @@ app = ContractFastAPI(
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)

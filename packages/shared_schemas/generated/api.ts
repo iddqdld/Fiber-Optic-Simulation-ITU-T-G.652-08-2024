@@ -1653,16 +1653,10 @@ export interface components {
              *       "linear superposition of two far-field inclusion kernels",
              *       "K_i is undefined and omitted from each inclusion contribution",
              *       "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
-             *       "auxiliary shear and principal-difference kernels use their own valid extrema"
+             *       "the core principal-axis angle is sampled at the nearest valid grid point to the configured core center"
              *     ]
              */
             assumptions: string[];
-            /**
-             * Auxiliary Normalization
-             * @default max_valid_absolute_shear_and_max_valid_principal_difference
-             * @constant
-             */
-            auxiliary_normalization: "max_valid_absolute_shear_and_max_valid_principal_difference";
             /**
              * Equation References
              * @default [
@@ -1678,7 +1672,7 @@ export interface components {
             /**
              * Limitations
              * @default [
-             *       "outputs are normalized qualitative kernels without calibrated stress values",
+             *       "the deviatoric field output is a normalized qualitative kernel without calibrated stress values",
              *       "the finite cladding boundary is not solved",
              *       "SAP interiors and configured interface regions are excluded",
              *       "elastic and photoelastic material coefficients do not enter this kernel"
@@ -1699,10 +1693,10 @@ export interface components {
             model_id: "panda_qualitative_far_field_kernel";
             /**
              * Model Version
-             * @default 1.1.0
+             * @default 1.2.0
              * @constant
              */
-            model_version: "1.1.0";
+            model_version: "1.2.0";
             /**
              * Normalization
              * @default max_valid_absolute_deviatoric_difference
@@ -1741,17 +1735,13 @@ export interface components {
         /** PandaFieldMapResult */
         PandaFieldMapResult: {
             configuration: components["schemas"]["PandaFieldMapRequest"];
+            /** Core Principal Axis Angle Rad */
+            core_principal_axis_angle_rad: number | null;
             /** Kernel Scale */
             kernel_scale: number;
             model_manifest: components["schemas"]["PandaFieldMapManifest"];
             /** Normalized Deviatoric Difference Kernel */
             normalized_deviatoric_difference_kernel: (number | null)[][];
-            /** Normalized Principal Difference Kernel */
-            normalized_principal_difference_kernel: (number | null)[][];
-            /** Normalized Shear Kernel */
-            normalized_shear_kernel: (number | null)[][];
-            /** Principal Axis Angle Rad */
-            principal_axis_angle_rad: (number | null)[][];
             /** Sap Thermal Mismatch Strains */
             sap_thermal_mismatch_strains: [
                 number,

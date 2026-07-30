@@ -32,20 +32,13 @@ function validResult(): PandaFieldResult {
   const deviatoric = validity.map((row) =>
     row.map((valid) => (valid ? 1 : null)),
   )
-  const shear = validity.map((row) => row.map((valid) => (valid ? 0 : null)))
-  const principal = validity.map((row) =>
-    row.map((valid) => (valid ? 1 : null)),
-  )
-  const angle = validity.map((row) => row.map((valid) => (valid ? 0 : null)))
   return {
     configuration: parsed.request,
     x_coordinates_m: axis,
     y_coordinates_m: axis,
     validity_mask: validity,
     normalized_deviatoric_difference_kernel: deviatoric,
-    normalized_shear_kernel: shear,
-    normalized_principal_difference_kernel: principal,
-    principal_axis_angle_rad: angle,
+    core_principal_axis_angle_rad: 0,
     sap_thermal_mismatch_strains: [0.000767, 0.000767],
     kernel_scale: 0.001,
     warnings: [
@@ -57,12 +50,10 @@ function validResult(): PandaFieldResult {
     ],
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
-      model_version: '1.1.0',
+      model_version: '1.2.0',
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
       normalization: 'max_valid_absolute_deviatoric_difference',
-      auxiliary_normalization:
-        'max_valid_absolute_shear_and_max_valid_principal_difference',
       quantitative: false,
       units: '1',
       equation_references: [
@@ -86,10 +77,13 @@ function validResult(): PandaFieldResult {
 }
 
 describe('PANDA field model', () => {
-  test('uses a 601-point default and accepts only odd 401–601 grids', () => {
-    expect(initialPandaFieldValues.gridPoints).toBe('601')
+  test('uses a 401-point default and accepts only odd 401–601 grids', () => {
+    expect(initialPandaFieldValues.gridPoints).toBe('401')
     expect(
       parsePandaFieldValues(values({ gridPoints: '401' })).request,
+    ).not.toBeNull()
+    expect(
+      parsePandaFieldValues(values({ gridPoints: '501' })).request,
     ).not.toBeNull()
     expect(
       parsePandaFieldValues(values({ gridPoints: '601' })).request,
@@ -174,7 +168,7 @@ describe('PANDA field model', () => {
     expect(isPandaFieldResult(result)).toBe(true)
 
     const maskedValue = structuredClone(result)
-    maskedValue.normalized_shear_kernel[0][0] = 0
+    maskedValue.normalized_deviatoric_difference_kernel[0][0] = 0
     expect(isPandaFieldResult(maskedValue)).toBe(false)
 
     const zeroScale = { ...result, kernel_scale: 0 }
@@ -184,11 +178,41 @@ describe('PANDA field model', () => {
     outOfRange.normalized_deviatoric_difference_kernel[1][1] = 1.1
     expect(isPandaFieldResult(outOfRange)).toBe(false)
 
+    const invalidCoreAngle = {
+      ...result,
+      core_principal_axis_angle_rad: Math.PI,
+    }
+    expect(isPandaFieldResult(invalidCoreAngle)).toBe(false)
+
     const wrongMethod = {
       ...result,
       model_manifest: { ...result.model_manifest, method: 'unverified' },
     }
     expect(isPandaFieldResult(wrongMethod)).toBe(false)
+  })
+
+  test('requires the lean field response contract', () => {
+    const result = validResult()
+    expect(result).toHaveProperty('core_principal_axis_angle_rad')
+    expect(result).not.toHaveProperty('normalized_shear_kernel')
+    expect(result).not.toHaveProperty('normalized_principal_difference_kernel')
+    expect(result).not.toHaveProperty('principal_axis_angle_rad')
+
+    const legacy = {
+      ...result,
+      normalized_shear_kernel: result.normalized_deviatoric_difference_kernel,
+    }
+    expect(isPandaFieldResult(legacy)).toBe(false)
+
+    const legacyManifest = {
+      ...result,
+      model_manifest: {
+        ...result.model_manifest,
+        auxiliary_normalization:
+          'max_valid_absolute_shear_and_max_valid_principal_difference',
+      },
+    }
+    expect(isPandaFieldResult(legacyManifest)).toBe(false)
   })
 
   test('accepts the corrected signed-deviatoric normalization manifest', () => {
@@ -198,10 +222,8 @@ describe('PANDA field model', () => {
     }
     result.model_manifest = {
       ...result.model_manifest,
-      model_version: '1.1.0',
+      model_version: '1.2.0',
       normalization: 'max_valid_absolute_deviatoric_difference',
-      auxiliary_normalization:
-        'max_valid_absolute_shear_and_max_valid_principal_difference',
     }
 
     expect(isPandaFieldResult(result)).toBe(true)

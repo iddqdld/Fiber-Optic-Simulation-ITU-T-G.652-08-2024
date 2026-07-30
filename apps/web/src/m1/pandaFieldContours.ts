@@ -16,8 +16,17 @@ export const ISOLINE_THRESHOLDS = Array.from(
   (_, index) => -1 + index / 8,
 )
 
+const PLOT_LEFT = 68
+const PLOT_TOP = 34
+const PLOT_SIZE = 610
+
 type NullableGrid = ReadonlyArray<ReadonlyArray<number | null>>
 type CanvasPoint = readonly [number, number]
+
+export type PandaFieldContourGeometries = {
+  filled: readonly ContourMultiPolygon[]
+  isolines: readonly ContourMultiPolygon[]
+}
 
 function fieldColor(value: number) {
   const normalized = Math.max(-1, Math.min(1, value))
@@ -43,6 +52,32 @@ function contourValues(result: PandaFieldResult, grid: NullableGrid) {
     }
   }
   return values
+}
+
+export function buildPandaFieldContourGeometries(
+  result: PandaFieldResult,
+): PandaFieldContourGeometries {
+  const values = contourValues(
+    result,
+    result.normalized_deviatoric_difference_kernel as NullableGrid,
+  )
+  const size: [number, number] = [
+    result.x_coordinates_m.length,
+    result.y_coordinates_m.length,
+  ]
+  const filledGenerator = contours()
+    .size(size)
+    .smooth(true)
+    .thresholds(FILLED_CONTOUR_THRESHOLDS)
+  const isolineGenerator = contours()
+    .size(size)
+    .smooth(true)
+    .thresholds(ISOLINE_THRESHOLDS)
+
+  return {
+    filled: filledGenerator(values),
+    isolines: isolineGenerator(values),
+  }
 }
 
 function coordinateAtGridPosition(
@@ -119,14 +154,9 @@ export function drawFilledContours(
   result: PandaFieldResult,
   toX: (value: number) => number,
   toY: (value: number) => number,
+  filled: readonly ContourMultiPolygon[],
 ) {
-  const grid = result.normalized_deviatoric_difference_kernel as NullableGrid
-  const contourGenerator = contours()
-    .size([result.x_coordinates_m.length, result.y_coordinates_m.length])
-    .smooth(true)
-    .thresholds(FILLED_CONTOUR_THRESHOLDS)
-
-  for (const contour of contourGenerator(contourValues(result, grid))) {
+  for (const contour of filled) {
     context.fillStyle = fieldColor(contour.value)
     drawContourGeometry(context, contour, result, toX, toY, 'fill')
   }
@@ -137,15 +167,10 @@ export function drawIsolines(
   result: PandaFieldResult,
   toX: (value: number) => number,
   toY: (value: number) => number,
+  isolines: readonly ContourMultiPolygon[],
 ) {
-  const grid = result.normalized_deviatoric_difference_kernel as NullableGrid
-  const contourGenerator = contours()
-    .size([result.x_coordinates_m.length, result.y_coordinates_m.length])
-    .smooth(true)
-    .thresholds(ISOLINE_THRESHOLDS)
-
   context.lineWidth = 1
-  for (const contour of contourGenerator(contourValues(result, grid))) {
+  for (const contour of isolines) {
     context.strokeStyle =
       contour.value === 0 ? 'rgb(20 28 38 / 85%)' : 'rgb(20 28 38 / 52%)'
     context.lineWidth = contour.value === 0 ? 1.8 : 1
@@ -153,71 +178,67 @@ export function drawIsolines(
   }
 }
 
-type MaskRegion = {
-  left: number
-  right: number
-  top: number
-  bottom: number
-  sapInterior: boolean
+function addPlotRectangle(context: CanvasRenderingContext2D) {
+  context.moveTo(PLOT_LEFT, PLOT_TOP)
+  context.lineTo(PLOT_LEFT + PLOT_SIZE, PLOT_TOP)
+  context.lineTo(PLOT_LEFT + PLOT_SIZE, PLOT_TOP + PLOT_SIZE)
+  context.lineTo(PLOT_LEFT, PLOT_TOP + PLOT_SIZE)
+  context.closePath()
 }
 
-function coordinateCellEdges(coordinates: readonly number[], index: number) {
-  const current = coordinates[index]
-  const lower = index === 0 ? current : (coordinates[index - 1] + current) / 2
-  const upper =
-    index === coordinates.length - 1
-      ? current
-      : (current + coordinates[index + 1]) / 2
-  return [lower, upper] as const
-}
-
-function isSapInterior(result: PandaFieldResult, x: number, y: number) {
-  return [
-    result.configuration.geometry.sap_1,
-    result.configuration.geometry.sap_2,
-  ].some(
-    (sap) => Math.hypot(x - sap.center_x_m, y - sap.center_y_m) <= sap.radius_m,
+function addCirclePath(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  toX: (value: number) => number,
+  toY: (value: number) => number,
+) {
+  context.moveTo(toX(x + radius), toY(y))
+  context.arc(
+    toX(x),
+    toY(y),
+    Math.abs(toX(x + radius) - toX(x)),
+    0,
+    Math.PI * 2,
   )
 }
 
-function maskRegions(
+function addSapPaths(
+  context: CanvasRenderingContext2D,
   result: PandaFieldResult,
   toX: (value: number) => number,
   toY: (value: number) => number,
 ) {
-  const regions: MaskRegion[] = []
-  for (let row = 0; row < result.y_coordinates_m.length; row += 1) {
-    for (let column = 0; column < result.x_coordinates_m.length; column += 1) {
-      if (result.validity_mask[row]?.[column]) {
-        continue
-      }
-      const [x0, x1] = coordinateCellEdges(result.x_coordinates_m, column)
-      const [y0, y1] = coordinateCellEdges(result.y_coordinates_m, row)
-      regions.push({
-        left: Math.min(toX(x0), toX(x1)),
-        right: Math.max(toX(x0), toX(x1)),
-        top: Math.min(toY(y0), toY(y1)),
-        bottom: Math.max(toY(y0), toY(y1)),
-        sapInterior: isSapInterior(
-          result,
-          result.x_coordinates_m[column],
-          result.y_coordinates_m[row],
-        ),
-      })
-    }
+  const buffer = result.configuration.sampling.interface_buffer_m
+  for (const sap of [
+    result.configuration.geometry.sap_1,
+    result.configuration.geometry.sap_2,
+  ]) {
+    addCirclePath(
+      context,
+      sap.center_x_m,
+      sap.center_y_m,
+      sap.radius_m + buffer,
+      toX,
+      toY,
+    )
   }
-  return regions
 }
 
-function addRectanglePath(
+function drawHatch(
   context: CanvasRenderingContext2D,
-  region: MaskRegion,
+  spacing: number,
+  strokeStyle: string,
 ) {
-  context.moveTo(region.left, region.top)
-  context.lineTo(region.right, region.top)
-  context.lineTo(region.right, region.bottom)
-  context.lineTo(region.left, region.bottom)
-  context.closePath()
+  context.beginPath()
+  for (let offset = -PLOT_SIZE; offset <= PLOT_SIZE * 2; offset += spacing) {
+    context.moveTo(PLOT_LEFT + offset, PLOT_TOP + PLOT_SIZE)
+    context.lineTo(PLOT_LEFT + offset + PLOT_SIZE, PLOT_TOP)
+  }
+  context.strokeStyle = strokeStyle
+  context.lineWidth = 0.8
+  context.stroke()
 }
 
 export function drawInvalidMaskOverlay(
@@ -227,39 +248,38 @@ export function drawInvalidMaskOverlay(
   toY: (value: number) => number,
   presentationMode: PandaFieldPresentationMode,
 ) {
-  const regions = maskRegions(result, toX, toY)
-  if (regions.length === 0) {
-    return
-  }
+  const cladding = result.configuration.geometry.cladding_radius_m
 
-  const sapRegions = regions.filter((region) => region.sapInterior)
-  const otherRegions = regions.filter((region) => !region.sapInterior)
-  if (otherRegions.length > 0) {
-    context.beginPath()
-    for (const region of otherRegions) {
-      addRectanglePath(context, region)
-    }
-    context.fillStyle = 'rgb(8 16 25 / 42%)'
-    context.fill('evenodd')
-  }
-  if (sapRegions.length > 0) {
-    context.beginPath()
-    for (const region of sapRegions) {
-      addRectanglePath(context, region)
-    }
-    context.fillStyle =
-      presentationMode === 'reference_replica'
-        ? 'rgb(213 220 228 / 68%)'
-        : 'rgb(8 16 25 / 42%)'
-    context.fill('evenodd')
-  }
+  context.save()
+  context.beginPath()
+  addPlotRectangle(context)
+  addCirclePath(context, 0, 0, cladding, toX, toY)
+  context.fillStyle = 'rgb(8 16 25 / 50%)'
+  context.fill('evenodd')
+  context.restore()
+
+  context.save()
+  context.beginPath()
+  addPlotRectangle(context)
+  addCirclePath(context, 0, 0, cladding, toX, toY)
+  context.clip('evenodd')
+  drawHatch(context, 24, 'rgb(216 226 236 / 40%)')
+  context.restore()
 
   context.beginPath()
-  context.strokeStyle = 'rgb(216 226 236 / 68%)'
-  context.lineWidth = 0.8
-  for (const region of regions) {
-    context.moveTo(region.left, region.bottom)
-    context.lineTo(region.right, region.top)
+  addSapPaths(context, result, toX, toY)
+  context.fillStyle =
+    presentationMode === 'reference_replica'
+      ? 'rgb(213 220 228 / 90%)'
+      : 'rgb(63 76 91 / 82%)'
+  context.fill()
+
+  if (presentationMode !== 'reference_replica') {
+    context.save()
+    context.beginPath()
+    addSapPaths(context, result, toX, toY)
+    context.clip()
+    drawHatch(context, 20, 'rgb(216 226 236 / 48%)')
+    context.restore()
   }
-  context.stroke()
 }

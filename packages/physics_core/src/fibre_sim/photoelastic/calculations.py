@@ -11,7 +11,7 @@ from .result import (
 )
 
 _NormalizationUnavailable = Literal["normalization_unavailable"]
-_RawPoint = tuple[float, float, float, float, float]
+_RawPoint = tuple[float, float, float]
 _ANGLE_ZERO_TOLERANCE = 1.0e-12
 
 
@@ -83,8 +83,7 @@ def _raw_point(
 
     s = 0.5 * raw_deviatoric_difference
     t = raw_shear
-    raw_principal_difference = 2.0 * math.hypot(s, t)
-    return raw_deviatoric_difference, raw_shear, raw_principal_difference, s, t
+    return raw_deviatoric_difference, s, t
 
 
 def _warnings(request: PandaFieldMapRequest) -> tuple[PandaFieldMapWarning, ...]:
@@ -92,7 +91,8 @@ def _warnings(request: PandaFieldMapRequest) -> tuple[PandaFieldMapWarning, ...]
         PandaFieldMapWarning(
             code=PandaFieldMapWarningCode.QUALITATIVE_UNCALIBRATED,
             message=(
-                "K_i is undefined and omitted; outputs are normalized qualitative kernels only."
+                "K_i is undefined and omitted; the deviatoric field output is a normalized "
+                "qualitative kernel only."
             ),
             output_field="normalized_deviatoric_difference_kernel",
         ),
@@ -124,74 +124,62 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
         raise PandaFieldMapCalculationError()
 
     validity_rows: list[list[bool]] = []
-    raw_rows: list[list[_RawPoint]] = []
+    raw_deviatoric_rows: list[list[float | None]] = []
     valid_point_count = 0
     kernel_scale = 0.0
-    shear_scale = 0.0
-    principal_scale = 0.0
+    nearest_core_distance_squared = math.inf
+    core_s: float | None = None
+    core_t: float | None = None
+    core_principal_difference: float | None = None
 
     for y_m in y_coordinates_m:
         validity_row: list[bool] = []
-        raw_row: list[_RawPoint] = []
+        raw_deviatoric_row: list[float | None] = []
         for x_m in x_coordinates_m:
-            raw = _raw_point(request, mismatch_strains, x_m, y_m)
+            raw_deviatoric, s, t = _raw_point(request, mismatch_strains, x_m, y_m)
             valid = _is_valid_point(request, x_m, y_m)
             validity_row.append(valid)
-            raw_row.append(raw)
+            raw_deviatoric_row.append(raw_deviatoric if valid else None)
             if valid:
                 valid_point_count += 1
-                raw_deviatoric, raw_shear, raw_principal, _, _ = raw
+                raw_principal = 2.0 * math.hypot(s, t)
                 if not all(
-                    math.isfinite(value) for value in (raw_deviatoric, raw_shear, raw_principal)
+                    math.isfinite(value) for value in (raw_deviatoric, s, t, raw_principal)
                 ):
                     raise PandaFieldMapCalculationError()
                 kernel_scale = max(kernel_scale, abs(raw_deviatoric))
-                shear_scale = max(shear_scale, abs(raw_shear))
-                principal_scale = max(principal_scale, raw_principal)
+                core_distance_squared = (
+                    (x_m - request.geometry.core_center_x_m) ** 2
+                    + (y_m - request.geometry.core_center_y_m) ** 2
+                )
+                if core_distance_squared < nearest_core_distance_squared:
+                    nearest_core_distance_squared = core_distance_squared
+                    core_s = s
+                    core_t = t
+                    core_principal_difference = raw_principal
         validity_rows.append(validity_row)
-        raw_rows.append(raw_row)
+        raw_deviatoric_rows.append(raw_deviatoric_row)
 
     if (
         valid_point_count == 0
         or not math.isfinite(kernel_scale)
         or kernel_scale <= 0.0
-        or not math.isfinite(principal_scale)
-        or principal_scale <= 0.0
     ):
         raise PandaFieldMapCalculationError()
 
-    deviatoric_rows: list[list[float | None]] = []
-    shear_rows: list[list[float | None]] = []
-    principal_rows: list[list[float | None]] = []
-    angle_rows: list[list[float | None]] = []
-    for raw_row, validity_row in zip(raw_rows, validity_rows, strict=True):
-        deviatoric_row: list[float | None] = []
-        shear_row: list[float | None] = []
-        principal_row: list[float | None] = []
-        angle_row: list[float | None] = []
-        for raw_cell, valid in zip(raw_row, validity_row, strict=True):
-            if not valid:
-                deviatoric_row.append(None)
-                shear_row.append(None)
-                principal_row.append(None)
-                angle_row.append(None)
-                continue
+    for raw_row in raw_deviatoric_rows:
+        for column_index, raw_value in enumerate(raw_row):
+            if raw_value is not None:
+                raw_row[column_index] = raw_value / kernel_scale
 
-            raw_deviatoric, raw_shear, raw_principal, s, t = raw_cell
-            normalized_deviatoric = raw_deviatoric / kernel_scale
-            normalized_shear = 0.0 if shear_scale == 0.0 else raw_shear / shear_scale
-            normalized_principal = raw_principal / principal_scale
-            principal_axis = (
-                None if normalized_principal <= _ANGLE_ZERO_TOLERANCE else 0.5 * math.atan2(t, s)
-            )
-            deviatoric_row.append(normalized_deviatoric)
-            shear_row.append(normalized_shear)
-            principal_row.append(normalized_principal)
-            angle_row.append(principal_axis)
-        deviatoric_rows.append(deviatoric_row)
-        shear_rows.append(shear_row)
-        principal_rows.append(principal_row)
-        angle_rows.append(angle_row)
+    core_axis_angle = None
+    if (
+        core_principal_difference is not None
+        and core_s is not None
+        and core_t is not None
+        and core_principal_difference > _ANGLE_ZERO_TOLERANCE
+    ):
+        core_axis_angle = 0.5 * math.atan2(core_t, core_s)
 
     validity = PandaFieldMapValidity(
         interface_buffer_m=request.sampling.interface_buffer_m,
@@ -202,12 +190,12 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
         x_coordinates_m=x_coordinates_m,
         y_coordinates_m=y_coordinates_m,
         validity_mask=tuple(tuple(row) for row in validity_rows),
-        normalized_deviatoric_difference_kernel=tuple(tuple(row) for row in deviatoric_rows),
-        normalized_shear_kernel=tuple(tuple(row) for row in shear_rows),
-        normalized_principal_difference_kernel=tuple(tuple(row) for row in principal_rows),
-        principal_axis_angle_rad=tuple(tuple(row) for row in angle_rows),
+        normalized_deviatoric_difference_kernel=tuple(
+            tuple(row) for row in raw_deviatoric_rows
+        ),
         sap_thermal_mismatch_strains=mismatch_strains,
         kernel_scale=kernel_scale,
+        core_principal_axis_angle_rad=core_axis_angle,
         warnings=_warnings(request),
         model_manifest=PandaFieldMapManifest(validity=validity),
     )

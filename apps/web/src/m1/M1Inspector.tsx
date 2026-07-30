@@ -139,7 +139,7 @@ const inputGroups: readonly InputGroup[] = [
   {
     id: 'sampling-display',
     title: 'Sampling and presentation',
-    note: 'Sampling changes backend resolution. Figure 5.1 always draws the signed, dimensionless deviatoric-difference kernel.',
+    note: 'Sampling changes backend resolution. 401 × 401 is the interactive default; 601 × 601 is an optional high-quality output. Figure 5.1 always draws the signed, dimensionless deviatoric-difference kernel.',
     inputs: [
       {
         name: 'interfaceBufferUm',
@@ -151,7 +151,8 @@ const inputGroups: readonly InputGroup[] = [
         name: 'gridPoints',
         label: 'Grid points per axis',
         unit: 'points',
-        boundary: 'Odd integer from 401 to 601 inclusive.',
+        boundary:
+          'Odd integer from 401 to 601 inclusive; 401 × 401 is the interactive default and 601 × 601 is optional high-quality output.',
         step: '1',
       },
     ],

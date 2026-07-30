@@ -68,7 +68,7 @@ export const initialPandaFieldValues: PandaFieldFormValues = {
   temperatureC: '20',
   fictiveTemperatureC: '1200',
   interfaceBufferUm: '2',
-  gridPoints: '601',
+  gridPoints: '401',
 }
 
 const inputNames = Object.keys(initialPandaFieldValues) as PandaFieldInputName[]
@@ -93,8 +93,8 @@ const materialConfidences = new Set([
   'demonstration_only',
 ])
 const CORRECTED_NORMALIZATION = 'max_valid_absolute_deviatoric_difference'
-const CORRECTED_AUXILIARY_NORMALIZATION =
-  'max_valid_absolute_shear_and_max_valid_principal_difference'
+export const MIN_GRID_POINTS = 401
+export const MAX_GRID_POINTS = 601
 const NORMALIZED_TOLERANCE = 1e-12
 const MICROMETRES_TO_METRES = 1e-6
 const MICRO_CTE_TO_CTE = 1e-6
@@ -196,8 +196,8 @@ export function parsePandaFieldValues(
   }
   if (
     !Number.isInteger(numbers.gridPoints) ||
-    numbers.gridPoints < 401 ||
-    numbers.gridPoints > 601 ||
+    numbers.gridPoints < MIN_GRID_POINTS ||
+    numbers.gridPoints > MAX_GRID_POINTS ||
     numbers.gridPoints % 2 === 0
   ) {
     addError(
@@ -444,8 +444,8 @@ function isPandaRequest(value: unknown): value is PandaFieldRequest {
     sampling.grid_half_width_m > 0 &&
     isFiniteNumber(sampling.grid_points) &&
     Number.isInteger(sampling.grid_points) &&
-    Number(sampling.grid_points) >= 401 &&
-    Number(sampling.grid_points) <= 601 &&
+    Number(sampling.grid_points) >= MIN_GRID_POINTS &&
+    Number(sampling.grid_points) <= MAX_GRID_POINTS &&
     Number(sampling.grid_points) % 2 === 1 &&
     isFiniteNumber(sampling.interface_buffer_m) &&
     sampling.interface_buffer_m >= 0
@@ -511,10 +511,7 @@ function hasExactStrings(value: unknown, expected: readonly string[]) {
 }
 
 function isSupportedNormalizationManifest(manifest: Record<string, unknown>) {
-  return (
-    manifest.normalization === CORRECTED_NORMALIZATION &&
-    manifest.auxiliary_normalization === CORRECTED_AUXILIARY_NORMALIZATION
-  )
+  return manifest.normalization === CORRECTED_NORMALIZATION
 }
 
 function isPandaManifest(value: unknown): value is Record<string, unknown> {
@@ -522,9 +519,13 @@ function isPandaManifest(value: unknown): value is Record<string, unknown> {
     return false
   }
 
+  if ('auxiliary_normalization' in value) {
+    return false
+  }
+
   return (
     value.model_id === 'panda_qualitative_far_field_kernel' &&
-    value.model_version === '1.1.0' &&
+    value.model_version === '1.2.0' &&
     value.method === 'qualitative_far_field_kernel' &&
     value.quantity_type === 'normalized_dimensionless_kernel' &&
     isSupportedNormalizationManifest(value) &&
@@ -538,6 +539,14 @@ export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
     return false
   }
 
+  if (
+    'normalized_shear_kernel' in value ||
+    'normalized_principal_difference_kernel' in value ||
+    'principal_axis_angle_rad' in value
+  ) {
+    return false
+  }
+
   const size = value.configuration.sampling.grid_points
   const manifest = value.model_manifest
   if (
@@ -548,9 +557,10 @@ export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
       value.normalized_deviatoric_difference_kernel,
       size,
     ) ||
-    !isNullableFiniteGrid(value.normalized_shear_kernel, size) ||
-    !isNullableFiniteGrid(value.normalized_principal_difference_kernel, size) ||
-    !isNullableFiniteGrid(value.principal_axis_angle_rad, size) ||
+    (value.core_principal_axis_angle_rad !== null &&
+      (!isFiniteNumber(value.core_principal_axis_angle_rad) ||
+        value.core_principal_axis_angle_rad < -Math.PI / 2 ||
+        value.core_principal_axis_angle_rad > Math.PI / 2)) ||
     !isFiniteArray(value.sap_thermal_mismatch_strains, 2) ||
     !isFiniteNumber(value.kernel_scale) ||
     value.kernel_scale <= 0 ||
@@ -580,18 +590,9 @@ export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
       const valid = value.validity_mask[rowIndex][columnIndex]
       const deviatoric =
         value.normalized_deviatoric_difference_kernel[rowIndex][columnIndex]
-      const shear = value.normalized_shear_kernel[rowIndex][columnIndex]
-      const principal =
-        value.normalized_principal_difference_kernel[rowIndex][columnIndex]
-      const angle = value.principal_axis_angle_rad[rowIndex][columnIndex]
 
       if (!valid) {
-        if (
-          deviatoric !== null ||
-          shear !== null ||
-          principal !== null ||
-          angle !== null
-        ) {
+        if (deviatoric !== null) {
           return false
         }
         continue
@@ -600,15 +601,8 @@ export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
       validPointCount += 1
       if (
         deviatoric === null ||
-        shear === null ||
-        principal === null ||
         deviatoric < -1 - NORMALIZED_TOLERANCE ||
-        deviatoric > 1 + NORMALIZED_TOLERANCE ||
-        shear < -1 - NORMALIZED_TOLERANCE ||
-        shear > 1 + NORMALIZED_TOLERANCE ||
-        principal < -NORMALIZED_TOLERANCE ||
-        principal > 1 + NORMALIZED_TOLERANCE ||
-        (principal <= NORMALIZED_TOLERANCE ? angle !== null : angle === null)
+        deviatoric > 1 + NORMALIZED_TOLERANCE
       ) {
         return false
       }

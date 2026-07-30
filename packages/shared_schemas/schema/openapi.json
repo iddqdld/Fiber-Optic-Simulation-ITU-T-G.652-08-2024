@@ -2962,19 +2962,13 @@
               "linear superposition of two far-field inclusion kernels",
               "K_i is undefined and omitted from each inclusion contribution",
               "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
-              "auxiliary shear and principal-difference kernels use their own valid extrema"
+              "the core principal-axis angle is sampled at the nearest valid grid point to the configured core center"
             ],
             "items": {
               "type": "string"
             },
             "title": "Assumptions",
             "type": "array"
-          },
-          "auxiliary_normalization": {
-            "const": "max_valid_absolute_shear_and_max_valid_principal_difference",
-            "default": "max_valid_absolute_shear_and_max_valid_principal_difference",
-            "title": "Auxiliary Normalization",
-            "type": "string"
           },
           "equation_references": {
             "default": [
@@ -2993,7 +2987,7 @@
           },
           "limitations": {
             "default": [
-              "outputs are normalized qualitative kernels without calibrated stress values",
+              "the deviatoric field output is a normalized qualitative kernel without calibrated stress values",
               "the finite cladding boundary is not solved",
               "SAP interiors and configured interface regions are excluded",
               "elastic and photoelastic material coefficients do not enter this kernel"
@@ -3017,8 +3011,8 @@
             "type": "string"
           },
           "model_version": {
-            "const": "1.1.0",
-            "default": "1.1.0",
+            "const": "1.2.0",
+            "default": "1.2.0",
             "title": "Model Version",
             "type": "string"
           },
@@ -3093,6 +3087,17 @@
           "configuration": {
             "$ref": "#/components/schemas/PandaFieldMapRequest"
           },
+          "core_principal_axis_angle_rad": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Core Principal Axis Angle Rad"
+          },
           "kernel_scale": {
             "exclusiveMinimum": 0,
             "title": "Kernel Scale",
@@ -3116,57 +3121,6 @@
               "type": "array"
             },
             "title": "Normalized Deviatoric Difference Kernel",
-            "type": "array"
-          },
-          "normalized_principal_difference_kernel": {
-            "items": {
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "type": "array"
-            },
-            "title": "Normalized Principal Difference Kernel",
-            "type": "array"
-          },
-          "normalized_shear_kernel": {
-            "items": {
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "type": "array"
-            },
-            "title": "Normalized Shear Kernel",
-            "type": "array"
-          },
-          "principal_axis_angle_rad": {
-            "items": {
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "type": "array"
-            },
-            "title": "Principal Axis Angle Rad",
             "type": "array"
           },
           "sap_thermal_mismatch_strains": {
@@ -3221,11 +3175,9 @@
           "y_coordinates_m",
           "validity_mask",
           "normalized_deviatoric_difference_kernel",
-          "normalized_shear_kernel",
-          "normalized_principal_difference_kernel",
-          "principal_axis_angle_rad",
           "sap_thermal_mismatch_strains",
           "kernel_scale",
+          "core_principal_axis_angle_rad",
           "warnings",
           "model_manifest"
         ],

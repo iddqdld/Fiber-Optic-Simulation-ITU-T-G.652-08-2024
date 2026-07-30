@@ -5,7 +5,6 @@ import type {
   PandaFieldPresentationMode,
   PandaFieldResult,
 } from './pandaFieldModel'
-import { corePrincipalAxisAngle } from './pandaFieldView'
 
 export type M1ResultsProps = {
   workspace: M1WorkspaceId
@@ -32,7 +31,7 @@ function PandaReadyResults({
   const manifest = result.model_manifest
   const gridPoints = result.configuration.sampling.grid_points
   const interfaceBufferUm = manifest.validity.interface_buffer_m * 1e6
-  const coreAngle = corePrincipalAxisAngle(result)
+  const coreAngle = result.core_principal_axis_angle_rad
 
   return (
     <>

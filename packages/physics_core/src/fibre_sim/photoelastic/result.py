@@ -46,15 +46,12 @@ class PandaFieldMapManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["panda_qualitative_far_field_kernel"] = "panda_qualitative_far_field_kernel"
-    model_version: Literal["1.1.0"] = "1.1.0"
+    model_version: Literal["1.2.0"] = "1.2.0"
     method: Literal["qualitative_far_field_kernel"] = "qualitative_far_field_kernel"
     quantity_type: Literal["normalized_dimensionless_kernel"] = "normalized_dimensionless_kernel"
     normalization: Literal["max_valid_absolute_deviatoric_difference"] = (
         "max_valid_absolute_deviatoric_difference"
     )
-    auxiliary_normalization: Literal[
-        "max_valid_absolute_shear_and_max_valid_principal_difference"
-    ] = "max_valid_absolute_shear_and_max_valid_principal_difference"
     quantitative: Literal[False] = False
     units: Literal["1"] = "1"
     equation_references: tuple[str, ...] = (
@@ -71,10 +68,12 @@ class PandaFieldMapManifest(BaseModel):
         "linear superposition of two far-field inclusion kernels",
         "K_i is undefined and omitted from each inclusion contribution",
         "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
-        "auxiliary shear and principal-difference kernels use their own valid extrema",
+        "the core principal-axis angle is sampled at the nearest valid grid point to the "
+        "configured core center",
     )
     limitations: tuple[str, ...] = (
-        "outputs are normalized qualitative kernels without calibrated stress values",
+        "the deviatoric field output is a normalized qualitative kernel without "
+        "calibrated stress values",
         "the finite cladding boundary is not solved",
         "SAP interiors and configured interface regions are excluded",
         "elastic and photoelastic material coefficients do not enter this kernel",
@@ -90,11 +89,9 @@ class PandaFieldMapResult(BaseModel):
     y_coordinates_m: tuple[_FiniteFloat, ...]
     validity_mask: tuple[tuple[bool, ...], ...]
     normalized_deviatoric_difference_kernel: tuple[tuple[_OptionalFiniteFloat, ...], ...]
-    normalized_shear_kernel: tuple[tuple[_OptionalFiniteFloat, ...], ...]
-    normalized_principal_difference_kernel: tuple[tuple[_OptionalFiniteFloat, ...], ...]
-    principal_axis_angle_rad: tuple[tuple[_OptionalFiniteFloat, ...], ...]
     sap_thermal_mismatch_strains: tuple[_FiniteFloat, _FiniteFloat]
     kernel_scale: _PositiveFiniteFloat
+    core_principal_axis_angle_rad: _OptionalFiniteFloat
     warnings: tuple[PandaFieldMapWarning, ...]
     model_manifest: PandaFieldMapManifest
 
@@ -110,9 +107,6 @@ class PandaFieldMapResult(BaseModel):
         grids = (
             self.validity_mask,
             self.normalized_deviatoric_difference_kernel,
-            self.normalized_shear_kernel,
-            self.normalized_principal_difference_kernel,
-            self.principal_axis_angle_rad,
         )
         if any(len(grid) != expected_size for grid in grids):
             raise PydanticCustomError(
@@ -130,13 +124,9 @@ class PandaFieldMapResult(BaseModel):
             for column_index in range(expected_size):
                 valid = self.validity_mask[row_index][column_index]
                 deviatoric = self.normalized_deviatoric_difference_kernel[row_index][column_index]
-                shear = self.normalized_shear_kernel[row_index][column_index]
-                principal = self.normalized_principal_difference_kernel[row_index][column_index]
-                angle = self.principal_axis_angle_rad[row_index][column_index]
-                values = (deviatoric, shear, principal, angle)
 
                 if not valid:
-                    if any(value is not None for value in values):
+                    if deviatoric is not None:
                         raise PydanticCustomError(
                             "invalid_field_map_cell_has_value",
                             "Invalid field-map cells must contain only None values.",
@@ -144,41 +134,28 @@ class PandaFieldMapResult(BaseModel):
                     continue
 
                 valid_point_count += 1
-                if deviatoric is None or shear is None or principal is None:
+                if deviatoric is None:
                     raise PydanticCustomError(
                         "valid_field_map_cell_missing_value",
-                        "Valid field-map cells require all normalized kernel values.",
+                        "Valid field-map cells require a normalized deviatoric value.",
                     )
-                if not all(math.isfinite(value) for value in (deviatoric, shear, principal)):
+                if not math.isfinite(deviatoric):
                     raise PydanticCustomError(
                         "field_map_cell_not_finite",
                         "Valid field-map cells must contain finite numeric values.",
                     )
-                if not (
-                    -1.0 - _NORMALIZED_TOLERANCE <= deviatoric <= 1.0 + _NORMALIZED_TOLERANCE
-                    and -1.0 - _NORMALIZED_TOLERANCE <= shear <= 1.0 + _NORMALIZED_TOLERANCE
-                    and -_NORMALIZED_TOLERANCE <= principal <= 1.0 + _NORMALIZED_TOLERANCE
-                ):
+                if not -1.0 - _NORMALIZED_TOLERANCE <= deviatoric <= 1.0 + _NORMALIZED_TOLERANCE:
                     raise PydanticCustomError(
                         "normalized_field_map_cell_out_of_range",
                         "Normalized field-map cells are outside their allowed ranges.",
                     )
-                if principal <= _NORMALIZED_TOLERANCE:
-                    if angle is not None:
-                        raise PydanticCustomError(
-                            "zero_principal_cell_has_axis",
-                            "Numerically zero principal differences must not define an axis.",
-                        )
-                elif angle is None or not math.isfinite(angle):
-                    raise PydanticCustomError(
-                        "principal_axis_invalid",
-                        "Nonzero principal differences require a finite principal-axis angle.",
-                    )
-                elif not -math.pi / 2.0 <= angle <= math.pi / 2.0:
-                    raise PydanticCustomError(
-                        "principal_axis_out_of_range",
-                        "Principal-axis angles must be within [-pi/2, pi/2].",
-                    )
+
+        core_axis = self.core_principal_axis_angle_rad
+        if core_axis is not None and not -math.pi / 2.0 <= core_axis <= math.pi / 2.0:
+            raise PydanticCustomError(
+                "core_principal_axis_out_of_range",
+                "The core principal-axis angle must be within [-pi/2, pi/2].",
+            )
 
         validity = self.model_manifest.validity
         if valid_point_count != validity.valid_point_count:
