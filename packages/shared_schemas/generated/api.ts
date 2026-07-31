@@ -2045,6 +2045,19 @@ export interface components {
          * @enum {string}
          */
         PandaMeshWarningCode: "quality_below_target" | "polygonal_interface_approximation";
+        /** PandaScalarLp01ModeConfig */
+        PandaScalarLp01ModeConfig: {
+            /**
+             * Gaussian Mode Field Radius M
+             * @default 0.000005
+             */
+            gaussian_mode_field_radius_m: number;
+            /**
+             * Wavelength M
+             * @default 0.00000155
+             */
+            wavelength_m: number;
+        };
         /** PandaThermalFemAnchorReactions */
         PandaThermalFemAnchorReactions: {
             /** Primary Node Index */
@@ -2077,6 +2090,22 @@ export interface components {
             local_material_birefringence_status: "unavailable" | "not_converged" | "converged";
             /** Node Count */
             node_count: number;
+            /**
+             * Pressure Induced Phase Birefringence
+             * @default 0
+             */
+            pressure_induced_phase_birefringence: number;
+            /**
+             * Pressure Induced Phase Birefringence Relative Change
+             * @default null
+             */
+            pressure_induced_phase_birefringence_relative_change: number | null;
+            /**
+             * Pressure Induced Phase Birefringence Status
+             * @default unavailable
+             * @enum {string}
+             */
+            pressure_induced_phase_birefringence_status: "unavailable" | "not_converged" | "converged";
             /** Refinement Level */
             refinement_level: number;
             /** Relative Change */
@@ -2131,6 +2160,36 @@ export interface components {
             /** Transverse Resultant Y N Per M */
             transverse_resultant_y_n_per_m: number;
         };
+        /** PandaThermalFemGroupBirefringence */
+        PandaThermalFemGroupBirefringence: {
+            /**
+             * Available
+             * @default false
+             * @constant
+             */
+            available: false;
+            /**
+             * Reason
+             * @default wavelength_dependent_inputs_unavailable
+             * @constant
+             */
+            reason: "wavelength_dependent_inputs_unavailable";
+            /**
+             * Requirements
+             * @default [
+             *       "wavelength-dependent material refractive indices",
+             *       "wavelength-dependent photoelastic coefficients when relevant",
+             *       "modal fields recalculated at each wavelength"
+             *     ]
+             */
+            requirements: string[];
+            /**
+             * Value
+             * @default null
+             * @constant
+             */
+            value: null;
+        };
         /** PandaThermalFemManifest */
         PandaThermalFemManifest: {
             /**
@@ -2140,7 +2199,9 @@ export interface components {
              *       "generalized plane strain with uniform axial strain",
              *       "zero xz and yz shear strains",
              *       "piecewise constant material data per mesh element",
-             *       "traction-free exterior with no imposed exterior displacement",
+             *       "traction-free exterior with no imposed exterior displacement when pressure is zero",
+             *       "positive pressure is lateral pressure acting directly on a bare fibre",
+             *       "free axial resultant means that fibre ends are not pressure-loaded",
              *       "controlled rigid-body anchors only"
              *     ]
              */
@@ -2174,16 +2235,16 @@ export interface components {
             birefringence_computed: true;
             /**
              * Birefringence Quantity
-             * @default signed_local_material_index_difference
+             * @default signed_local_and_modal_phase_index_differences
              * @constant
              */
-            birefringence_quantity: "signed_local_material_index_difference";
+            birefringence_quantity: "signed_local_and_modal_phase_index_differences";
             /**
              * Birefringence Scope
-             * @default local_material_only
+             * @default local_material_and_first_order_scalar_lp01_phase
              * @constant
              */
-            birefringence_scope: "local_material_only";
+            birefringence_scope: "local_material_and_first_order_scalar_lp01_phase";
             /**
              * Birefringence Units
              * @default 1
@@ -2214,23 +2275,57 @@ export interface components {
              *       "M1-6.9",
              *       "M1-6.10",
              *       "M1-6.11",
-             *       "M1-6.12"
+             *       "M1-6.12",
+             *       "M1-7.3",
+             *       "M1-7.5",
+             *       "M1-8.1",
+             *       "M1-8.2",
+             *       "M1-8.3",
+             *       "M1-8.4"
              *     ]
              */
             equation_references: string[];
             /**
-             * Exterior Boundary
-             * @default traction_free
+             * Exterior Boundary Model
+             * @default traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure
              * @constant
              */
-            exterior_boundary: "traction_free";
+            exterior_boundary_model: "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure";
+            /**
+             * Free Resultant Scope
+             * @default ends_not_pressure_loaded
+             * @constant
+             */
+            free_resultant_scope: "ends_not_pressure_loaded";
+            /**
+             * Group Birefringence
+             * @default unavailable_single_wavelength
+             * @constant
+             */
+            group_birefringence: "unavailable_single_wavelength";
+            /**
+             * Hydrostatic End Face Loading
+             * @default requires_changed_axial_loading_condition
+             * @constant
+             */
+            hydrostatic_end_face_loading: "requires_changed_axial_loading_condition";
+            /**
+             * Hydrostatic Limitation
+             * @default pressure_on_end_faces_requires_changing_the_axial_loading_condition
+             * @constant
+             */
+            hydrostatic_limitation: "pressure_on_end_faces_requires_changing_the_axial_loading_condition";
             /**
              * Limitations
              * @default [
              *       "material and thermal values may be demonstration data rather than measured fibre data",
              *       "first-order triangles provide a mesh-dependent approximation",
              *       "local material stress-optic birefringence is computed without modal propagation",
-             *       "modal phase and group birefringence and beat length are not computed",
+             *       "the scalar modal estimate is not a validated vector-mode solution",
+             *       "modal phase birefringence is a first-order estimate",
+             *       "moving-boundary and deformed-waveguide contributions are not included",
+             *       "group birefringence needs wavelength-dependent material data and recalculated modal fields",
+             *       "torsion is an analytical homogeneous circular benchmark and is not PANDA torsion",
              *       "demonstration material coefficients are not validated fibre measurements"
              *     ]
              */
@@ -2248,6 +2343,18 @@ export interface components {
              */
             method: "fem_generalized_plane_strain";
             /**
+             * Modal Phase Estimate Computed
+             * @default true
+             * @constant
+             */
+            modal_phase_estimate_computed: true;
+            /**
+             * Modal Phase Estimate Method
+             * @default First-order scalar LP₀₁ photoelastic phase-birefringence estimate.
+             * @constant
+             */
+            modal_phase_estimate_method: "First-order scalar LP₀₁ photoelastic phase-birefringence estimate.";
+            /**
              * Model Id
              * @default fem_generalized_plane_strain
              * @constant
@@ -2255,10 +2362,61 @@ export interface components {
             model_id: "fem_generalized_plane_strain";
             /**
              * Model Version
-             * @default 1.1.0
+             * @default 1.2.0
              * @constant
              */
-            model_version: "1.1.0";
+            model_version: "1.2.0";
+            /**
+             * Moving Boundary Contribution
+             * @default not_included
+             * @constant
+             */
+            moving_boundary_contribution: "not_included";
+            /**
+             * Optical Mode Model
+             * @default degenerate_gaussian_lp01_scalar_weak_guidance
+             * @constant
+             */
+            optical_mode_model: "degenerate_gaussian_lp01_scalar_weak_guidance";
+            /**
+             * Optical Perturbation Matrix
+             * @default real_symmetric_2x2_hermitian
+             * @constant
+             */
+            optical_perturbation_matrix: "real_symmetric_2x2_hermitian";
+            /**
+             * Pressure Boundary Model
+             * @default bare_glass_lateral_pressure_when_requested
+             * @constant
+             */
+            pressure_boundary_model: "bare_glass_lateral_pressure_when_requested";
+            /**
+             * Pressure Exclusions
+             * @default [
+             *       "coating mechanics are outside the model",
+             *       "support contact is outside the model",
+             *       "load transfer through packaging is outside the model"
+             *     ]
+             */
+            pressure_exclusions: string[];
+            /**
+             * Pressure Scope
+             * @default uncoated_outer_glass_boundary
+             * @constant
+             */
+            pressure_scope: "uncoated_outer_glass_boundary";
+            /**
+             * Pressure Sign Convention
+             * @default sigma_n_equals_minus_p_n
+             * @constant
+             */
+            pressure_sign_convention: "sigma_n_equals_minus_p_n";
+            /**
+             * Pressure Units
+             * @default Pa
+             * @constant
+             */
+            pressure_units: "Pa";
             /**
              * Quantity Type
              * @default quantitative_mechanical_output
@@ -2295,22 +2453,125 @@ export interface components {
              * @constant
              */
             thermal_strain_model: "full_per_region_alpha_delta_t";
+            /**
+             * Torsion Capabilities
+             * @default [
+             *       "none",
+             *       "saint_venant_homogeneous_circular_reference"
+             *     ]
+             */
+            torsion_capabilities: string[];
+            /**
+             * Vector Mode Validation
+             * @default not_validated
+             * @constant
+             */
+            vector_mode_validation: "not_validated";
+        };
+        /** PandaThermalFemModalEstimate */
+        PandaThermalFemModalEstimate: {
+            /** Beat Length M */
+            beat_length_m: number | null;
+            /**
+             * Beat Length Status
+             * @enum {string}
+             */
+            beat_length_status: "finite" | "undefined within numerical tolerance";
+            /** Common Index Shift */
+            common_index_shift: number;
+            /** Eigenvalue Shifts */
+            eigenvalue_shifts: [
+                number,
+                number
+            ];
+            /** Perturbation Matrix */
+            perturbation_matrix: [
+                [
+                    number,
+                    number
+                ],
+                [
+                    number,
+                    number
+                ]
+            ];
+            /** Phase Birefringence Magnitude */
+            phase_birefringence_magnitude: number;
+            /**
+             * Signed Convention
+             * @default state_1_is_unoriented_eigenaxis_closest_to_global_positive_x
+             * @constant
+             */
+            signed_convention: "state_1_is_unoriented_eigenaxis_closest_to_global_positive_x";
+            /** Signed Delta Beta Per M */
+            signed_delta_beta_per_m: number;
+            /** Signed Phase Birefringence */
+            signed_phase_birefringence: number;
+            /** Slow Axis Angle Rad */
+            slow_axis_angle_rad: number | null;
+            /** State 1 Axis Angle Rad */
+            state_1_axis_angle_rad: number | null;
+            /** State 1 Index Shift */
+            state_1_index_shift: number;
+            /** State 2 Axis Angle Rad */
+            state_2_axis_angle_rad: number | null;
+            /** State 2 Index Shift */
+            state_2_index_shift: number;
+        };
+        /** PandaThermalFemOpticalBirefringence */
+        PandaThermalFemOpticalBirefringence: {
+            group_birefringence: components["schemas"]["PandaThermalFemGroupBirefringence"];
+            /**
+             * Method
+             * @default First-order scalar LP₀₁ photoelastic phase-birefringence estimate.
+             * @constant
+             */
+            method: "First-order scalar LP₀₁ photoelastic phase-birefringence estimate.";
+            /**
+             * Moving Boundary Or Deformed Waveguide Included
+             * @default false
+             * @constant
+             */
+            moving_boundary_or_deformed_waveguide_included: false;
+            pressure_induced: components["schemas"]["PandaThermalFemModalEstimate"];
+            /**
+             * Scalar Weak Guidance Estimate
+             * @default true
+             * @constant
+             */
+            scalar_weak_guidance_estimate: true;
+            total_combined: components["schemas"]["PandaThermalFemModalEstimate"];
+            /**
+             * Validated Vector Mode Solution
+             * @default false
+             * @constant
+             */
+            validated_vector_mode_solution: false;
+            zero_pressure_residual: components["schemas"]["PandaThermalFemModalEstimate"];
         };
         /** PandaThermalFemRequest */
         PandaThermalFemRequest: {
             axial_load: components["schemas"]["AxialLoad"];
             geometry: components["schemas"]["PandaGeometry"];
+            /**
+             * Lateral Pressure Pa
+             * @default 0
+             */
+            lateral_pressure_pa: number;
             materials: components["schemas"]["PandaMaterialSet"];
+            optical_mode?: components["schemas"]["PandaScalarLp01ModeConfig"];
             /**
              * Refinement Level
              * @default 1
              */
             refinement_level: number;
             thermal: components["schemas"]["ThermalState"];
+            torsion?: components["schemas"]["PandaTorsionRequest"];
         };
         /** PandaThermalFemResult */
         PandaThermalFemResult: {
             anchor_reactions: components["schemas"]["PandaThermalFemAnchorReactions"];
+            baseline_core_summary: components["schemas"]["PandaThermalFemStressSummary"];
             configuration: components["schemas"]["PandaThermalFemRequest"];
             /** Convergence */
             convergence: components["schemas"]["PandaThermalFemConvergenceSummary"][];
@@ -2323,6 +2584,14 @@ export interface components {
             element_local_material_birefringence: number[];
             /** Element Local Material Slow Axis Angle Rad */
             element_local_material_slow_axis_angle_rad: (number | null)[];
+            /** Element Pressure Increment Stress Xx Pa */
+            element_pressure_increment_stress_xx_pa: number[];
+            /** Element Pressure Increment Stress Xy Pa */
+            element_pressure_increment_stress_xy_pa: number[];
+            /** Element Pressure Increment Stress Yy Pa */
+            element_pressure_increment_stress_yy_pa: number[];
+            /** Element Pressure Increment Stress Zz Pa */
+            element_pressure_increment_stress_zz_pa: number[];
             /** Element Principal Axis Angle Rad */
             element_principal_axis_angle_rad: number[];
             /** Element Principal Difference Pa */
@@ -2356,7 +2625,10 @@ export interface components {
             force_balance: components["schemas"]["PandaThermalFemForceBalance"];
             mesh: components["schemas"]["PandaMeshResult"];
             model_manifest: components["schemas"]["PandaThermalFemManifest"];
+            optical_birefringence: components["schemas"]["PandaThermalFemOpticalBirefringence"];
+            pressure_increment_core_summary: components["schemas"]["PandaThermalFemStressSummary"];
             qualitative_kernel_fem_shape_comparison: components["schemas"]["PandaThermalFemShapeComparison"];
+            torsion: components["schemas"]["PandaThermalFemTorsionResult"];
             /** Warnings */
             warnings: components["schemas"]["PandaThermalFemWarning"][];
         };
@@ -2414,13 +2686,80 @@ export interface components {
              */
             units: "1";
         };
+        /** PandaThermalFemStressSummary */
+        PandaThermalFemStressSummary: {
+            /** Area M2 */
+            area_m2: number;
+            /** Average Stress Xx Pa */
+            average_stress_xx_pa: number;
+            /** Average Stress Xy Pa */
+            average_stress_xy_pa: number;
+            /** Average Stress Yy Pa */
+            average_stress_yy_pa: number;
+            /** Average Stress Zz Pa */
+            average_stress_zz_pa: number;
+            /** Principal Axis Angle Rad */
+            principal_axis_angle_rad: number;
+            /** Principal Difference Pa */
+            principal_difference_pa: number;
+        };
+        /** PandaThermalFemTorsionResult */
+        PandaThermalFemTorsionResult: {
+            /**
+             * Analytical Mechanics Benchmark Only
+             * @default true
+             * @constant
+             */
+            analytical_mechanics_benchmark_only: true;
+            /** Applied Torque N M */
+            applied_torque_n_m: number;
+            /**
+             * Capability
+             * @enum {string}
+             */
+            capability: "none" | "saint_venant_homogeneous_circular_reference";
+            /** Element Centroid Stress Xz Pa */
+            element_centroid_stress_xz_pa: number[];
+            /** Element Centroid Stress Yz Pa */
+            element_centroid_stress_yz_pa: number[];
+            /**
+             * Heterogeneous Panda Torsion
+             * @default false
+             * @constant
+             */
+            heterogeneous_panda_torsion: false;
+            /** Input Mode */
+            input_mode: ("twist_rate" | "applied_torque") | null;
+            /** Maximum Boundary Shear Pa */
+            maximum_boundary_shear_pa: number;
+            /** Polar Moment M4 */
+            polar_moment_m4: number;
+            /**
+             * Polarization Coupling Included
+             * @default false
+             * @constant
+             */
+            polarization_coupling_included: false;
+            /** Reference Radius M */
+            reference_radius_m: number;
+            /** Shear Modulus Pa */
+            shear_modulus_pa: number;
+            /** Twist Rate Per M */
+            twist_rate_per_m: number;
+            /**
+             * Used In Transverse Scalar Optical Model
+             * @default false
+             * @constant
+             */
+            used_in_transverse_scalar_optical_model: false;
+        };
         /** PandaThermalFemWarning */
         PandaThermalFemWarning: {
             /**
              * Code
              * @enum {string}
              */
-            code: "demonstration_data" | "convergence_unavailable" | "convergence_above_threshold" | "local_material_birefringence_convergence_above_threshold";
+            code: "demonstration_data" | "convergence_unavailable" | "convergence_above_threshold" | "local_material_birefringence_convergence_above_threshold" | "pressure_phase_birefringence_convergence_above_threshold";
             /** Message */
             message: string;
             /**
@@ -2428,6 +2767,23 @@ export interface components {
              * @default null
              */
             refinement_level: number | null;
+        };
+        /** PandaTorsionRequest */
+        PandaTorsionRequest: {
+            /**
+             * Applied Torque N M
+             * @default null
+             */
+            applied_torque_n_m: number | null;
+            /** @default none */
+            capability: components["schemas"]["TorsionCapability"];
+            /** @default null */
+            input_mode: components["schemas"]["TorsionInputMode"] | null;
+            /**
+             * Twist Rate Per M
+             * @default null
+             */
+            twist_rate_per_m: number | null;
         };
         /**
          * PhotoelasticConvention
@@ -2656,6 +3012,16 @@ export interface components {
             /** Temperature K */
             temperature_k: number;
         };
+        /**
+         * TorsionCapability
+         * @enum {string}
+         */
+        TorsionCapability: "none" | "saint_venant_homogeneous_circular_reference";
+        /**
+         * TorsionInputMode
+         * @enum {string}
+         */
+        TorsionInputMode: "twist_rate" | "applied_torque";
         /** ValidInputRange */
         ValidInputRange: {
             /**

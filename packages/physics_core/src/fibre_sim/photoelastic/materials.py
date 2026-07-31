@@ -95,20 +95,58 @@ class PandaMaterialSet(BaseModel):
 
 
 def stress_optic_coefficient_per_pa(material: PandaMaterial) -> float:
+    return photoelastic_coefficients_per_pa(material)[2]
+
+
+def photoelastic_coefficients_per_pa(material: PandaMaterial) -> tuple[float, float, float]:
     if material.photoelastic_convention is PhotoelasticConvention.P11_P12_STRAIN:
         assert material.p11 is not None and material.p12 is not None
-        coefficient = (
-            material.refractive_index**3
-            * (1.0 + material.poisson_ratio)
-            * (material.p12 - material.p11)
+        c1 = (
+            -(material.refractive_index**3)
+            * (material.p11 - 2.0 * material.poisson_ratio * material.p12)
             / (2.0 * material.young_modulus_pa)
         )
+        c2 = (
+            -(material.refractive_index**3)
+            * (
+                (1.0 - material.poisson_ratio) * material.p12
+                - material.poisson_ratio * material.p11
+            )
+            / (2.0 * material.young_modulus_pa)
+        )
+        coefficient = c1 - c2
     else:
         assert material.c1_per_pa is not None and material.c2_per_pa is not None
-        coefficient = material.c1_per_pa - material.c2_per_pa
-    if not math.isfinite(coefficient):
-        raise ValueError("The stress-optic coefficient is not finite.")
-    return coefficient
+        c1 = material.c1_per_pa
+        c2 = material.c2_per_pa
+        coefficient = c1 - c2
+    values = (c1, c2, coefficient)
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("The photoelastic coefficients are not finite.")
+    return values
+
+
+def photoelastic_index_perturbation_matrix(
+    material: PandaMaterial,
+    stress_xx_pa: float,
+    stress_yy_pa: float,
+    stress_zz_pa: float,
+    stress_xy_pa: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    c1, c2, csigma = photoelastic_coefficients_per_pa(material)
+    matrix = (
+        (
+            c1 * stress_xx_pa + c2 * (stress_yy_pa + stress_zz_pa),
+            csigma * stress_xy_pa,
+        ),
+        (
+            csigma * stress_xy_pa,
+            c1 * stress_yy_pa + c2 * (stress_xx_pa + stress_zz_pa),
+        ),
+    )
+    if not all(math.isfinite(value) for row in matrix for value in row):
+        raise ValueError("The photoelastic index perturbation is not finite.")
+    return matrix
 
 
 __all__ = [
@@ -116,5 +154,7 @@ __all__ = [
     "MaterialSource",
     "PandaMaterial",
     "PandaMaterialSet",
+    "photoelastic_coefficients_per_pa",
+    "photoelastic_index_perturbation_matrix",
     "stress_optic_coefficient_per_pa",
 ]

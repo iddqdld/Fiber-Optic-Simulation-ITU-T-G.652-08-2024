@@ -7,6 +7,8 @@ from .materials import (
     MaterialSource,
     PandaMaterial,
     PandaMaterialSet,
+    photoelastic_coefficients_per_pa,
+    photoelastic_index_perturbation_matrix,
     stress_optic_coefficient_per_pa,
 )
 from .request import (
@@ -45,6 +47,8 @@ __all__ = [
     "PandaMaterial",
     "PandaMaterialSet",
     "PhotoelasticConvention",
+    "photoelastic_coefficients_per_pa",
+    "photoelastic_index_perturbation_matrix",
     "stress_optic_coefficient_per_pa",
     "ThermalState",
     "calculate_panda_field_map",
