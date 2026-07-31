@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@react-three/fiber": "9.6.1",
+    "d3-contour": "^4.0.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "three": "0.185.1"
@@ -24,6 +25,7 @@
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
+    "@types/d3-contour": "^3.0.6",
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",

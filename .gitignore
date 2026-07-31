@@ -365,3 +365,5 @@ $RECYCLE.BIN/
 /notes
 .playwright-browsers/
 .playwright-mcp/
+
+.codex/

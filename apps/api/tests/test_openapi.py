@@ -66,6 +66,159 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
     )
 
 
+def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
+    schema = main.app.openapi()
+    schemas = schema["components"]["schemas"]
+
+    for name in (
+        "AxialLoad",
+        "CircularSAP",
+        "FieldMapSamplingConfig",
+        "MaterialSource",
+        "PandaFieldMapManifest",
+        "PandaFieldMapRequest",
+        "PandaFieldMapResult",
+        "PandaFieldMapValidity",
+        "PandaFieldMapWarning",
+        "PandaGeometry",
+        "PandaMaterial",
+        "PandaMaterialSet",
+        "PandaMeshManifest",
+        "PandaMeshQuality",
+        "PandaMeshRegionSummary",
+        "PandaMeshRequest",
+        "PandaMeshResult",
+        "PandaMeshWarning",
+        "PandaThermalFemAnchorReactions",
+        "PandaThermalFemConvergenceSummary",
+        "PandaThermalFemCoreSummary",
+        "PandaThermalFemForceBalance",
+        "PandaThermalFemManifest",
+        "PandaThermalFemRequest",
+        "PandaThermalFemResult",
+        "PandaThermalFemWarning",
+        "ThermalState",
+    ):
+        assert name in schemas
+        assert schemas[name]["additionalProperties"] is False
+
+    assert schemas["PandaFieldMapRequest"]["properties"]["wavelength_m"]["exclusiveMinimum"] == 0
+    assert schemas["PandaFieldMapRequest"]["properties"]["geometry"] == {
+        "$ref": "#/components/schemas/PandaGeometry"
+    }
+    assert schemas["PandaFieldMapRequest"]["properties"]["materials"] == {
+        "$ref": "#/components/schemas/PandaMaterialSet"
+    }
+    assert "axial" not in schemas["PandaFieldMapRequest"]["properties"]
+    assert "effective_fictive_temperature_k" not in schemas["PandaMaterial"]["properties"]
+    assert "material" not in schemas["CircularSAP"]["properties"]
+    assert "core_center_x_m" in schemas["PandaGeometry"]["properties"]
+    grid_schema = schemas["FieldMapSamplingConfig"]["properties"]["grid_points"]
+    assert grid_schema["minimum"] == 401
+    assert grid_schema["maximum"] == 601
+    assert grid_schema["default"] == 601
+    assert schemas["MaterialSource"]["properties"]["confidence"]["$ref"] == (
+        "#/components/schemas/MaterialConfidence"
+    )
+    assert schemas["PhotoelasticConvention"]["enum"] == [
+        "p11_p12_strain",
+        "c1_c2_stress_optic",
+    ]
+    manifest_properties = schemas["PandaFieldMapManifest"]["properties"]
+    assert manifest_properties["method"]["const"] == "qualitative_far_field_kernel"
+    assert manifest_properties["quantity_type"]["const"] == ("normalized_dimensionless_kernel")
+    assert manifest_properties["normalization"]["const"] == (
+        "max_valid_absolute_deviatoric_difference"
+    )
+    assert manifest_properties["model_version"]["const"] == "1.2.0"
+    assert "auxiliary_normalization" not in manifest_properties
+    assert manifest_properties["quantitative"]["const"] is False
+    assert manifest_properties["units"]["const"] == "1"
+
+    result_properties = schemas["PandaFieldMapResult"]["properties"]
+    assert set(result_properties) == {
+        "configuration",
+        "x_coordinates_m",
+        "y_coordinates_m",
+        "validity_mask",
+        "normalized_deviatoric_difference_kernel",
+        "sap_thermal_mismatch_strains",
+        "kernel_scale",
+        "core_principal_axis_angle_rad",
+        "warnings",
+        "model_manifest",
+    }
+    for field_name in ("normalized_deviatoric_difference_kernel",):
+        assert result_properties[field_name]["items"]["items"]["anyOf"] == [
+            {"type": "number"},
+            {"type": "null"},
+        ]
+    assert result_properties["core_principal_axis_angle_rad"]["anyOf"] == [
+        {"type": "number"},
+        {"type": "null"},
+    ]
+
+    for name in ("PandaMeshRegion", "PandaMeshWarningCode"):
+        assert name in schemas
+
+    assert set(schema["paths"]) == {
+        "/api/v1/health",
+        "/api/v1/guidance/calculate",
+        "/api/v1/photoelastic/panda/field-map",
+        "/api/v1/photoelastic/panda/mesh",
+        "/api/v1/photoelastic/panda/thermal-fem",
+        "/api/v1/simulations/preview",
+        "/api/v1/simulations/sweep",
+    }
+    operation = schema["paths"]["/api/v1/photoelastic/panda/field-map"]["post"]
+    assert operation["operationId"] == "calculate_panda_field_map"
+    assert (
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaFieldMapRequest"
+    )
+    assert set(operation["responses"]) == {"200", "422"}
+    assert (
+        operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaFieldMapResult"
+    )
+    assert (
+        operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+    mesh_operation = schema["paths"]["/api/v1/photoelastic/panda/mesh"]["post"]
+    assert mesh_operation["operationId"] == "generate_panda_mesh"
+    assert (
+        mesh_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaMeshRequest"
+    )
+    assert set(mesh_operation["responses"]) == {"200", "422"}
+    assert (
+        mesh_operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaMeshResult"
+    )
+    assert (
+        mesh_operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+    thermal_operation = schema["paths"]["/api/v1/photoelastic/panda/thermal-fem"]["post"]
+    assert thermal_operation["operationId"] == "calculate_panda_thermal_fem"
+    assert (
+        thermal_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaThermalFemRequest"
+    )
+    assert set(thermal_operation["responses"]) == {"200", "422"}
+    assert (
+        thermal_operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaThermalFemResult"
+    )
+    assert (
+        thermal_operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+
 def test_constant_attenuation_result_publishes_bounded_power_samples() -> None:
     result = main.app.openapi()["components"]["schemas"]["ConstantAttenuationResult"]
 
@@ -150,6 +303,9 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
     assert set(paths) == {
         "/api/v1/health",
         "/api/v1/guidance/calculate",
+        "/api/v1/photoelastic/panda/field-map",
+        "/api/v1/photoelastic/panda/mesh",
+        "/api/v1/photoelastic/panda/thermal-fem",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }

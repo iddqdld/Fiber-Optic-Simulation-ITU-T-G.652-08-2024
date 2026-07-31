@@ -4,6 +4,7 @@ PHYSICAL_UNIT_SUFFIXES: tuple[str, ...] = (
     "_nm",
     "_um",
     "_um2",
+    "_m2",
     "_km",
     "_db",
     "_dbm",
@@ -12,12 +13,17 @@ PHYSICAL_UNIT_SUFFIXES: tuple[str, ...] = (
     "_ps_nm_km",
     "_ps_sqrt_km",
     "_deg",
+    "_rad",
     "_c",
     "_hz",
     "_mm",
     "_gpa",
     "_percent",
     "_m_per_s",
+    "_m",
+    "_n",
+    "_pa",
+    "_k",
 )
 
 DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
@@ -33,6 +39,21 @@ DIMENSIONLESS_NUMERIC_FIELDS: set[str] = {
     "normalized_intensity",
     "approximate_mode_count",
     "pmd_sample_cable_count",
+    "prescribed_strain",
+    "valid_point_count",
+    "node_count",
+    "element_count",
+    "refinement_level",
+    "elements",
+    "minimum_normalized_quality",
+    "mean_normalized_quality",
+    "normalized_deviatoric_difference_kernel",
+    "sap_thermal_mismatch_strains",
+    "kernel_scale",
+    "poisson_ratio",
+    "refractive_index",
+    "p11",
+    "p12",
 }
 
 
