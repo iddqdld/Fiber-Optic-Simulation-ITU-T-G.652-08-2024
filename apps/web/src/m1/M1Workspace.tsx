@@ -134,8 +134,9 @@ function FemWorkspace({
             Generalized-plane-strain thermoelastic FEM
           </h2>
           <p>
-            Quantitative mechanical fields solved on the constrained triangular
-            PANDA mesh with one uniform axial strain degree of freedom.
+            Step 2.7 solves quantitative thermoelastic fields and local material
+            photoelastic quantities on the constrained triangular PANDA mesh
+            with one uniform axial strain degree of freedom.
           </p>
         </div>
         <span className="m1-workspace-badge">Quantitative FEM</span>
@@ -143,8 +144,9 @@ function FemWorkspace({
       <M1FoundationCopy />
       <PandaThermalFemStatus controller={controller} />
       <p className="m1-fem-notice">
-        Figure 9.1 shows mechanical thermoelastic FEM fields only; birefringence
-        is not calculated yet.
+        Figure 9.1 shows the thermoelastic FEM fields and local material
+        birefringence. These are not modal Bp values; modal phase/group
+        birefringence and beat length are not calculated.
       </p>
       <span className="sr-only">Quantitative thermoelastic FEM is active.</span>
     </section>

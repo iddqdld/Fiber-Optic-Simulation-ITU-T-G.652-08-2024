@@ -205,6 +205,20 @@ function formatMpa(value: number) {
   return `${(value / 1e6).toFixed(6)} MPa`
 }
 
+function formatDeltaN(value: number) {
+  return `${value.toExponential(6)} Δn`
+}
+
+function formatCoefficient(value: number) {
+  return `${value.toExponential(6)} Pa⁻¹`
+}
+
+function formatAngle(value: number | null) {
+  return value === null
+    ? 'Undefined for zero local splitting'
+    : `${((value * 180) / Math.PI).toFixed(3)}° from +x`
+}
+
 const axialConditionLabels = {
   free_resultant: 'Free axial resultant (Nᶻ = 0)',
   prescribed_force: 'Prescribed axial force',
@@ -215,11 +229,19 @@ const thermalFemWarningLabels = {
   demonstration_data: 'Demonstration data',
   convergence_unavailable: 'Convergence unavailable',
   convergence_above_threshold: 'Convergence above threshold',
+  local_material_birefringence_convergence_above_threshold:
+    'Local material birefringence convergence above threshold',
 } as const
 
 const meshWarningLabels = {
   quality_below_target: 'Mesh quality below target',
   polygonal_interface_approximation: 'Polygonal interface approximation',
+} as const
+
+const comparisonUnavailableLabels = {
+  insufficient_core_elements: 'Fewer than two core-element samples',
+  zero_or_nonfinite_scale: 'Zero or non-finite normalization scale',
+  nonfinite_metric: 'A comparison metric was non-finite',
 } as const
 
 function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
@@ -228,10 +250,12 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
   const core = result.core_summary
   const forceBalance = result.force_balance
   const latestConvergence = result.convergence.at(-1)
+  const comparison = result.qualitative_kernel_fem_shape_comparison
   return (
     <>
       <p className="m1-inspector-status">
-        Quantitative mechanical FEM result · birefringence not calculated
+        Quantitative mechanical FEM result · Step 2.7 local material
+        birefringence only
       </p>
       <dl className="m1-results-list">
         <div>
@@ -277,6 +301,22 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
             {((core.principal_axis_angle_rad * 180) / Math.PI).toFixed(3)}° from
             +x
           </dd>
+        </div>
+        <div>
+          <dt>Core stress-optic coefficient</dt>
+          <dd>{formatCoefficient(core.stress_optic_coefficient_per_pa)}</dd>
+        </div>
+        <div>
+          <dt>Core signed local material birefringence</dt>
+          <dd>{formatDeltaN(core.signed_local_material_birefringence)}</dd>
+        </div>
+        <div>
+          <dt>Core local material birefringence magnitude</dt>
+          <dd>{formatDeltaN(core.local_material_birefringence)}</dd>
+        </div>
+        <div>
+          <dt>Core local material slow optical axis</dt>
+          <dd>{formatAngle(core.local_material_slow_axis_angle_rad)}</dd>
         </div>
         <div>
           <dt>Mesh</dt>
@@ -337,7 +377,13 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
               {entry.relative_change === null
                 ? 'unavailable'
                 : `${(entry.relative_change * 100).toFixed(2)}%`}{' '}
-              · {entry.status}
+              · {entry.status} · local Δn{' '}
+              {formatDeltaN(entry.core_average_local_material_birefringence)} ·
+              local change{' '}
+              {entry.local_material_birefringence_relative_change === null
+                ? 'unavailable'
+                : `${(entry.local_material_birefringence_relative_change * 100).toFixed(2)}%`}{' '}
+              · {entry.local_material_birefringence_status}
             </li>
           ))}
         </ul>
@@ -346,6 +392,62 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
             Latest status: {latestConvergence.status}.
           </p>
         )}
+      </section>
+
+      <section
+        className="m1-result-section"
+        aria-labelledby="m1-fem-comparison-title"
+      >
+        <h3 id="m1-fem-comparison-title">Figure 5.1 shape comparison</h3>
+        <p className="m1-results-note">
+          Normalized qualitative shape comparison of the Figure 5.1 kernel and
+          FEM signed σxx − σyy at core-element centroids. It is not a stress,
+          Eshelby, or birefringence error because the qualitative kernel has no
+          calibrated sign or scale.
+        </p>
+        <dl className="m1-results-list">
+          <div>
+            <dt>Status</dt>
+            <dd>{comparison.available ? 'Available' : 'Unavailable'}</dd>
+          </div>
+          <div>
+            <dt>Samples</dt>
+            <dd>{comparison.sample_count.toLocaleString()} core elements</dd>
+          </div>
+          {comparison.available ? (
+            <>
+              <div>
+                <dt>RMSE</dt>
+                <dd>{comparison.rmse?.toFixed(6) ?? 'Undefined'}</dd>
+              </div>
+              <div>
+                <dt>Correlation</dt>
+                <dd>{comparison.correlation?.toFixed(6) ?? 'Undefined'}</dd>
+              </div>
+              <div>
+                <dt>Sign agreement</dt>
+                <dd>
+                  {comparison.sign_agreement === null
+                    ? 'Undefined'
+                    : `${(comparison.sign_agreement * 100).toFixed(2)}%`}
+                </dd>
+              </div>
+              <div>
+                <dt>Fitted kernel polarity</dt>
+                <dd>{comparison.best_polarity === 1 ? '+1' : '−1'}</dd>
+              </div>
+            </>
+          ) : (
+            <div>
+              <dt>Reason</dt>
+              <dd>
+                {comparison.unavailable_reason === null
+                  ? 'Not reported'
+                  : comparisonUnavailableLabels[comparison.unavailable_reason]}
+              </dd>
+            </div>
+          )}
+        </dl>
       </section>
 
       <section
@@ -364,7 +466,8 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
           </li>
           <li>
             API units: stress Pa, displacement m, strain 1; display conversions:
-            MPa = Pa × 1e−6, µm = m × 1e6.
+            MPa = Pa × 1e−6, µm = m × 1e6, local birefringence = dimensionless
+            Δn.
           </li>
         </ul>
       </section>
@@ -417,6 +520,10 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
             <li key={limitation}>{limitation}</li>
           ))}
         </ul>
+        <p className="m1-results-note">
+          The local material birefringence shown here is not modal Bp. Modal
+          phase/group birefringence and beat length are not calculated.
+        </p>
       </section>
     </>
   )

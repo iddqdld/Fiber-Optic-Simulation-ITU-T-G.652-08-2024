@@ -180,7 +180,7 @@ export function PandaThermalFemCanvas({
       <div className="panda-mesh-plot-heading">
         <div>
           <p className="panda-mesh-eyebrow">
-            Step 2.6 · quantitative FEM field
+            Step 2.7 · quantitative FEM and local material optics
           </p>
           <h3>{fieldGeometry.definition.label}</h3>
         </div>
@@ -231,7 +231,7 @@ export function PandaThermalFemCanvas({
           height={THERMAL_FEM_CANVAS_HEIGHT}
           tabIndex={0}
           role="img"
-          aria-label={`${fieldGeometry.definition.label}, quantitative mechanical FEM field`}
+          aria-label={`${fieldGeometry.definition.label}, Step 2.7 FEM field`}
           aria-describedby={captionId}
           onKeyDown={handleKeyDown}
           onPointerDown={handlePointerDown}
@@ -286,10 +286,12 @@ export function PandaThermalFemCanvas({
         <li>{fieldGeometry.interfaceEdgeCount.toLocaleString()} interfaces</li>
       </ul>
       <figcaption id={captionId}>
-        Quantitative mechanical FEM result over the returned triangular mesh.
-        Numeric stress values are displayed in MPa from Pa × 1e−6, displacement
-        in µm from m × 1e6, and strain is dimensionless. This renderer shows
-        mechanical fields only; it does not calculate or claim birefringence.
+        Quantitative mechanical FEM and local material photoelastic result over
+        the returned triangular mesh. Stress values are displayed in MPa from Pa
+        × 1e−6, displacement in µm from m × 1e6, strain is dimensionless, and
+        birefringence is dimensionless Δn. Local material birefringence is not
+        modal Bp: modal phase/group birefringence and beat length are not
+        calculated.
       </figcaption>
     </figure>
   )

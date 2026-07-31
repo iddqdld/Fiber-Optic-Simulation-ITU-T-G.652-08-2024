@@ -272,6 +272,10 @@ function thermalFemResult(): PandaThermalFemResult {
     element_principal_min_pa: [-12e6, -6e6, 6e6, 12e6],
     element_principal_difference_pa: [1e6, 2e6, 3e6, 4e6],
     element_principal_axis_angle_rad: [0, 0, 0, 0],
+    element_stress_optic_coefficient_per_pa: [1e-12, 1e-12, 2e-12, 2e-12],
+    element_signed_local_material_birefringence: [-2e-6, -1e-6, 1e-6, 2e-6],
+    element_local_material_birefringence: [2e-6, 1e-6, 1e-6, 2e-6],
+    element_local_material_slow_axis_angle_rad: [null, 0, Math.PI / 4, null],
     epsilon_zz_0: 1.25e-4,
     core_summary: {
       area_m2: 5e-11,
@@ -283,6 +287,10 @@ function thermalFemResult(): PandaThermalFemResult {
       principal_min_pa: -0.9e6,
       principal_difference_pa: 2.2e6,
       principal_axis_angle_rad: Math.PI / 6,
+      stress_optic_coefficient_per_pa: 1e-12,
+      signed_local_material_birefringence: 2.2e-6,
+      local_material_birefringence: 2.2e-6,
+      local_material_slow_axis_angle_rad: Math.PI / 6,
     },
     anchor_reactions: {
       primary_node_index: 0,
@@ -306,6 +314,9 @@ function thermalFemResult(): PandaThermalFemResult {
         node_count: 5,
         element_count: 4,
         core_average_principal_difference_pa: 2e6,
+        core_average_local_material_birefringence: 2e-6,
+        local_material_birefringence_relative_change: null,
+        local_material_birefringence_status: 'unavailable',
         relative_change: null,
         status: 'unavailable',
       },
@@ -314,6 +325,9 @@ function thermalFemResult(): PandaThermalFemResult {
         node_count: 5,
         element_count: 4,
         core_average_principal_difference_pa: 2.2e6,
+        core_average_local_material_birefringence: 2.2e-6,
+        local_material_birefringence_relative_change: 0.09,
+        local_material_birefringence_status: 'not_converged',
         relative_change: 0.09,
         status: 'not_converged',
       },
@@ -327,7 +341,7 @@ function thermalFemResult(): PandaThermalFemResult {
     ],
     model_manifest: {
       model_id: 'fem_generalized_plane_strain',
-      model_version: '1.0.0',
+      model_version: '1.1.0',
       method: 'fem_generalized_plane_strain',
       stress_measure: 'cauchy_stress',
       quantity_type: 'quantitative_mechanical_output',
@@ -345,9 +359,38 @@ function thermalFemResult(): PandaThermalFemResult {
         'prescribed_strain',
       ],
       thermal_strain_model: 'full_per_region_alpha_delta_t',
-      birefringence_computed: false,
+      birefringence_computed: true,
       assumptions: ['small strain isotropic thermoelasticity'],
-      limitations: ['no birefringence or photoelastic observable is computed'],
+      limitations: [
+        'local material stress-optic birefringence is computed without modal propagation',
+        'modal phase and group birefringence and beat length are not computed',
+      ],
+      equation_references: ['M1-6.9', 'M1-6.10', 'M1-6.11', 'M1-6.12'],
+      birefringence_scope: 'local_material_only',
+      birefringence_quantity: 'signed_local_material_index_difference',
+      birefringence_units: '1',
+      stress_optic_coefficient_units: 'Pa^-1',
+      local_not_modal: true,
+    },
+    qualitative_kernel_fem_shape_comparison: {
+      model_id: 'qualitative_kernel_fem_shape_comparison',
+      quantitative: false,
+      units: '1',
+      domain: 'core_elements',
+      sample_count: 1,
+      available: false,
+      kernel_scale: 0,
+      fem_signed_deviatoric_stress_scale_pa: 0,
+      best_polarity: null,
+      rmse: null,
+      correlation: null,
+      sign_agreement: null,
+      unavailable_reason: 'insufficient_core_elements',
+      limitations: [
+        'the qualitative kernel has undefined sign and scale, so the best polarity is fitted',
+        'this is a normalized shape comparison and not a stress error',
+        'quantitative Eshelby error and birefringence error are unavailable',
+      ],
     },
   } as PandaThermalFemResult
 }
@@ -672,7 +715,7 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText('1.000000e-3')).toBeVisible()
     expect(screen.getByText('3 × 3')).toBeVisible()
     expect(screen.getByText(/2\.000 µm applied/)).toBeVisible()
-    expect(screen.getByText('30.000° from +x')).toBeVisible()
+    expect(screen.getAllByText('30.000° from +x')).not.toHaveLength(0)
     expect(screen.getByText('Qualitative only')).toBeVisible()
     expect(screen.getByText(/K_i is undefined/)).toBeVisible()
     expect(
@@ -684,7 +727,7 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText(/does not report stress in pascals/)).toBeVisible()
   })
 
-  test('reports quantitative FEM metadata, balance, convergence, and limits', () => {
+  test('reports quantitative FEM metadata, local optics, balance, convergence, and limits', () => {
     const result = thermalFemResult()
     const prescribedStrainResult = {
       ...result,
@@ -721,6 +764,9 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText(/1.250000e-4/)).toBeVisible()
     expect(screen.getByText('1.200000 MPa / -0.800000 MPa')).toBeVisible()
     expect(screen.getByText('2.200000 MPa')).toBeVisible()
+    expect(screen.getByText('1.000000e-12 Pa⁻¹')).toBeVisible()
+    expect(screen.getAllByText('2.200000e-6 Δn')).toHaveLength(2)
+    expect(screen.getAllByText('30.000° from +x')).not.toHaveLength(0)
     expect(
       screen.getAllByText(/Not imposed for prescribed strain/),
     ).toHaveLength(2)
@@ -733,9 +779,48 @@ describe('M1 PANDA field workspace', () => {
     expect(
       screen.getByText(/small strain isotropic thermoelasticity/),
     ).toBeVisible()
+    expect(screen.getAllByText(/not modal Bp/)).not.toHaveLength(0)
+    expect(screen.getByText(/Figure 5.1 shape comparison/)).toBeVisible()
     expect(
-      screen.getByText(/no birefringence or photoelastic observable/),
+      screen.getByText(/fewer than two core-element samples/i),
     ).toBeVisible()
+  })
+
+  test('shows available qualitative comparison metrics and local convergence', () => {
+    const result = thermalFemResult()
+    const availableResult = {
+      ...result,
+      qualitative_kernel_fem_shape_comparison: {
+        ...result.qualitative_kernel_fem_shape_comparison,
+        sample_count: 24,
+        available: true,
+        kernel_scale: 0.5,
+        fem_signed_deviatoric_stress_scale_pa: 2e6,
+        best_polarity: -1 as const,
+        rmse: 0.125,
+        correlation: 0.82,
+        sign_agreement: 0.875,
+        unavailable_reason: null,
+      },
+    }
+
+    render(
+      <M1Results
+        workspace="fem-mesh"
+        thermalFem={thermalFemController({
+          phase: 'ready',
+          result: availableResult,
+        })}
+      />,
+    )
+
+    expect(screen.getByText('Available')).toBeVisible()
+    expect(screen.getByText('24 core elements')).toBeVisible()
+    expect(screen.getByText('0.125000')).toBeVisible()
+    expect(screen.getByText('0.820000')).toBeVisible()
+    expect(screen.getByText('87.50%')).toBeVisible()
+    expect(screen.getByText('−1')).toBeVisible()
+    expect(screen.getAllByText(/local Δn/)).not.toHaveLength(0)
   })
 
   test.each([
@@ -769,7 +854,7 @@ describe('M1 PANDA field workspace', () => {
     },
   )
 
-  test('renders ready quantitative FEM output with explicit no-birefringence text', () => {
+  test('renders ready quantitative FEM output with local-material optics text', () => {
     const result = thermalFemResult()
     const geometry = buildPandaThermalFemDrawingGeometry(result)
     expect(geometry.nodeCount).toBe(result.mesh.node_count)
@@ -787,7 +872,7 @@ describe('M1 PANDA field workspace', () => {
 
     expect(
       screen.getByRole('img', {
-        name: /Principal stress difference.*quantitative mechanical FEM field/,
+        name: /Principal stress difference.*Step 2.7 FEM field/,
       }),
     ).toBeVisible()
     expect(
@@ -796,9 +881,7 @@ describe('M1 PANDA field workspace', () => {
       }),
     ).toBeVisible()
     expect(screen.getByText('Quantitative FEM')).toBeVisible()
-    expect(
-      screen.getByText(/birefringence is not calculated yet/),
-    ).toBeVisible()
+    expect(screen.getAllByText(/not modal Bp/)).not.toHaveLength(0)
     expect(screen.getByText(/MPa from Pa × 1e−6/)).toBeVisible()
     expect(canvasContext.fill).toHaveBeenCalled()
     expect(canvasContext.stroke).toHaveBeenCalled()
@@ -816,7 +899,7 @@ describe('M1 PANDA field workspace', () => {
     )
 
     const canvas = screen.getByRole('img', {
-      name: /quantitative mechanical FEM field/,
+      name: /Step 2.7 FEM field/,
     })
     const zoom = screen.getByLabelText('Zoom')
     expect(zoom).toHaveAttribute('min', '0.5')
@@ -855,7 +938,7 @@ describe('M1 PANDA field workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in FEM field' }))
     fireEvent.keyDown(
       screen.getByRole('img', {
-        name: /quantitative mechanical FEM field/,
+        name: /Step 2.7 FEM field/,
       }),
       { key: 'ArrowRight' },
     )

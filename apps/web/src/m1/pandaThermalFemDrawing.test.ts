@@ -88,6 +88,10 @@ function result(): PandaThermalFemResult {
     element_principal_min_pa: [-12e6, -6e6, 6e6, 12e6],
     element_principal_difference_pa: [0, 2e6, 4e6, 6e6],
     element_principal_axis_angle_rad: [0, 0, 0, 0],
+    element_stress_optic_coefficient_per_pa: [1, 1, 1, 1],
+    element_signed_local_material_birefringence: [-0.4, -0.1, 0.2, 0.6],
+    element_local_material_birefringence: [0.4, 0.1, 0.2, 0.6],
+    element_local_material_slow_axis_angle_rad: [null, 0, Math.PI / 4, null],
     epsilon_zz_0: 0,
     core_summary: {} as PandaThermalFemResult['core_summary'],
     anchor_reactions: {} as PandaThermalFemResult['anchor_reactions'],
@@ -95,6 +99,8 @@ function result(): PandaThermalFemResult {
     convergence: [],
     warnings: [],
     model_manifest: {} as PandaThermalFemResult['model_manifest'],
+    qualitative_kernel_fem_shape_comparison:
+      {} as PandaThermalFemResult['qualitative_kernel_fem_shape_comparison'],
   }
 }
 
@@ -159,6 +165,29 @@ describe('PANDA thermal FEM drawing', () => {
     expect(geometry.bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(4)
   })
 
+  test('keeps null slow-axis samples undefined and omits their triangles', () => {
+    const model = result()
+    const values = getThermalFemFieldValues(
+      model,
+      'element_local_material_slow_axis_angle_rad',
+    )
+    const geometry = buildPandaThermalFemDrawingGeometry(
+      model,
+      'element_local_material_slow_axis_angle_rad',
+    )
+
+    expect(values).toEqual([null, 0, Math.PI / 4, null])
+    expect(geometry.scale).toEqual({
+      kind: 'orientation',
+      minimum: -90,
+      maximum: 90,
+      unit: '°',
+      conversion: 'rad × 180/π; undefined samples omitted',
+    })
+    expect(geometry.bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(2)
+    expect(geometry.bins[0].color).toBe(geometry.bins.at(-1)?.color)
+  })
+
   test('renders accessible quantity, units, conversion, and mechanical caption', () => {
     render(createElement(PandaThermalFemCanvas, { result: result() }))
 
@@ -168,12 +197,16 @@ describe('PANDA thermal FEM drawing', () => {
     expect(screen.getAllByText(/Pa × 1e−6/)).not.toHaveLength(0)
     expect(screen.getByText(/quantitative mechanical FEM/i)).toBeVisible()
     expect(
-      screen.getByText(/does not calculate or claim birefringence/i),
+      screen.getByText(/not modal Bp.*beat length are not calculated/i),
     ).toBeVisible()
     fireEvent.change(screen.getByLabelText('FEM quantity'), {
-      target: { value: 'displacement_x_m' },
+      target: { value: 'element_signed_local_material_birefringence' },
     })
-    expect(screen.getByText('m × 1e6')).toBeVisible()
-    expect(screen.getByText('µm')).toBeVisible()
+    expect(screen.getByText('dimensionless; unchanged')).toBeVisible()
+    expect(screen.getByText('Δn')).toBeVisible()
+    fireEvent.change(screen.getByLabelText('FEM quantity'), {
+      target: { value: 'element_local_material_slow_axis_angle_rad' },
+    })
+    expect(screen.getByText(/undefined samples omitted/)).toBeVisible()
   })
 })

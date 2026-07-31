@@ -122,6 +122,10 @@ function result(configuration = request()): PandaThermalFemResult {
     element_principal_min_pa: [0, 0, 0, 0],
     element_principal_difference_pa: [0, 0, 0, 0],
     element_principal_axis_angle_rad: [0, 0, 0, 0],
+    element_stress_optic_coefficient_per_pa: [1, 1, 1, 1],
+    element_signed_local_material_birefringence: [0, 0, 0, 0],
+    element_local_material_birefringence: [0, 0, 0, 0],
+    element_local_material_slow_axis_angle_rad: [null, null, null, null],
     epsilon_zz_0: 0,
     core_summary: {
       area_m2: 1,
@@ -133,6 +137,10 @@ function result(configuration = request()): PandaThermalFemResult {
       principal_min_pa: 0,
       principal_difference_pa: 0,
       principal_axis_angle_rad: 0,
+      stress_optic_coefficient_per_pa: 1,
+      signed_local_material_birefringence: 0,
+      local_material_birefringence: 0,
+      local_material_slow_axis_angle_rad: null,
     },
     anchor_reactions: {
       primary_node_index: 0,
@@ -156,6 +164,9 @@ function result(configuration = request()): PandaThermalFemResult {
         node_count: 4,
         element_count: 4,
         core_average_principal_difference_pa: 0,
+        core_average_local_material_birefringence: 0,
+        local_material_birefringence_relative_change: null,
+        local_material_birefringence_status: 'unavailable',
         relative_change: null,
         status: 'unavailable',
       },
@@ -164,6 +175,9 @@ function result(configuration = request()): PandaThermalFemResult {
         node_count: 4,
         element_count: 4,
         core_average_principal_difference_pa: 0,
+        core_average_local_material_birefringence: 0,
+        local_material_birefringence_relative_change: 0,
+        local_material_birefringence_status: 'converged',
         relative_change: 0,
         status: 'converged',
       },
@@ -182,7 +196,7 @@ function result(configuration = request()): PandaThermalFemResult {
     ],
     model_manifest: {
       model_id: 'fem_generalized_plane_strain',
-      model_version: '1.0.0',
+      model_version: '1.1.0',
       method: 'fem_generalized_plane_strain',
       stress_measure: 'cauchy_stress',
       quantity_type: 'quantitative_mechanical_output',
@@ -200,9 +214,38 @@ function result(configuration = request()): PandaThermalFemResult {
         'prescribed_strain',
       ],
       thermal_strain_model: 'full_per_region_alpha_delta_t',
-      birefringence_computed: false,
+      equation_references: ['M1-6.9', 'M1-6.10', 'M1-6.11', 'M1-6.12'],
+      birefringence_computed: true,
+      birefringence_scope: 'local_material_only',
+      birefringence_quantity: 'signed_local_material_index_difference',
+      birefringence_units: '1',
+      stress_optic_coefficient_units: 'Pa^-1',
+      local_not_modal: true,
       assumptions: ['GPS'],
-      limitations: ['demonstration data'],
+      limitations: [
+        'local material stress-optic birefringence is computed without modal propagation',
+        'modal phase and group birefringence and beat length are not computed',
+      ],
+    },
+    qualitative_kernel_fem_shape_comparison: {
+      model_id: 'qualitative_kernel_fem_shape_comparison',
+      quantitative: false,
+      units: '1',
+      domain: 'core_elements',
+      sample_count: 1,
+      available: false,
+      kernel_scale: 0,
+      fem_signed_deviatoric_stress_scale_pa: 0,
+      best_polarity: null,
+      rmse: null,
+      correlation: null,
+      sign_agreement: null,
+      unavailable_reason: 'insufficient_core_elements',
+      limitations: [
+        'the qualitative kernel has undefined sign and scale, so the best polarity is fitted',
+        'this is a normalized shape comparison and not a stress error',
+        'quantitative Eshelby error and birefringence error are unavailable',
+      ],
     },
   }
 }
@@ -291,6 +334,66 @@ describe('PANDA thermal FEM model', () => {
     const badConfiguration = structuredClone(valid)
     badConfiguration.configuration.refinement_level = 2
     expect(isPandaThermalFemResult(badConfiguration)).toBe(false)
+  })
+
+  test('rejects invalid local material optics and comparison states', () => {
+    const valid = result()
+
+    const badMagnitude = structuredClone(valid)
+    badMagnitude.element_local_material_birefringence[0] = -1
+    expect(isPandaThermalFemResult(badMagnitude)).toBe(false)
+
+    const badAngle = structuredClone(valid)
+    badAngle.element_local_material_slow_axis_angle_rad[0] = Math.PI / 2
+    expect(isPandaThermalFemResult(badAngle)).toBe(false)
+
+    const badLength = structuredClone(valid)
+    badLength.element_local_material_slow_axis_angle_rad.pop()
+    expect(isPandaThermalFemResult(badLength)).toBe(false)
+
+    const badManifest = structuredClone(valid)
+    badManifest.model_manifest.local_not_modal = false as never
+    expect(isPandaThermalFemResult(badManifest)).toBe(false)
+
+    const badComparison = structuredClone(valid)
+    badComparison.qualitative_kernel_fem_shape_comparison.available = true
+    expect(isPandaThermalFemResult(badComparison)).toBe(false)
+
+    const badComparisonLimit = structuredClone(valid)
+    badComparisonLimit.qualitative_kernel_fem_shape_comparison.limitations = [
+      'quantitative stress comparison',
+    ]
+    expect(isPandaThermalFemResult(badComparisonLimit)).toBe(false)
+
+    const badComparisonRmse = structuredClone(valid)
+    badComparisonRmse.qualitative_kernel_fem_shape_comparison = {
+      ...badComparisonRmse.qualitative_kernel_fem_shape_comparison,
+      available: true,
+      sample_count: 2,
+      kernel_scale: 1,
+      fem_signed_deviatoric_stress_scale_pa: 1,
+      best_polarity: 1,
+      rmse: 2.01,
+      correlation: null,
+      sign_agreement: 0.5,
+      unavailable_reason: null,
+    }
+    expect(isPandaThermalFemResult(badComparisonRmse)).toBe(false)
+
+    const badLocalConvergence = structuredClone(valid)
+    badLocalConvergence.convergence[1].local_material_birefringence_status =
+      'unavailable'
+    expect(isPandaThermalFemResult(badLocalConvergence)).toBe(false)
+  })
+
+  test('accepts undefined slow axes without changing the local material values', () => {
+    const valid = result()
+    valid.element_signed_local_material_birefringence[0] = 0.25
+    valid.element_local_material_birefringence[0] = 0.25
+    valid.element_local_material_slow_axis_angle_rad[0] = null
+
+    expect(isPandaThermalFemResult(valid)).toBe(true)
+    expect(valid.element_local_material_slow_axis_angle_rad[0]).toBeNull()
   })
 
   test('matches the exact FEM request configuration', () => {

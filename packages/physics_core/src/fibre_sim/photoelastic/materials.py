@@ -1,3 +1,4 @@
+import math
 from enum import StrEnum
 from typing import Annotated, Self
 
@@ -93,4 +94,27 @@ class PandaMaterialSet(BaseModel):
     sap_2: PandaMaterial
 
 
-__all__ = ["MaterialConfidence", "MaterialSource", "PandaMaterial", "PandaMaterialSet"]
+def stress_optic_coefficient_per_pa(material: PandaMaterial) -> float:
+    if material.photoelastic_convention is PhotoelasticConvention.P11_P12_STRAIN:
+        assert material.p11 is not None and material.p12 is not None
+        coefficient = (
+            material.refractive_index**3
+            * (1.0 + material.poisson_ratio)
+            * (material.p12 - material.p11)
+            / (2.0 * material.young_modulus_pa)
+        )
+    else:
+        assert material.c1_per_pa is not None and material.c2_per_pa is not None
+        coefficient = material.c1_per_pa - material.c2_per_pa
+    if not math.isfinite(coefficient):
+        raise ValueError("The stress-optic coefficient is not finite.")
+    return coefficient
+
+
+__all__ = [
+    "MaterialConfidence",
+    "MaterialSource",
+    "PandaMaterial",
+    "PandaMaterialSet",
+    "stress_optic_coefficient_per_pa",
+]
