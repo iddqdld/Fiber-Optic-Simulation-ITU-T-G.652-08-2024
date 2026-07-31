@@ -26,6 +26,7 @@ import {
 import { getFieldIssues } from './fieldIssues'
 import { GraphWorkspace } from './GraphWorkspace'
 import type { GraphWorkspaceId } from './graphWorkspaceCatalog'
+import { ImportExportModal } from './ImportExportModal'
 import { Level1Preview } from './Level1Preview'
 import { isMacrobendLossResult, macrobendInputsMatch } from './macrobend'
 import { SimulationInspector } from './SimulationInspector'
@@ -662,6 +663,7 @@ function App() {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
+  const [importedFileName, setImportedFileName] = useState<string | null>(null)
   const [result, setResult] = useState<PreviewResult | null>(null)
   const [comparisonBaseline, setComparisonBaseline] =
     useState<PreviewResult | null>(null)
@@ -880,6 +882,11 @@ function App() {
     }
   }
 
+  const handleImportConfig = (importedValues: FormValues, filename?: string) => {
+    setFormValues(importedValues)
+    setImportedFileName(filename ?? null)
+  }
+
   const displayPreviewStatus =
     formValidation.error !== null ? 'Validation issue' : previewStatus
   const previewStateTone: PreviewStateTone =
@@ -966,6 +973,8 @@ function App() {
       onPresetChange={updatePreset}
       onCableApplicationChange={updateCableApplication}
       onSettingsChange={setVisualizationSettings}
+      activeConfigFileName={importedFileName}
+      onDropImportConfig={handleImportConfig}
     />
   )
 
@@ -975,6 +984,16 @@ function App() {
     <p className="result-drawer-empty">
       A validated numerical preview will appear here.
     </p>
+  )
+
+  const importExportControls = (
+    <ImportExportModal
+      formValues={formValues}
+      onImportConfig={handleImportConfig}
+      previewResult={result}
+      powerDistanceData={visualizationData?.attenuation ?? null}
+      pulseData={visualizationData?.pulseComparison ?? null}
+    />
   )
 
   return (
@@ -992,6 +1011,7 @@ function App() {
       inspector={inspector}
       workspace={workspace}
       resultDrawer={resultDrawer}
+      importExportControls={importExportControls}
     />
   )
 }

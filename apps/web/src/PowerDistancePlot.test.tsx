@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { PowerDistancePlot } from './PowerDistancePlot'
+import { PowerDistancePlot } from './PowerDistancePlot.tsx'
 import {
   getPowerDistancePlotData,
   isValidPowerDistanceData,

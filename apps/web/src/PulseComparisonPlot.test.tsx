@@ -7,7 +7,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, test } from 'vitest'
 
-import { PulseComparisonPlot } from './PulseComparisonPlot'
+import { PulseComparisonPlot } from './PulseComparisonPlot.tsx'
 import {
   gaussianPulseProfileValue,
   generateGaussianProfile,
