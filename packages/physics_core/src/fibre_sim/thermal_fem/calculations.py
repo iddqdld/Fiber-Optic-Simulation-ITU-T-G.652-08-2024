@@ -14,6 +14,7 @@ from fibre_sim.photoelastic.loads import AxialCondition
 from fibre_sim.photoelastic.materials import (
     MaterialConfidence,
     PandaMaterial,
+    photoelastic_coefficients_per_pa,
     stress_optic_coefficient_per_pa,
 )
 
@@ -24,13 +25,19 @@ from .result import (
     PandaThermalFemConvergenceSummary,
     PandaThermalFemCoreSummary,
     PandaThermalFemForceBalance,
+    PandaThermalFemGroupBirefringence,
     PandaThermalFemManifest,
+    PandaThermalFemModalEstimate,
+    PandaThermalFemOpticalBirefringence,
     PandaThermalFemResult,
     PandaThermalFemShapeComparison,
+    PandaThermalFemStressSummary,
+    PandaThermalFemTorsionResult,
     PandaThermalFemWarning,
 )
 
 _CONVERGENCE_THRESHOLD = 0.05
+_ZERO_PHASE_BIREFRINGENCE_TOLERANCE = 1.0e-15
 _ZERO_STRESS_TOLERANCE_PA = 1.0e-12
 _ZERO_COEFFICIENT_TOLERANCE_PER_PA = 1.0e-30
 _REFERENCE_GRADIENTS = np.array(((-1.0, -1.0), (1.0, 0.0), (0.0, 1.0)))
@@ -163,6 +170,52 @@ def _triangle_data(
     return area, gradients
 
 
+def _pressure_load(
+    mesh: PandaMeshResult,
+    pressure_pa: float,
+) -> np.ndarray:
+    load = np.zeros(2 * mesh.node_count, dtype=float)
+    if pressure_pa == 0.0:
+        return load
+    edge_counts: dict[tuple[int, int], int] = {}
+    edge_owners: dict[tuple[int, int], int] = {}
+    for element_index, element in enumerate(mesh.elements):
+        for first, second in (
+            (element[0], element[1]),
+            (element[1], element[2]),
+            (element[2], element[0]),
+        ):
+            edge = (min(first, second), max(first, second))
+            edge_counts[edge] = edge_counts.get(edge, 0) + 1
+            edge_owners[edge] = element_index
+    nodes = np.asarray(mesh.nodes_m, dtype=float)
+    boundary_edges = [edge for edge, count in edge_counts.items() if count == 1]
+    for first, second in boundary_edges:
+        delta = nodes[second] - nodes[first]
+        length = float(np.linalg.norm(delta))
+        midpoint = 0.5 * (nodes[first] + nodes[second])
+        midpoint_length = float(np.linalg.norm(midpoint))
+        if not math.isfinite(length) or length <= 0.0 or midpoint_length <= 0.0:
+            raise PandaThermalFemCalculationError(
+                "pressure_boundary_failed", "The outer pressure boundary contains an invalid edge."
+            )
+        tangent = delta / length
+        candidate_normal = np.asarray((-tangent[1], tangent[0]), dtype=float)
+        owner_nodes = mesh.elements[edge_owners[(first, second)]]
+        owner_centroid = np.mean(nodes[list(owner_nodes)], axis=0)
+        outward = midpoint - owner_centroid
+        normal = candidate_normal if float(candidate_normal @ outward) >= 0.0 else -candidate_normal
+        traction = -pressure_pa * normal
+        for node in (first, second):
+            load[2 * node : 2 * node + 2] += 0.5 * length * traction
+    if not boundary_edges:
+        raise PandaThermalFemCalculationError(
+            "pressure_boundary_failed",
+            "Could not identify the complete outer-glass pressure boundary.",
+        )
+    return load
+
+
 def _assemble(
     request: PandaThermalFemRequest,
     mesh: PandaMeshResult,
@@ -170,6 +223,7 @@ def _assemble(
     prescribed_epsilon: float | None,
     axial_target: float | None,
     axial_scale_m: float,
+    pressure_pa: float,
 ) -> tuple[csc_matrix, np.ndarray, list[tuple[np.ndarray, float, np.ndarray, np.ndarray]]]:
     node_count = mesh.node_count
     displacement_dofs = 2 * node_count
@@ -214,6 +268,10 @@ def _assemble(
         axial_stiffness += local_axial_stiffness
         axial_load += local_axial_load
         element_cache.append((b_displacement, area, constitutive, thermal_strain))
+    displacement_load += _pressure_load(
+        mesh,
+        pressure_pa,
+    )
     if axial_target is not None:
         axial_load += axial_target
     if prescribed_epsilon is not None:
@@ -394,6 +452,7 @@ def _solve_level(
     request: PandaThermalFemRequest,
     level: int,
     anchor_strategy: str = "centered",
+    pressure_pa: float = 0.0,
 ) -> _Solve:
     mesh = generate_panda_mesh(request.mesh_request(level))
     skfem_mesh = MeshTri(
@@ -429,6 +488,7 @@ def _solve_level(
         prescribed_strain,
         axial_target,
         request.geometry.cladding_radius_m,
+        pressure_pa,
     )
     if matrix.shape[0] == 2 * node_count + 1:
         constraints = bmat([[constraints, csc_matrix((constraints.shape[0], 1))]], format="csc")
@@ -510,13 +570,23 @@ def _relative_change(current: float, previous: float) -> float:
     return abs(current - previous) / denominator
 
 
-def _convergence(solutions: tuple[_Solve, ...]) -> tuple[PandaThermalFemConvergenceSummary, ...]:
+def _convergence(
+    request: PandaThermalFemRequest,
+    baseline_solutions: tuple[_Solve, ...],
+    total_solutions: tuple[_Solve, ...],
+) -> tuple[PandaThermalFemConvergenceSummary, ...]:
     summaries: list[PandaThermalFemConvergenceSummary] = []
     previous_stress: float | None = None
     previous_birefringence: float | None = None
-    for level, solution in enumerate(solutions):
+    previous_pressure_split: float | None = None
+    for level, (baseline, solution) in enumerate(
+        zip(baseline_solutions, total_solutions, strict=True)
+    ):
         stress_value = solution.core_summary.principal_difference_pa
         birefringence_value = solution.core_summary.local_material_birefringence
+        pressure_split = _optical_birefringence(
+            request, baseline, solution
+        ).pressure_induced.phase_birefringence_magnitude
         if previous_stress is None or previous_birefringence is None:
             summaries.append(
                 PandaThermalFemConvergenceSummary(
@@ -529,6 +599,9 @@ def _convergence(solutions: tuple[_Solve, ...]) -> tuple[PandaThermalFemConverge
                     core_average_local_material_birefringence=birefringence_value,
                     local_material_birefringence_relative_change=None,
                     local_material_birefringence_status="unavailable",
+                    pressure_induced_phase_birefringence=pressure_split,
+                    pressure_induced_phase_birefringence_relative_change=None,
+                    pressure_induced_phase_birefringence_status="unavailable",
                 )
             )
         else:
@@ -536,6 +609,13 @@ def _convergence(solutions: tuple[_Solve, ...]) -> tuple[PandaThermalFemConverge
             birefringence_relative_change = _relative_change(
                 birefringence_value,
                 previous_birefringence,
+            )
+            previous_pressure_split_value = previous_pressure_split or 0.0
+            pressure_split_relative_change = (
+                0.0
+                if max(abs(pressure_split), abs(previous_pressure_split_value))
+                <= _ZERO_PHASE_BIREFRINGENCE_TOLERANCE
+                else _relative_change(pressure_split, previous_pressure_split_value)
             )
             summaries.append(
                 PandaThermalFemConvergenceSummary(
@@ -556,10 +636,18 @@ def _convergence(solutions: tuple[_Solve, ...]) -> tuple[PandaThermalFemConverge
                         if birefringence_relative_change <= _CONVERGENCE_THRESHOLD
                         else "not_converged"
                     ),
+                    pressure_induced_phase_birefringence=pressure_split,
+                    pressure_induced_phase_birefringence_relative_change=pressure_split_relative_change,
+                    pressure_induced_phase_birefringence_status=(
+                        "converged"
+                        if pressure_split_relative_change <= _CONVERGENCE_THRESHOLD
+                        else "not_converged"
+                    ),
                 )
             )
         previous_stress = stress_value
         previous_birefringence = birefringence_value
+        previous_pressure_split = pressure_split
     return tuple(summaries)
 
 
@@ -672,10 +760,253 @@ def _comparison(
     )
 
 
+def _stress_fields(solution: _Solve) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    return tuple(
+        np.asarray([getattr(element, name) for element in solution.elements], dtype=float)
+        for name in ("stress_xx", "stress_yy", "stress_zz", "stress_xy")
+    )  # type: ignore[return-value]
+
+
+def _stress_summary(
+    solution: _Solve,
+    stress_fields: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+) -> PandaThermalFemStressSummary:
+    core_indices = np.asarray(
+        [
+            index
+            for index, region in enumerate(solution.mesh.region_tags)
+            if region is PandaMeshRegion.CORE
+        ],
+        dtype=np.int64,
+    )
+    areas = np.asarray([element.area for element in solution.elements], dtype=float)
+    core_areas = areas[core_indices]
+    area = float(np.sum(core_areas))
+    if not math.isfinite(area) or area <= 0.0:
+        raise PandaThermalFemCalculationError(
+            "core_area_missing", "The selected mesh has no positive core area."
+        )
+    average = np.asarray(
+        [np.sum(fields[core_indices] * core_areas) / area for fields in stress_fields],
+        dtype=float,
+    )
+    half_difference = 0.5 * (average[0] - average[1])
+    principal_difference = 2.0 * math.hypot(half_difference, average[3])
+    axis_angle = _normalise_unoriented_axis(
+        0.5 * math.atan2(2.0 * average[3], average[0] - average[1])
+    )
+    return PandaThermalFemStressSummary(
+        area_m2=area,
+        average_stress_xx_pa=float(average[0]),
+        average_stress_yy_pa=float(average[1]),
+        average_stress_zz_pa=float(average[2]),
+        average_stress_xy_pa=float(average[3]),
+        principal_difference_pa=principal_difference,
+        principal_axis_angle_rad=axis_angle,
+    )
+
+
+def _normalise_axis_with_reference(angle: float) -> float:
+    return _normalise_unoriented_axis(angle)
+
+
+def rotate_perturbation_matrix(
+    matrix: tuple[tuple[float, float], tuple[float, float]],
+    basis_angle_rad: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    cosine = math.cos(basis_angle_rad)
+    sine = math.sin(basis_angle_rad)
+    rotation = np.asarray(((cosine, -sine), (sine, cosine)), dtype=float)
+    rotated = rotation.T @ np.asarray(matrix, dtype=float) @ rotation
+    return (
+        (float(rotated[0, 0]), float(rotated[0, 1])),
+        (float(rotated[1, 0]), float(rotated[1, 1])),
+    )
+
+
+def scalar_lp01_modal_estimate_from_matrix(
+    matrix: np.ndarray,
+    wavelength_m: float,
+    reference_axis_angle_rad: float = 0.0,
+) -> PandaThermalFemModalEstimate:
+    if matrix.shape != (2, 2) or not np.all(np.isfinite(matrix)):
+        raise PandaThermalFemCalculationError(
+            "modal_perturbation_failed", "The scalar photoelastic perturbation matrix is invalid."
+        )
+    matrix = 0.5 * (matrix + matrix.T)
+    eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+    reference_axis = np.asarray(
+        (math.cos(reference_axis_angle_rad), math.sin(reference_axis_angle_rad)),
+        dtype=float,
+    )
+    state_1_index = int(np.argmax(np.abs(reference_axis @ eigenvectors)))
+    state_2_index = 1 - state_1_index
+    state_1_shift = float(eigenvalues[state_1_index])
+    state_2_shift = float(eigenvalues[state_2_index])
+    signed_split = state_1_shift - state_2_shift
+    split_magnitude = abs(signed_split)
+    k0 = 2.0 * math.pi / wavelength_m
+    delta_beta = k0 * signed_split
+    tolerance = _ZERO_PHASE_BIREFRINGENCE_TOLERANCE
+
+    def axis(index: int) -> float | None:
+        if split_magnitude <= tolerance:
+            return None
+        vector = eigenvectors[:, index]
+        return _normalise_axis_with_reference(math.atan2(float(vector[1]), float(vector[0])))
+
+    slow_index = int(np.argmax(eigenvalues))
+    beat_length = None if split_magnitude <= tolerance else wavelength_m / split_magnitude
+    return PandaThermalFemModalEstimate(
+        state_1_index_shift=state_1_shift,
+        state_2_index_shift=state_2_shift,
+        common_index_shift=float(np.mean(eigenvalues)),
+        signed_phase_birefringence=signed_split,
+        phase_birefringence_magnitude=split_magnitude,
+        signed_delta_beta_per_m=delta_beta,
+        beat_length_m=beat_length,
+        beat_length_status=(
+            "undefined within numerical tolerance" if beat_length is None else "finite"
+        ),
+        state_1_axis_angle_rad=axis(state_1_index),
+        state_2_axis_angle_rad=axis(state_2_index),
+        slow_axis_angle_rad=axis(slow_index),
+        perturbation_matrix=(
+            (float(matrix[0, 0]), float(matrix[0, 1])),
+            (float(matrix[1, 0]), float(matrix[1, 1])),
+        ),
+        eigenvalue_shifts=(float(eigenvalues[0]), float(eigenvalues[1])),
+    )
+
+
+def _modal_matrix(
+    request: PandaThermalFemRequest,
+    solution: _Solve,
+    stress_fields: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+) -> np.ndarray:
+    nodes = np.asarray(solution.mesh.nodes_m, dtype=float)
+    elements = np.asarray(solution.mesh.elements, dtype=np.int64)
+    centers = np.mean(nodes[elements], axis=1)
+    areas = np.asarray([element.area for element in solution.elements], dtype=float)
+    radius = request.optical_mode.gaussian_mode_field_radius_m
+    dx = centers[:, 0] - request.geometry.core_center_x_m
+    dy = centers[:, 1] - request.geometry.core_center_y_m
+    weights = np.exp(-2.0 * (dx * dx + dy * dy) / (radius * radius)) * areas
+    matrix = np.zeros((2, 2), dtype=float)
+    for index, region in enumerate(solution.mesh.region_tags):
+        material = _material_by_region(request, region)
+        c1, c2, csigma = photoelastic_coefficients_per_pa(material)
+        xx, yy, zz, xy = (float(field[index]) for field in stress_fields)
+        matrix[0, 0] += weights[index] * (c1 * xx + c2 * (yy + zz))
+        matrix[1, 1] += weights[index] * (c1 * yy + c2 * (xx + zz))
+        matrix[0, 1] += weights[index] * csigma * xy
+        matrix[1, 0] += weights[index] * csigma * xy
+    normalizer = float(np.sum(weights))
+    if not math.isfinite(normalizer) or normalizer <= 0.0 or not np.all(np.isfinite(matrix)):
+        raise PandaThermalFemCalculationError(
+            "modal_overlap_failed", "The Gaussian LP01 stress overlap is unavailable."
+        )
+    return matrix / normalizer
+
+
+def _optical_birefringence(
+    request: PandaThermalFemRequest,
+    baseline: _Solve,
+    total: _Solve,
+) -> PandaThermalFemOpticalBirefringence:
+    baseline_fields = _stress_fields(baseline)
+    total_fields = _stress_fields(total)
+    increment_fields = tuple(
+        total - baseline for total, baseline in zip(total_fields, baseline_fields, strict=True)
+    )
+    return PandaThermalFemOpticalBirefringence(
+        zero_pressure_residual=scalar_lp01_modal_estimate_from_matrix(
+            _modal_matrix(request, baseline, baseline_fields),
+            request.optical_mode.wavelength_m,
+        ),
+        total_combined=scalar_lp01_modal_estimate_from_matrix(
+            _modal_matrix(request, total, total_fields),
+            request.optical_mode.wavelength_m,
+        ),
+        pressure_induced=scalar_lp01_modal_estimate_from_matrix(
+            _modal_matrix(request, total, increment_fields),
+            request.optical_mode.wavelength_m,
+        ),
+        group_birefringence=PandaThermalFemGroupBirefringence(),
+    )
+
+
+def _torsion_result(
+    request: PandaThermalFemRequest, solution: _Solve
+) -> PandaThermalFemTorsionResult:
+    torsion = request.torsion
+    radius = request.geometry.cladding_radius_m
+    shear_modulus = request.materials.cladding.young_modulus_pa / (
+        2.0 * (1.0 + request.materials.cladding.poisson_ratio)
+    )
+    polar_moment = math.pi * radius**4 / 2.0
+    if torsion.capability.value == "none":
+        twist_rate = 0.0
+        torque = 0.0
+        input_mode = None
+    elif torsion.input_mode is not None and torsion.input_mode.value == "twist_rate":
+        if torsion.twist_rate_per_m is None:
+            raise PandaThermalFemCalculationError(
+                "torsion_input_missing", "The torsion twist-rate input is missing."
+            )
+        twist_rate = float(torsion.twist_rate_per_m)
+        torque = shear_modulus * polar_moment * twist_rate
+        input_mode = torsion.input_mode.value
+    else:
+        if torsion.applied_torque_n_m is None:
+            raise PandaThermalFemCalculationError(
+                "torsion_input_missing", "The torsion applied-torque input is missing."
+            )
+        torque = float(torsion.applied_torque_n_m)
+        twist_rate = torque / (shear_modulus * polar_moment)
+        input_mode = torsion.input_mode.value if torsion.input_mode is not None else None
+    nodes = np.asarray(solution.mesh.nodes_m, dtype=float)
+    elements = np.asarray(solution.mesh.elements, dtype=np.int64)
+    centers = np.mean(nodes[elements], axis=1)
+    stress_xz = -shear_modulus * twist_rate * centers[:, 1]
+    stress_yz = shear_modulus * twist_rate * centers[:, 0]
+    maximum_boundary_shear = abs(shear_modulus * twist_rate * radius)
+    return PandaThermalFemTorsionResult(
+        capability=torsion.capability.value,
+        input_mode=input_mode,
+        twist_rate_per_m=twist_rate,
+        applied_torque_n_m=torque,
+        shear_modulus_pa=shear_modulus,
+        polar_moment_m4=polar_moment,
+        reference_radius_m=radius,
+        element_centroid_stress_xz_pa=tuple(float(value) for value in stress_xz),
+        element_centroid_stress_yz_pa=tuple(float(value) for value in stress_yz),
+        maximum_boundary_shear_pa=maximum_boundary_shear,
+    )
+
+
 def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermalFemResult:
-    solutions = tuple(_solve_level(request, level) for level in range(request.refinement_level + 1))
-    selected = solutions[-1]
-    convergence = _convergence(solutions)
+    baseline_solutions = tuple(
+        _solve_level(request, level, pressure_pa=0.0)
+        for level in range(request.refinement_level + 1)
+    )
+    total_solutions = (
+        baseline_solutions
+        if request.lateral_pressure_pa == 0.0
+        else tuple(
+            _solve_level(request, level, pressure_pa=request.lateral_pressure_pa)
+            for level in range(request.refinement_level + 1)
+        )
+    )
+    baseline = baseline_solutions[-1]
+    selected = total_solutions[-1]
+    baseline_fields = _stress_fields(baseline)
+    total_fields = _stress_fields(selected)
+    increment_fields = tuple(
+        total - previous for total, previous in zip(total_fields, baseline_fields, strict=True)
+    )
+    convergence = _convergence(request, baseline_solutions, total_solutions)
+    optical_birefringence = _optical_birefringence(request, baseline, selected)
     warnings = [
         PandaThermalFemWarning(
             code="convergence_unavailable",
@@ -719,6 +1050,17 @@ def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermal
                 refinement_level=latest.refinement_level,
             )
         )
+    if latest.pressure_induced_phase_birefringence_status == "not_converged":
+        warnings.append(
+            PandaThermalFemWarning(
+                code="pressure_phase_birefringence_convergence_above_threshold",
+                message=(
+                    "The latest pressure-induced phase-birefringence convergence change exceeds "
+                    "the 5% threshold."
+                ),
+                refinement_level=latest.refinement_level,
+            )
+        )
     return PandaThermalFemResult(
         configuration=request,
         mesh=selected.mesh,
@@ -732,6 +1074,18 @@ def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermal
         element_stress_yy_pa=tuple(element.stress_yy for element in selected.elements),
         element_stress_zz_pa=tuple(element.stress_zz for element in selected.elements),
         element_stress_xy_pa=tuple(element.stress_xy for element in selected.elements),
+        element_pressure_increment_stress_xx_pa=tuple(
+            float(value) for value in increment_fields[0]
+        ),
+        element_pressure_increment_stress_yy_pa=tuple(
+            float(value) for value in increment_fields[1]
+        ),
+        element_pressure_increment_stress_zz_pa=tuple(
+            float(value) for value in increment_fields[2]
+        ),
+        element_pressure_increment_stress_xy_pa=tuple(
+            float(value) for value in increment_fields[3]
+        ),
         element_principal_max_pa=tuple(element.principal_max for element in selected.elements),
         element_principal_min_pa=tuple(element.principal_min for element in selected.elements),
         element_principal_difference_pa=tuple(
@@ -754,10 +1108,14 @@ def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermal
         ),
         epsilon_zz_0=selected.epsilon_zz,
         core_summary=selected.core_summary,
+        baseline_core_summary=_stress_summary(baseline, baseline_fields),
+        pressure_increment_core_summary=_stress_summary(selected, increment_fields),
         anchor_reactions=selected.anchors,
         force_balance=selected.force_balance,
         convergence=convergence,
         qualitative_kernel_fem_shape_comparison=_comparison(request, selected),
+        optical_birefringence=optical_birefringence,
+        torsion=_torsion_result(request, selected),
         warnings=tuple(warnings),
         model_manifest=PandaThermalFemManifest(),
     )

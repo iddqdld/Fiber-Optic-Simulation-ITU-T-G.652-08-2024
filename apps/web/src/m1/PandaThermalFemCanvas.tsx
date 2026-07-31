@@ -7,6 +7,7 @@ import {
   THERMAL_FEM_CANVAS_HEIGHT,
   THERMAL_FEM_CANVAS_WIDTH,
   THERMAL_FEM_FIELD_OPTIONS,
+  THERMAL_FEM_TORSION_FIELDS,
   THERMAL_FEM_ZOOM_MAX,
   THERMAL_FEM_ZOOM_MIN,
   THERMAL_FEM_ZOOM_STEP,
@@ -61,9 +62,21 @@ export function PandaThermalFemCanvas({
   const [showMeshEdges, setShowMeshEdges] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Pan>({ x: 0, y: 0 })
+  const fieldOptions = useMemo(
+    () =>
+      result.torsion.capability === 'none'
+        ? THERMAL_FEM_FIELD_OPTIONS.filter(
+            (option) => !THERMAL_FEM_TORSION_FIELDS.includes(option.value),
+          )
+        : THERMAL_FEM_FIELD_OPTIONS,
+    [result.torsion.capability],
+  )
+  const displayedField = fieldOptions.some((option) => option.value === field)
+    ? field
+    : DEFAULT_THERMAL_FEM_FIELD
   const fieldGeometry = useMemo(
-    () => buildPandaThermalFemDrawingGeometry(result, field),
-    [field, result],
+    () => buildPandaThermalFemDrawingGeometry(result, displayedField),
+    [displayedField, result],
   )
   const captionId = useId()
   const fieldId = useId()
@@ -180,7 +193,7 @@ export function PandaThermalFemCanvas({
       <div className="panda-mesh-plot-heading">
         <div>
           <p className="panda-mesh-eyebrow">
-            Step 2.7 · quantitative FEM and local material optics
+            Step 2.8 · pressure, modal estimate, and torsion benchmark
           </p>
           <h3>{fieldGeometry.definition.label}</h3>
         </div>
@@ -206,10 +219,10 @@ export function PandaThermalFemCanvas({
         <select
           id={fieldId}
           aria-label="FEM quantity"
-          value={field}
+          value={displayedField}
           onChange={(event) => setField(event.target.value as ThermalFemField)}
         >
-          {THERMAL_FEM_FIELD_OPTIONS.map((option) => (
+          {fieldOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -231,7 +244,7 @@ export function PandaThermalFemCanvas({
           height={THERMAL_FEM_CANVAS_HEIGHT}
           tabIndex={0}
           role="img"
-          aria-label={`${fieldGeometry.definition.label}, Step 2.7 FEM field`}
+          aria-label={`${fieldGeometry.definition.label}, Step 2.8 FEM field`}
           aria-describedby={captionId}
           onKeyDown={handleKeyDown}
           onPointerDown={handlePointerDown}
@@ -286,12 +299,13 @@ export function PandaThermalFemCanvas({
         <li>{fieldGeometry.interfaceEdgeCount.toLocaleString()} interfaces</li>
       </ul>
       <figcaption id={captionId}>
-        Quantitative mechanical FEM and local material photoelastic result over
-        the returned triangular mesh. Stress values are displayed in MPa from Pa
-        × 1e−6, displacement in µm from m × 1e6, strain is dimensionless, and
-        birefringence is dimensionless Δn. Local material birefringence is not
-        modal Bp: modal phase/group birefringence and beat length are not
-        calculated.
+        Quantitative mechanical FEM and Step 2.8 optical estimates over the
+        returned triangular mesh. Pressure-increment fields use Δσ = σ(P) −
+        σ(0). Stress values are displayed in MPa from Pa × 1e−6, displacement in
+        µm from m × 1e6, strain is dimensionless, and birefringence is
+        dimensionless Δn. Torsion fields are separate analytical homogeneous
+        circular Saint-Venant benchmark fields and are not part of the optical
+        result.
       </figcaption>
     </figure>
   )

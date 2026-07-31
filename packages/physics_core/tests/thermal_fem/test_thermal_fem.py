@@ -2,6 +2,7 @@ import inspect
 import math
 import tracemalloc
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 
@@ -17,13 +18,20 @@ from fibre_sim.photoelastic import (
     PandaMaterialSet,
     PhotoelasticConvention,
     ThermalState,
+    photoelastic_coefficients_per_pa,
+    photoelastic_index_perturbation_matrix,
     stress_optic_coefficient_per_pa,
 )
 from fibre_sim.thermal_fem import (
     PandaThermalFemConvergenceSummary,
     PandaThermalFemRequest,
     PandaThermalFemResult,
+    PandaTorsionRequest,
+    TorsionCapability,
+    TorsionInputMode,
     calculate_panda_thermal_fem,
+    rotate_perturbation_matrix,
+    scalar_lp01_modal_estimate_from_matrix,
 )
 from fibre_sim.thermal_fem.calculations import (
     _local_material_observables,
@@ -232,6 +240,255 @@ def test_stress_optic_coefficient_supports_both_conventions() -> None:
 
     assert stress_optic_coefficient_per_pa(strain_material) == pytest.approx(expected)
     assert stress_optic_coefficient_per_pa(c1_c2_material()) == pytest.approx(2.5e-12)
+
+
+def test_photoelastic_coefficients_and_hermitian_matrix_follow_selected_convention() -> None:
+    strain_material = material("strain", 70.0e9, 0.2, 5.5e-7)
+    c1, c2, csigma = photoelastic_coefficients_per_pa(strain_material)
+    assert c1 == pytest.approx(-(1.45**3) * (0.12 - 2.0 * 0.2 * 0.27) / (2.0 * 70.0e9))
+    assert c2 == pytest.approx(-(1.45**3) * (0.8 * 0.27 - 0.2 * 0.12) / (2.0 * 70.0e9))
+    assert csigma == pytest.approx(c1 - c2)
+
+    matrix = photoelastic_index_perturbation_matrix(strain_material, 2.0, 3.0, 5.0, 7.0)
+    assert matrix[0][1] == pytest.approx(matrix[1][0])
+    assert matrix[0][0] == pytest.approx(c1 * 2.0 + c2 * (3.0 + 5.0))
+    assert matrix[1][1] == pytest.approx(c1 * 3.0 + c2 * (2.0 + 5.0))
+    assert matrix[0][1] == pytest.approx(csigma * 7.0)
+
+    direct_c1, direct_c2, direct_csigma = photoelastic_coefficients_per_pa(c1_c2_material())
+    assert (direct_c1, direct_c2, direct_csigma) == pytest.approx((2.0e-12, -0.5e-12, 2.5e-12))
+
+
+def test_pressure_increment_is_zero_at_zero_pressure_and_metadata_is_explicit() -> None:
+    result = calculate_panda_thermal_fem(request())
+
+    assert result.model_manifest.exterior_boundary_model == (
+        "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure"
+    )
+    assert result.model_manifest.free_resultant_scope == "ends_not_pressure_loaded"
+    assert result.model_manifest.hydrostatic_end_face_loading == (
+        "requires_changed_axial_loading_condition"
+    )
+    assert result.model_manifest.hydrostatic_limitation == (
+        "pressure_on_end_faces_requires_changing_the_axial_loading_condition"
+    )
+    assert result.optical_birefringence.pressure_induced.phase_birefringence_magnitude == 0.0
+    assert result.optical_birefringence.pressure_induced.signed_phase_birefringence == 0.0
+    assert result.optical_birefringence.pressure_induced.signed_delta_beta_per_m == 0.0
+    assert result.optical_birefringence.pressure_induced.beat_length_m is None
+    assert (
+        result.optical_birefringence.pressure_induced.beat_length_status
+        == "undefined within numerical tolerance"
+    )
+    assert all(value == 0.0 for value in result.element_pressure_increment_stress_xx_pa)
+    assert all(value == 0.0 for value in result.element_pressure_increment_stress_yy_pa)
+    assert all(value == 0.0 for value in result.element_pressure_increment_stress_zz_pa)
+    assert all(value == 0.0 for value in result.element_pressure_increment_stress_xy_pa)
+
+
+def test_lateral_pressure_is_compressive_and_increment_is_total_minus_baseline() -> None:
+    baseline = calculate_panda_thermal_fem(
+        request(temperature_k=293.0, fictive_temperature_k=293.0)
+    )
+    pressured = calculate_panda_thermal_fem(
+        request(temperature_k=293.0, fictive_temperature_k=293.0).model_copy(
+            update={"lateral_pressure_pa": 1.0e6}
+        )
+    )
+
+    assert pressured.pressure_increment_core_summary.average_stress_xx_pa < 0.0
+    assert pressured.pressure_increment_core_summary.average_stress_yy_pa < 0.0
+    assert pressured.optical_birefringence.pressure_induced.phase_birefringence_magnitude >= 0.0
+    for totals, initial_values, increments in (
+        (
+            pressured.element_stress_xx_pa,
+            baseline.element_stress_xx_pa,
+            pressured.element_pressure_increment_stress_xx_pa,
+        ),
+        (
+            pressured.element_stress_yy_pa,
+            baseline.element_stress_yy_pa,
+            pressured.element_pressure_increment_stress_yy_pa,
+        ),
+        (
+            pressured.element_stress_zz_pa,
+            baseline.element_stress_zz_pa,
+            pressured.element_pressure_increment_stress_zz_pa,
+        ),
+        (
+            pressured.element_stress_xy_pa,
+            baseline.element_stress_xy_pa,
+            pressured.element_pressure_increment_stress_xy_pa,
+        ),
+    ):
+        for total, initial, increment in zip(totals, initial_values, increments, strict=True):
+            assert increment == pytest.approx(total - initial)
+
+
+def test_homogeneous_control_pressure_changes_common_phase_without_linear_split() -> None:
+    model_request = request(
+        model_materials=homogeneous_materials(),
+        temperature_k=293.0,
+        fictive_temperature_k=293.0,
+    ).model_copy(update={"lateral_pressure_pa": 1.0e6})
+    result = calculate_panda_thermal_fem(model_request)
+    pressure_estimate = result.optical_birefringence.pressure_induced
+
+    assert result.pressure_increment_core_summary.average_stress_xx_pa == pytest.approx(
+        -1.0e6, abs=1.0e-5
+    )
+    assert result.pressure_increment_core_summary.average_stress_yy_pa == pytest.approx(
+        -1.0e6, abs=1.0e-5
+    )
+    assert result.pressure_increment_core_summary.average_stress_zz_pa == pytest.approx(
+        0.0, abs=1.0e-5
+    )
+    assert pressure_estimate.phase_birefringence_magnitude <= max(
+        1.0e-15, abs(pressure_estimate.common_index_shift) * 1.0e-10
+    )
+    assert pressure_estimate.common_index_shift != 0.0
+
+
+def test_total_and_pressure_modal_results_are_separate_matrix_perturbations() -> None:
+    result = calculate_panda_thermal_fem(
+        request().model_copy(update={"lateral_pressure_pa": 1.0e6})
+    )
+    optical = result.optical_birefringence
+
+    assert optical.method == "First-order scalar LP₀₁ photoelastic phase-birefringence estimate."
+    assert optical.zero_pressure_residual is not optical.total_combined
+    assert optical.pressure_induced is not optical.total_combined
+    for row in range(2):
+        for column in range(2):
+            assert optical.total_combined.perturbation_matrix[row][column] == pytest.approx(
+                optical.zero_pressure_residual.perturbation_matrix[row][column]
+                + optical.pressure_induced.perturbation_matrix[row][column]
+            )
+
+
+def test_modal_matrix_eigenvalues_are_invariant_when_basis_and_reference_axis_rotate() -> None:
+    matrix = np.array(((2.0e-6, 0.4e-6), (0.4e-6, -1.0e-6)))
+    angle = 0.37
+    original = scalar_lp01_modal_estimate_from_matrix(matrix, 1.55e-6)
+    matrix_tuple = (
+        (float(matrix[0, 0]), float(matrix[0, 1])),
+        (float(matrix[1, 0]), float(matrix[1, 1])),
+    )
+    rotated = scalar_lp01_modal_estimate_from_matrix(
+        np.array(rotate_perturbation_matrix(matrix_tuple, angle)),
+        1.55e-6,
+        reference_axis_angle_rad=-angle,
+    )
+    assert rotated.eigenvalue_shifts == pytest.approx(original.eigenvalue_shifts)
+    assert rotated.signed_phase_birefringence == pytest.approx(original.signed_phase_birefringence)
+
+
+def test_modal_beat_length_and_group_result_are_limited_to_phase_estimate() -> None:
+    result = calculate_panda_thermal_fem(
+        request().model_copy(update={"lateral_pressure_pa": 1.0e6})
+    )
+    pressure = result.optical_birefringence.pressure_induced
+    assert pressure.beat_length_m == pytest.approx(
+        request().optical_mode.wavelength_m / pressure.phase_birefringence_magnitude
+    )
+    assert pressure.beat_length_status == "finite"
+    assert result.optical_birefringence.group_birefringence.available is False
+    assert result.optical_birefringence.group_birefringence.value is None
+
+
+def test_torsion_reference_supports_twist_torque_and_zero_inputs() -> None:
+    zero = calculate_panda_thermal_fem(request())
+    assert max(abs(value) for value in zero.torsion.element_centroid_stress_xz_pa) == 0.0
+    assert max(abs(value) for value in zero.torsion.element_centroid_stress_yz_pa) == 0.0
+
+    twist_request = request().model_copy(
+        update={
+            "torsion": PandaTorsionRequest(
+                capability=TorsionCapability.SAINT_VENANT_HOMOGENEOUS_CIRCULAR_REFERENCE,
+                input_mode=TorsionInputMode.TWIST_RATE,
+                twist_rate_per_m=2.0e3,
+            )
+        }
+    )
+    twist_result = calculate_panda_thermal_fem(twist_request)
+    radius = twist_request.geometry.cladding_radius_m
+    expected_j = math.pi * radius**4 / 2.0
+    assert twist_result.torsion.polar_moment_m4 == pytest.approx(expected_j)
+    assert twist_result.torsion.applied_torque_n_m == pytest.approx(
+        twist_result.torsion.shear_modulus_pa * expected_j * 2.0e3
+    )
+    assert twist_result.torsion.analytical_mechanics_benchmark_only is True
+    assert twist_result.torsion.heterogeneous_panda_torsion is False
+    assert twist_result.torsion.polarization_coupling_included is False
+    assert twist_result.torsion.used_in_transverse_scalar_optical_model is False
+    assert twist_result.torsion.maximum_boundary_shear_pa == pytest.approx(
+        twist_result.torsion.shear_modulus_pa * 2.0e3 * radius
+    )
+    nodes = np.asarray(twist_result.mesh.nodes_m, dtype=float)
+    first_element = np.asarray(twist_result.mesh.elements[0], dtype=np.int64)
+    center_x, center_y = np.mean(nodes[first_element], axis=0)
+    assert twist_result.torsion.element_centroid_stress_xz_pa[0] == pytest.approx(
+        -twist_result.torsion.shear_modulus_pa * 2.0e3 * center_y
+    )
+    assert twist_result.torsion.element_centroid_stress_yz_pa[0] == pytest.approx(
+        twist_result.torsion.shear_modulus_pa * 2.0e3 * center_x
+    )
+
+    torque_request = twist_request.model_copy(
+        update={
+            "torsion": PandaTorsionRequest(
+                capability=TorsionCapability.SAINT_VENANT_HOMOGENEOUS_CIRCULAR_REFERENCE,
+                input_mode=TorsionInputMode.APPLIED_TORQUE,
+                applied_torque_n_m=twist_result.torsion.applied_torque_n_m,
+            )
+        }
+    )
+    torque_result = calculate_panda_thermal_fem(torque_request)
+    assert torque_result.torsion.twist_rate_per_m == pytest.approx(2.0e3)
+    assert torque_result.torsion.element_centroid_stress_xz_pa == pytest.approx(
+        twist_result.torsion.element_centroid_stress_xz_pa
+    )
+    assert torque_result.torsion.element_centroid_stress_yz_pa == pytest.approx(
+        twist_result.torsion.element_centroid_stress_yz_pa
+    )
+
+
+def test_pressure_induced_phase_split_reports_mesh_convergence() -> None:
+    result = calculate_panda_thermal_fem(
+        request(refinement_level=1).model_copy(update={"lateral_pressure_pa": 1.0e6})
+    )
+    coarse, refined = result.convergence
+
+    assert coarse.pressure_induced_phase_birefringence_status == "unavailable"
+    assert coarse.pressure_induced_phase_birefringence_relative_change is None
+    assert refined.pressure_induced_phase_birefringence_status in {
+        "converged",
+        "not_converged",
+    }
+    assert refined.pressure_induced_phase_birefringence_relative_change is not None
+    assert math.isfinite(refined.pressure_induced_phase_birefringence_relative_change)
+    assert refined.pressure_induced_phase_birefringence == pytest.approx(
+        result.optical_birefringence.pressure_induced.phase_birefringence_magnitude
+    )
+
+
+def test_near_zero_pressure_split_converges_within_numerical_tolerance() -> None:
+    result = calculate_panda_thermal_fem(
+        request(
+            refinement_level=1,
+            model_materials=homogeneous_materials(),
+        ).model_copy(update={"lateral_pressure_pa": 1.0e6})
+    )
+    coarse, refined = result.convergence
+
+    assert coarse.pressure_induced_phase_birefringence <= 1.0e-15
+    assert refined.pressure_induced_phase_birefringence <= 1.0e-15
+    assert refined.pressure_induced_phase_birefringence_status == "converged"
+    assert refined.pressure_induced_phase_birefringence_relative_change == 0.0
+    assert not any(
+        warning.code == "pressure_phase_birefringence_convergence_above_threshold"
+        for warning in result.warnings
+    )
 
 
 def test_hydrostatic_stress_has_zero_local_material_birefringence() -> None:
@@ -463,6 +720,10 @@ def test_request_and_result_are_strict() -> None:
     payload["displacement_x_m"] = payload["displacement_x_m"][:-1]
     with pytest.raises(ValidationError, match="displacement"):
         PandaThermalFemResult.model_validate(payload)
+    aliased_pressure = request().model_dump()
+    aliased_pressure["pressure_pa"] = aliased_pressure.pop("lateral_pressure_pa")
+    with pytest.raises(ValidationError):
+        PandaThermalFemRequest.model_validate(aliased_pressure)
 
 
 def test_fine_level_uses_sparse_mixed_assembly() -> None:

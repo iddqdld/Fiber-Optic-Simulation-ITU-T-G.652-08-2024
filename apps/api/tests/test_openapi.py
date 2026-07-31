@@ -121,7 +121,10 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     assert schemas["MaterialSource"]["properties"]["confidence"]["$ref"] == (
         "#/components/schemas/MaterialConfidence"
     )
-    assert schemas["PandaThermalFemManifest"]["properties"]["model_version"]["const"] == "1.1.0"
+    assert schemas["PandaThermalFemManifest"]["properties"]["model_version"]["const"] == "1.2.0"
+    assert schemas["PandaThermalFemManifest"]["properties"]["exterior_boundary_model"]["const"] == (
+        "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure"
+    )
     assert schemas["PandaThermalFemManifest"]["properties"]["local_not_modal"]["const"] is True
     assert schemas["PandaThermalFemManifest"]["properties"]["birefringence_units"]["const"] == "1"
     assert (

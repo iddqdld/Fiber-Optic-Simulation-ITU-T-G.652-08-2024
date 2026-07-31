@@ -1,14 +1,29 @@
-from .calculations import calculate_panda_thermal_fem
-from .request import PandaThermalFemRequest
+from .calculations import (
+    calculate_panda_thermal_fem,
+    rotate_perturbation_matrix,
+    scalar_lp01_modal_estimate_from_matrix,
+)
+from .request import (
+    PandaScalarLp01ModeConfig,
+    PandaThermalFemRequest,
+    PandaTorsionRequest,
+    TorsionCapability,
+    TorsionInputMode,
+)
 from .result import (
     PandaThermalFemAnchorReactions,
     PandaThermalFemCalculationError,
     PandaThermalFemConvergenceSummary,
     PandaThermalFemCoreSummary,
     PandaThermalFemForceBalance,
+    PandaThermalFemGroupBirefringence,
     PandaThermalFemManifest,
+    PandaThermalFemModalEstimate,
+    PandaThermalFemOpticalBirefringence,
     PandaThermalFemResult,
     PandaThermalFemShapeComparison,
+    PandaThermalFemStressSummary,
+    PandaThermalFemTorsionResult,
     PandaThermalFemWarning,
 )
 
@@ -18,10 +33,21 @@ __all__ = [
     "PandaThermalFemConvergenceSummary",
     "PandaThermalFemCoreSummary",
     "PandaThermalFemForceBalance",
+    "PandaThermalFemGroupBirefringence",
     "PandaThermalFemManifest",
+    "PandaThermalFemModalEstimate",
+    "PandaThermalFemOpticalBirefringence",
     "PandaThermalFemRequest",
+    "PandaScalarLp01ModeConfig",
     "PandaThermalFemResult",
     "PandaThermalFemShapeComparison",
+    "PandaThermalFemStressSummary",
+    "PandaThermalFemTorsionResult",
     "PandaThermalFemWarning",
+    "PandaTorsionRequest",
+    "TorsionCapability",
+    "TorsionInputMode",
+    "rotate_perturbation_matrix",
+    "scalar_lp01_modal_estimate_from_matrix",
     "calculate_panda_thermal_fem",
 ]

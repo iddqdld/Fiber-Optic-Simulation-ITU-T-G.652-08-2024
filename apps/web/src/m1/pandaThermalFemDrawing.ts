@@ -22,6 +22,12 @@ export type ThermalFemField =
   | 'element_stress_yy_pa'
   | 'element_stress_zz_pa'
   | 'element_stress_xy_pa'
+  | 'element_pressure_increment_stress_xx_pa'
+  | 'element_pressure_increment_stress_yy_pa'
+  | 'element_pressure_increment_stress_zz_pa'
+  | 'element_pressure_increment_stress_xy_pa'
+  | 'element_centroid_stress_xz_pa'
+  | 'element_centroid_stress_yz_pa'
   | 'element_principal_max_pa'
   | 'element_principal_min_pa'
   | 'element_principal_difference_pa'
@@ -157,6 +163,54 @@ export const THERMAL_FEM_FIELD_OPTIONS: readonly ThermalFemFieldDefinition[] = [
     factor: 1e-6,
   },
   {
+    value: 'element_pressure_increment_stress_xx_pa',
+    label: 'Pressure increment Δσₓₓ',
+    kind: 'signed',
+    unit: 'MPa',
+    conversion: 'Pa × 1e−6',
+    factor: 1e-6,
+  },
+  {
+    value: 'element_pressure_increment_stress_yy_pa',
+    label: 'Pressure increment Δσᵧᵧ',
+    kind: 'signed',
+    unit: 'MPa',
+    conversion: 'Pa × 1e−6',
+    factor: 1e-6,
+  },
+  {
+    value: 'element_pressure_increment_stress_zz_pa',
+    label: 'Pressure increment Δσzz',
+    kind: 'signed',
+    unit: 'MPa',
+    conversion: 'Pa × 1e−6',
+    factor: 1e-6,
+  },
+  {
+    value: 'element_pressure_increment_stress_xy_pa',
+    label: 'Pressure increment Δσₓᵧ',
+    kind: 'signed',
+    unit: 'MPa',
+    conversion: 'Pa × 1e−6',
+    factor: 1e-6,
+  },
+  {
+    value: 'element_centroid_stress_xz_pa',
+    label: 'Torsion benchmark σₓz',
+    kind: 'signed',
+    unit: 'MPa',
+    conversion: 'Pa × 1e−6',
+    factor: 1e-6,
+  },
+  {
+    value: 'element_centroid_stress_yz_pa',
+    label: 'Torsion benchmark σᵧz',
+    kind: 'signed',
+    unit: 'MPa',
+    conversion: 'Pa × 1e−6',
+    factor: 1e-6,
+  },
+  {
     value: 'element_principal_max_pa',
     label: 'Principal stress maximum',
     kind: 'signed',
@@ -197,6 +251,11 @@ export const THERMAL_FEM_FIELD_OPTIONS: readonly ThermalFemFieldDefinition[] = [
     factor: 1,
   },
 ] as const
+
+export const THERMAL_FEM_TORSION_FIELDS: readonly ThermalFemField[] = [
+  'element_centroid_stress_xz_pa',
+  'element_centroid_stress_yz_pa',
+]
 
 export const DEFAULT_THERMAL_FEM_FIELD: ThermalFemField =
   'element_principal_difference_pa'
@@ -331,6 +390,12 @@ export function getThermalFemFieldValues(
           nodalMagnitude[element[2]]) /
         3,
     )
+  }
+  if (
+    field === 'element_centroid_stress_xz_pa' ||
+    field === 'element_centroid_stress_yz_pa'
+  ) {
+    return result.torsion[field] as readonly (number | null)[]
   }
   return result[field] as readonly (number | null)[]
 }

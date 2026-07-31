@@ -204,6 +204,17 @@ function thermalFemResult(): PandaThermalFemResult {
         prescribed_force_n: null,
         prescribed_strain: null,
       },
+      lateral_pressure_pa: 0,
+      optical_mode: {
+        wavelength_m: 1550e-9,
+        gaussian_mode_field_radius_m: 5e-6,
+      },
+      torsion: {
+        capability: 'none',
+        input_mode: null,
+        twist_rate_per_m: null,
+        applied_torque_n_m: null,
+      },
       refinement_level: 1,
     },
     mesh: {
@@ -268,6 +279,10 @@ function thermalFemResult(): PandaThermalFemResult {
     element_stress_yy_pa: [-4e6, -2e6, 2e6, 4e6],
     element_stress_zz_pa: [-6e6, -3e6, 3e6, 6e6],
     element_stress_xy_pa: [-8e6, -4e6, 4e6, 8e6],
+    element_pressure_increment_stress_xx_pa: [-2e6, -1e6, 1e6, 2e6],
+    element_pressure_increment_stress_yy_pa: [-4e6, -2e6, 2e6, 4e6],
+    element_pressure_increment_stress_zz_pa: [-6e6, -3e6, 3e6, 6e6],
+    element_pressure_increment_stress_xy_pa: [-8e6, -4e6, 4e6, 8e6],
     element_principal_max_pa: [-10e6, -5e6, 5e6, 10e6],
     element_principal_min_pa: [-12e6, -6e6, 6e6, 12e6],
     element_principal_difference_pa: [1e6, 2e6, 3e6, 4e6],
@@ -291,6 +306,24 @@ function thermalFemResult(): PandaThermalFemResult {
       signed_local_material_birefringence: 2.2e-6,
       local_material_birefringence: 2.2e-6,
       local_material_slow_axis_angle_rad: Math.PI / 6,
+    },
+    baseline_core_summary: {
+      area_m2: 5e-11,
+      average_stress_xx_pa: 1.2e6,
+      average_stress_yy_pa: -0.8e6,
+      average_stress_zz_pa: 0.4e6,
+      average_stress_xy_pa: 0.2e6,
+      principal_difference_pa: 2.2e6,
+      principal_axis_angle_rad: Math.PI / 6,
+    },
+    pressure_increment_core_summary: {
+      area_m2: 5e-11,
+      average_stress_xx_pa: -1e5,
+      average_stress_yy_pa: -1e5,
+      average_stress_zz_pa: 0,
+      average_stress_xy_pa: 0,
+      principal_difference_pa: 0,
+      principal_axis_angle_rad: 0,
     },
     anchor_reactions: {
       primary_node_index: 0,
@@ -317,6 +350,9 @@ function thermalFemResult(): PandaThermalFemResult {
         core_average_local_material_birefringence: 2e-6,
         local_material_birefringence_relative_change: null,
         local_material_birefringence_status: 'unavailable',
+        pressure_induced_phase_birefringence: 0,
+        pressure_induced_phase_birefringence_relative_change: null,
+        pressure_induced_phase_birefringence_status: 'unavailable',
         relative_change: null,
         status: 'unavailable',
       },
@@ -328,10 +364,106 @@ function thermalFemResult(): PandaThermalFemResult {
         core_average_local_material_birefringence: 2.2e-6,
         local_material_birefringence_relative_change: 0.09,
         local_material_birefringence_status: 'not_converged',
+        pressure_induced_phase_birefringence: 1e-8,
+        pressure_induced_phase_birefringence_relative_change: 0.09,
+        pressure_induced_phase_birefringence_status: 'not_converged',
         relative_change: 0.09,
         status: 'not_converged',
       },
     ],
+    optical_birefringence: {
+      method:
+        'First-order scalar LP₀₁ photoelastic phase-birefringence estimate.',
+      scalar_weak_guidance_estimate: true,
+      validated_vector_mode_solution: false,
+      moving_boundary_or_deformed_waveguide_included: false,
+      zero_pressure_residual: {
+        state_1_index_shift: 2e-6,
+        state_2_index_shift: -2e-6,
+        common_index_shift: 0,
+        signed_phase_birefringence: 4e-6,
+        phase_birefringence_magnitude: 4e-6,
+        signed_delta_beta_per_m: 16,
+        beat_length_m: 0.3875,
+        beat_length_status: 'finite',
+        state_1_axis_angle_rad: 0,
+        state_2_axis_angle_rad: Math.PI / 2 - 0.01,
+        slow_axis_angle_rad: 0,
+        perturbation_matrix: [
+          [2e-6, 0],
+          [0, -2e-6],
+        ],
+        eigenvalue_shifts: [2e-6, -2e-6],
+        signed_convention:
+          'state_1_is_unoriented_eigenaxis_closest_to_global_positive_x',
+      },
+      total_combined: {
+        state_1_index_shift: 2e-6,
+        state_2_index_shift: -2e-6,
+        common_index_shift: 0,
+        signed_phase_birefringence: 4e-6,
+        phase_birefringence_magnitude: 4e-6,
+        signed_delta_beta_per_m: 16,
+        beat_length_m: 0.3875,
+        beat_length_status: 'finite',
+        state_1_axis_angle_rad: 0,
+        state_2_axis_angle_rad: Math.PI / 2 - 0.01,
+        slow_axis_angle_rad: 0,
+        perturbation_matrix: [
+          [2e-6, 0],
+          [0, -2e-6],
+        ],
+        eigenvalue_shifts: [2e-6, -2e-6],
+        signed_convention:
+          'state_1_is_unoriented_eigenaxis_closest_to_global_positive_x',
+      },
+      pressure_induced: {
+        state_1_index_shift: 2e-6,
+        state_2_index_shift: -2e-6,
+        common_index_shift: 0,
+        signed_phase_birefringence: 4e-6,
+        phase_birefringence_magnitude: 4e-6,
+        signed_delta_beta_per_m: 16,
+        beat_length_m: 0.3875,
+        beat_length_status: 'finite',
+        state_1_axis_angle_rad: 0,
+        state_2_axis_angle_rad: Math.PI / 2 - 0.01,
+        slow_axis_angle_rad: 0,
+        perturbation_matrix: [
+          [2e-6, 0],
+          [0, -2e-6],
+        ],
+        eigenvalue_shifts: [2e-6, -2e-6],
+        signed_convention:
+          'state_1_is_unoriented_eigenaxis_closest_to_global_positive_x',
+      },
+      group_birefringence: {
+        available: false,
+        value: null,
+        reason: 'wavelength_dependent_inputs_unavailable',
+        requirements: [
+          'wavelength-dependent material refractive indices',
+          'wavelength-dependent photoelastic coefficients when relevant',
+          'modal fields recalculated at each wavelength',
+        ],
+      },
+    },
+    torsion: {
+      capability: 'none',
+      analytical_mechanics_benchmark_only: true,
+      heterogeneous_panda_torsion: false,
+      polarization_coupling_included: false,
+      used_in_transverse_scalar_optical_model: false,
+      input_mode: null,
+      twist_rate_per_m: 0,
+      applied_torque_n_m: 0,
+      shear_modulus_pa: 1,
+      polar_moment_m4: 1,
+      reference_radius_m: 1,
+      element_centroid_stress_xz_pa: [0, 0, 0, 0],
+      element_centroid_stress_yz_pa: [0, 0, 0, 0],
+      maximum_boundary_shear_pa: 0,
+    },
     warnings: [
       {
         code: 'demonstration_data',
@@ -363,7 +495,7 @@ function thermalFemResult(): PandaThermalFemResult {
       assumptions: ['small strain isotropic thermoelasticity'],
       limitations: [
         'local material stress-optic birefringence is computed without modal propagation',
-        'modal phase and group birefringence and beat length are not computed',
+        'the scalar modal estimate is not a validated vector-mode solution',
       ],
       equation_references: ['M1-6.9', 'M1-6.10', 'M1-6.11', 'M1-6.12'],
       birefringence_scope: 'local_material_only',
@@ -392,7 +524,7 @@ function thermalFemResult(): PandaThermalFemResult {
         'quantitative Eshelby error and birefringence error are unavailable',
       ],
     },
-  } as PandaThermalFemResult
+  } as unknown as PandaThermalFemResult
 }
 
 function thermalFemController(
@@ -404,6 +536,13 @@ function thermalFemController(
       prescribedForceN: '0',
       prescribedStrainMicrostrain: '0',
       refinementLevel: 1,
+      lateralPressureMPa: '0',
+      wavelengthNm: '1550',
+      gaussianModeFieldRadiusUm: '5',
+      torsionCapability: 'none',
+      torsionInputMode: 'twist_rate',
+      twistRatePerM: '0',
+      appliedTorqueNm: '0',
     },
     result: null,
     phase: 'idle',
@@ -414,6 +553,13 @@ function thermalFemController(
     onPrescribedForceChange: vi.fn(),
     onPrescribedStrainMicrostrainChange: vi.fn(),
     onRefinementLevelChange: vi.fn(),
+    onLateralPressureMPaChange: vi.fn(),
+    onWavelengthNmChange: vi.fn(),
+    onGaussianModeFieldRadiusUmChange: vi.fn(),
+    onTorsionCapabilityChange: vi.fn(),
+    onTorsionInputModeChange: vi.fn(),
+    onTwistRatePerMChange: vi.fn(),
+    onAppliedTorqueNmChange: vi.fn(),
     onCalculate: vi.fn(),
     onRetry: vi.fn(),
     ...overrides,
@@ -715,7 +861,7 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText('1.000000e-3')).toBeVisible()
     expect(screen.getByText('3 × 3')).toBeVisible()
     expect(screen.getByText(/2\.000 µm applied/)).toBeVisible()
-    expect(screen.getAllByText('30.000° from +x')).not.toHaveLength(0)
+    expect(screen.getAllByText(/30.000° from \+x/)).not.toHaveLength(0)
     expect(screen.getByText('Qualitative only')).toBeVisible()
     expect(screen.getByText(/K_i is undefined/)).toBeVisible()
     expect(
@@ -759,19 +905,28 @@ describe('M1 PANDA field workspace', () => {
     expect(
       screen.getByRole('heading', { name: 'Thermoelastic FEM results' }),
     ).toBeVisible()
-    expect(screen.getByText(/Quantitative mechanical FEM result/)).toBeVisible()
+    expect(
+      screen.getByText(/Quantitative mechanical FEM and Step 2.8/),
+    ).toBeVisible()
     expect(screen.getByText('Prescribed axial strain')).toBeVisible()
     expect(screen.getByText(/1.250000e-4/)).toBeVisible()
     expect(screen.getByText('1.200000 MPa / -0.800000 MPa')).toBeVisible()
     expect(screen.getByText('2.200000 MPa')).toBeVisible()
     expect(screen.getByText('1.000000e-12 Pa⁻¹')).toBeVisible()
-    expect(screen.getAllByText('2.200000e-6 Δn')).toHaveLength(2)
-    expect(screen.getAllByText('30.000° from +x')).not.toHaveLength(0)
+    expect(screen.getAllByText(/2.200000e-6 Δn/)).not.toHaveLength(0)
+    expect(
+      screen.getAllByText(
+        (_, element) =>
+          element?.textContent?.includes('30.000° from +x') ?? false,
+      ),
+    ).not.toHaveLength(0)
     expect(
       screen.getAllByText(/Not imposed for prescribed strain/),
     ).toHaveLength(2)
     expect(
-      screen.getByText(/Level 1: 5 nodes · 4 elements · change 9.00%/),
+      screen.getByText(
+        /Level 1: 5 nodes · 4 elements · mechanical change 9.00%/,
+      ),
     ).toBeVisible()
     expect(screen.getByText(/Minimum angle: 30.000°/)).toBeVisible()
     expect(screen.getByText(/MPa = Pa × 1e−6/)).toBeVisible()
@@ -779,7 +934,9 @@ describe('M1 PANDA field workspace', () => {
     expect(
       screen.getByText(/small strain isotropic thermoelasticity/),
     ).toBeVisible()
-    expect(screen.getAllByText(/not modal Bp/)).not.toHaveLength(0)
+    expect(
+      screen.getAllByText(/not a validated vector-mode solution/),
+    ).not.toHaveLength(0)
     expect(screen.getByText(/Figure 5.1 shape comparison/)).toBeVisible()
     expect(
       screen.getByText(/fewer than two core-element samples/i),
@@ -872,7 +1029,7 @@ describe('M1 PANDA field workspace', () => {
 
     expect(
       screen.getByRole('img', {
-        name: /Principal stress difference.*Step 2.7 FEM field/,
+        name: /Principal stress difference.*Step 2.8 FEM field/,
       }),
     ).toBeVisible()
     expect(
@@ -881,7 +1038,9 @@ describe('M1 PANDA field workspace', () => {
       }),
     ).toBeVisible()
     expect(screen.getByText('Quantitative FEM')).toBeVisible()
-    expect(screen.getAllByText(/not modal Bp/)).not.toHaveLength(0)
+    expect(
+      screen.getAllByText(/not a validated vector-mode solution/),
+    ).not.toHaveLength(0)
     expect(screen.getByText(/MPa from Pa × 1e−6/)).toBeVisible()
     expect(canvasContext.fill).toHaveBeenCalled()
     expect(canvasContext.stroke).toHaveBeenCalled()
@@ -899,7 +1058,7 @@ describe('M1 PANDA field workspace', () => {
     )
 
     const canvas = screen.getByRole('img', {
-      name: /Step 2.7 FEM field/,
+      name: /Step 2.8 FEM field/,
     })
     const zoom = screen.getByLabelText('Zoom')
     expect(zoom).toHaveAttribute('min', '0.5')
@@ -938,7 +1097,7 @@ describe('M1 PANDA field workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in FEM field' }))
     fireEvent.keyDown(
       screen.getByRole('img', {
-        name: /Step 2.7 FEM field/,
+        name: /Step 2.8 FEM field/,
       }),
       { key: 'ArrowRight' },
     )

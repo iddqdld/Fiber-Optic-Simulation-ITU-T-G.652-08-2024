@@ -93,6 +93,11 @@ class PandaThermalFemConvergenceSummary(BaseModel):
     core_average_local_material_birefringence: _NonNegativeFiniteFloat
     local_material_birefringence_relative_change: _OptionalNonNegativeFiniteFloat
     local_material_birefringence_status: Literal["unavailable", "not_converged", "converged"]
+    pressure_induced_phase_birefringence: _NonNegativeFiniteFloat = 0.0
+    pressure_induced_phase_birefringence_relative_change: _OptionalNonNegativeFiniteFloat = None
+    pressure_induced_phase_birefringence_status: Literal[
+        "unavailable", "not_converged", "converged"
+    ] = "unavailable"
 
     @model_validator(mode="after")
     def validate_status(self) -> Self:
@@ -101,6 +106,8 @@ class PandaThermalFemConvergenceSummary(BaseModel):
             or self.status != "unavailable"
             or self.local_material_birefringence_relative_change is not None
             or self.local_material_birefringence_status != "unavailable"
+            or self.pressure_induced_phase_birefringence_relative_change is not None
+            or self.pressure_induced_phase_birefringence_status != "unavailable"
         ):
             raise PydanticCustomError(
                 "level_zero_convergence_unavailable",
@@ -111,6 +118,8 @@ class PandaThermalFemConvergenceSummary(BaseModel):
             or self.local_material_birefringence_relative_change is None
             or self.status == "unavailable"
             or self.local_material_birefringence_status == "unavailable"
+            or self.pressure_induced_phase_birefringence_relative_change is None
+            or self.pressure_induced_phase_birefringence_status == "unavailable"
         ):
             raise PydanticCustomError(
                 "refinement_convergence_state_invalid",
@@ -123,14 +132,16 @@ class PandaThermalFemManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["fem_generalized_plane_strain"] = "fem_generalized_plane_strain"
-    model_version: Literal["1.1.0"] = "1.1.0"
+    model_version: Literal["1.2.0"] = "1.2.0"
     method: Literal["fem_generalized_plane_strain"] = "fem_generalized_plane_strain"
     stress_measure: Literal["cauchy_stress"] = "cauchy_stress"
     quantity_type: Literal["quantitative_mechanical_output"] = "quantitative_mechanical_output"
     stress_units: Literal["Pa"] = "Pa"
     displacement_units: Literal["m"] = "m"
     strain_units: Literal["1"] = "1"
-    exterior_boundary: Literal["traction_free"] = "traction_free"
+    exterior_boundary_model: Literal[
+        "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure"
+    ] = "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure"
     element_family: Literal["first_order_triangles"] = "first_order_triangles"
     axial_strain_model: Literal["uniform_epsilon_zz_0"] = "uniform_epsilon_zz_0"
     equation: Literal["transverse_weak_equilibrium_plus_axial_resultant"] = (
@@ -148,28 +159,78 @@ class PandaThermalFemManifest(BaseModel):
         "M1-6.10",
         "M1-6.11",
         "M1-6.12",
+        "M1-7.3",
+        "M1-7.5",
+        "M1-8.1",
+        "M1-8.2",
+        "M1-8.3",
+        "M1-8.4",
     )
     birefringence_computed: Literal[True] = True
-    birefringence_scope: Literal["local_material_only"] = "local_material_only"
-    birefringence_quantity: Literal["signed_local_material_index_difference"] = (
-        "signed_local_material_index_difference"
+    birefringence_scope: Literal["local_material_and_first_order_scalar_lp01_phase"] = (
+        "local_material_and_first_order_scalar_lp01_phase"
+    )
+    birefringence_quantity: Literal["signed_local_and_modal_phase_index_differences"] = (
+        "signed_local_and_modal_phase_index_differences"
     )
     birefringence_units: Literal["1"] = "1"
     stress_optic_coefficient_units: Literal["Pa^-1"] = "Pa^-1"
     local_not_modal: Literal[True] = True
+    modal_phase_estimate_computed: Literal[True] = True
+    modal_phase_estimate_method: Literal[
+        "First-order scalar LP₀₁ photoelastic phase-birefringence estimate."
+    ] = "First-order scalar LP₀₁ photoelastic phase-birefringence estimate."
+    pressure_boundary_model: Literal["bare_glass_lateral_pressure_when_requested"] = (
+        "bare_glass_lateral_pressure_when_requested"
+    )
+    pressure_units: Literal["Pa"] = "Pa"
+    pressure_sign_convention: Literal["sigma_n_equals_minus_p_n"] = "sigma_n_equals_minus_p_n"
+    pressure_scope: Literal["uncoated_outer_glass_boundary"] = "uncoated_outer_glass_boundary"
+    pressure_exclusions: tuple[str, ...] = (
+        "coating mechanics are outside the model",
+        "support contact is outside the model",
+        "load transfer through packaging is outside the model",
+    )
+    free_resultant_scope: Literal["ends_not_pressure_loaded"] = "ends_not_pressure_loaded"
+    hydrostatic_end_face_loading: Literal["requires_changed_axial_loading_condition"] = (
+        "requires_changed_axial_loading_condition"
+    )
+    hydrostatic_limitation: Literal[
+        "pressure_on_end_faces_requires_changing_the_axial_loading_condition"
+    ] = "pressure_on_end_faces_requires_changing_the_axial_loading_condition"
+    optical_mode_model: Literal["degenerate_gaussian_lp01_scalar_weak_guidance"] = (
+        "degenerate_gaussian_lp01_scalar_weak_guidance"
+    )
+    optical_perturbation_matrix: Literal["real_symmetric_2x2_hermitian"] = (
+        "real_symmetric_2x2_hermitian"
+    )
+    moving_boundary_contribution: Literal["not_included"] = "not_included"
+    vector_mode_validation: Literal["not_validated"] = "not_validated"
+    group_birefringence: Literal["unavailable_single_wavelength"] = "unavailable_single_wavelength"
+    torsion_capabilities: tuple[str, ...] = (
+        "none",
+        "saint_venant_homogeneous_circular_reference",
+    )
     assumptions: tuple[str, ...] = (
         "small strain isotropic thermoelasticity",
         "generalized plane strain with uniform axial strain",
         "zero xz and yz shear strains",
         "piecewise constant material data per mesh element",
-        "traction-free exterior with no imposed exterior displacement",
+        "traction-free exterior with no imposed exterior displacement when pressure is zero",
+        "positive pressure is lateral pressure acting directly on a bare fibre",
+        "free axial resultant means that fibre ends are not pressure-loaded",
         "controlled rigid-body anchors only",
     )
     limitations: tuple[str, ...] = (
         "material and thermal values may be demonstration data rather than measured fibre data",
         "first-order triangles provide a mesh-dependent approximation",
         "local material stress-optic birefringence is computed without modal propagation",
-        "modal phase and group birefringence and beat length are not computed",
+        "the scalar modal estimate is not a validated vector-mode solution",
+        "modal phase birefringence is a first-order estimate",
+        "moving-boundary and deformed-waveguide contributions are not included",
+        "group birefringence needs wavelength-dependent material data and "
+        "recalculated modal fields",
+        "torsion is an analytical homogeneous circular benchmark and is not PANDA torsion",
         "demonstration material coefficients are not validated fibre measurements",
     )
 
@@ -182,9 +243,113 @@ class PandaThermalFemWarning(BaseModel):
         "convergence_unavailable",
         "convergence_above_threshold",
         "local_material_birefringence_convergence_above_threshold",
+        "pressure_phase_birefringence_convergence_above_threshold",
     ]
     message: Annotated[str, Field(strict=True, min_length=1)]
     refinement_level: _NonNegativeInt | None = None
+
+
+class PandaThermalFemStressSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    area_m2: _PositiveFiniteFloat
+    average_stress_xx_pa: _FiniteFloat
+    average_stress_yy_pa: _FiniteFloat
+    average_stress_zz_pa: _FiniteFloat
+    average_stress_xy_pa: _FiniteFloat
+    principal_difference_pa: _NonNegativeFiniteFloat
+    principal_axis_angle_rad: _FiniteFloat
+
+
+class PandaThermalFemModalEstimate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    state_1_index_shift: _FiniteFloat
+    state_2_index_shift: _FiniteFloat
+    common_index_shift: _FiniteFloat
+    signed_phase_birefringence: _FiniteFloat
+    phase_birefringence_magnitude: _NonNegativeFiniteFloat
+    signed_delta_beta_per_m: _FiniteFloat
+    beat_length_m: _OptionalFiniteFloat
+    beat_length_status: Literal["finite", "undefined within numerical tolerance"]
+    state_1_axis_angle_rad: _OptionalFiniteFloat
+    state_2_axis_angle_rad: _OptionalFiniteFloat
+    slow_axis_angle_rad: _OptionalFiniteFloat
+    perturbation_matrix: tuple[tuple[_FiniteFloat, _FiniteFloat], tuple[_FiniteFloat, _FiniteFloat]]
+    eigenvalue_shifts: tuple[_FiniteFloat, _FiniteFloat]
+    signed_convention: Literal["state_1_is_unoriented_eigenaxis_closest_to_global_positive_x"] = (
+        "state_1_is_unoriented_eigenaxis_closest_to_global_positive_x"
+    )
+
+    @model_validator(mode="after")
+    def validate_matrix_and_beat(self) -> Self:
+        matrix = self.perturbation_matrix
+        if matrix[0][1] != matrix[1][0]:
+            raise PydanticCustomError(
+                "modal_perturbation_not_hermitian",
+                "The real perturbation matrix must be symmetric and Hermitian.",
+            )
+        if self.beat_length_status == "finite":
+            if self.beat_length_m is None or self.beat_length_m <= 0.0:
+                raise PydanticCustomError(
+                    "modal_beat_length_invalid",
+                    "A finite beat-length status requires a positive beat length.",
+                )
+        elif self.beat_length_m is not None:
+            raise PydanticCustomError(
+                "modal_zero_beat_length_state_invalid",
+                "An undefined beat length must be represented by a null value.",
+            )
+        return self
+
+
+class PandaThermalFemGroupBirefringence(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    available: Literal[False] = False
+    value: Literal[None] = None
+    reason: Literal["wavelength_dependent_inputs_unavailable"] = (
+        "wavelength_dependent_inputs_unavailable"
+    )
+    requirements: tuple[str, ...] = (
+        "wavelength-dependent material refractive indices",
+        "wavelength-dependent photoelastic coefficients when relevant",
+        "modal fields recalculated at each wavelength",
+    )
+
+
+class PandaThermalFemOpticalBirefringence(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    method: Literal["First-order scalar LP₀₁ photoelastic phase-birefringence estimate."] = (
+        "First-order scalar LP₀₁ photoelastic phase-birefringence estimate."
+    )
+    scalar_weak_guidance_estimate: Literal[True] = True
+    validated_vector_mode_solution: Literal[False] = False
+    moving_boundary_or_deformed_waveguide_included: Literal[False] = False
+    zero_pressure_residual: PandaThermalFemModalEstimate
+    total_combined: PandaThermalFemModalEstimate
+    pressure_induced: PandaThermalFemModalEstimate
+    group_birefringence: PandaThermalFemGroupBirefringence
+
+
+class PandaThermalFemTorsionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    capability: Literal["none", "saint_venant_homogeneous_circular_reference"]
+    analytical_mechanics_benchmark_only: Literal[True] = True
+    heterogeneous_panda_torsion: Literal[False] = False
+    polarization_coupling_included: Literal[False] = False
+    used_in_transverse_scalar_optical_model: Literal[False] = False
+    input_mode: Literal["twist_rate", "applied_torque"] | None
+    twist_rate_per_m: _FiniteFloat
+    applied_torque_n_m: _FiniteFloat
+    shear_modulus_pa: _PositiveFiniteFloat
+    polar_moment_m4: _PositiveFiniteFloat
+    reference_radius_m: _PositiveFiniteFloat
+    element_centroid_stress_xz_pa: tuple[_FiniteFloat, ...]
+    element_centroid_stress_yz_pa: tuple[_FiniteFloat, ...]
+    maximum_boundary_shear_pa: _NonNegativeFiniteFloat
 
 
 class PandaThermalFemResult(BaseModel):
@@ -202,6 +367,10 @@ class PandaThermalFemResult(BaseModel):
     element_stress_yy_pa: tuple[_FiniteFloat, ...]
     element_stress_zz_pa: tuple[_FiniteFloat, ...]
     element_stress_xy_pa: tuple[_FiniteFloat, ...]
+    element_pressure_increment_stress_xx_pa: tuple[_FiniteFloat, ...]
+    element_pressure_increment_stress_yy_pa: tuple[_FiniteFloat, ...]
+    element_pressure_increment_stress_zz_pa: tuple[_FiniteFloat, ...]
+    element_pressure_increment_stress_xy_pa: tuple[_FiniteFloat, ...]
     element_principal_max_pa: tuple[_FiniteFloat, ...]
     element_principal_min_pa: tuple[_FiniteFloat, ...]
     element_principal_difference_pa: tuple[_NonNegativeFiniteFloat, ...]
@@ -212,10 +381,14 @@ class PandaThermalFemResult(BaseModel):
     element_local_material_slow_axis_angle_rad: tuple[_OptionalFiniteFloat, ...]
     epsilon_zz_0: _FiniteFloat
     core_summary: PandaThermalFemCoreSummary
+    baseline_core_summary: PandaThermalFemStressSummary
+    pressure_increment_core_summary: PandaThermalFemStressSummary
     anchor_reactions: PandaThermalFemAnchorReactions
     force_balance: PandaThermalFemForceBalance
     convergence: tuple[PandaThermalFemConvergenceSummary, ...]
     qualitative_kernel_fem_shape_comparison: "PandaThermalFemShapeComparison"
+    optical_birefringence: PandaThermalFemOpticalBirefringence
+    torsion: PandaThermalFemTorsionResult
     warnings: tuple[PandaThermalFemWarning, ...]
     model_manifest: PandaThermalFemManifest
 
@@ -237,6 +410,10 @@ class PandaThermalFemResult(BaseModel):
             self.element_stress_yy_pa,
             self.element_stress_zz_pa,
             self.element_stress_xy_pa,
+            self.element_pressure_increment_stress_xx_pa,
+            self.element_pressure_increment_stress_yy_pa,
+            self.element_pressure_increment_stress_zz_pa,
+            self.element_pressure_increment_stress_xy_pa,
             self.element_principal_max_pa,
             self.element_principal_min_pa,
             self.element_principal_difference_pa,
@@ -254,6 +431,14 @@ class PandaThermalFemResult(BaseModel):
             raise PydanticCustomError(
                 "thermal_fem_slow_axis_count_mismatch",
                 "Element slow optical-axis angles must match the selected mesh elements.",
+            )
+        if (
+            len(self.torsion.element_centroid_stress_xz_pa) != element_count
+            or len(self.torsion.element_centroid_stress_yz_pa) != element_count
+        ):
+            raise PydanticCustomError(
+                "thermal_fem_torsion_element_count_mismatch",
+                "Torsion element arrays must match the selected mesh elements.",
             )
         if len(self.convergence) != self.configuration.refinement_level + 1:
             raise PydanticCustomError(
@@ -381,8 +566,13 @@ __all__ = [
     "PandaThermalFemConvergenceSummary",
     "PandaThermalFemCoreSummary",
     "PandaThermalFemForceBalance",
+    "PandaThermalFemGroupBirefringence",
     "PandaThermalFemManifest",
+    "PandaThermalFemModalEstimate",
+    "PandaThermalFemOpticalBirefringence",
     "PandaThermalFemResult",
     "PandaThermalFemShapeComparison",
+    "PandaThermalFemStressSummary",
+    "PandaThermalFemTorsionResult",
     "PandaThermalFemWarning",
 ]
