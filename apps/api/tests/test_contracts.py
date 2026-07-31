@@ -214,11 +214,23 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "PandaThermalFemResult.element_strain_xy",
         "PandaThermalFemResult.epsilon_zz_0",
         "PandaThermalFemConvergenceSummary.relative_change",
+        "PandaThermalFemConvergenceSummary.local_material_birefringence_relative_change",
+        "PandaThermalFemConvergenceSummary.core_average_local_material_birefringence",
+        "PandaThermalFemShapeComparison.sample_count",
+        "PandaThermalFemShapeComparison.rmse",
+        "PandaThermalFemShapeComparison.correlation",
+        "PandaThermalFemShapeComparison.sign_agreement",
+        "PandaThermalFemCoreSummary.signed_local_material_birefringence",
+        "PandaThermalFemCoreSummary.local_material_birefringence",
+        "PandaThermalFemResult.element_signed_local_material_birefringence",
+        "PandaThermalFemResult.element_local_material_birefringence",
     }
     thermal_fem_unit_fields = {
         "PandaThermalFemForceBalance.transverse_free_residual_l2_n_per_m",
         "PandaThermalFemForceBalance.transverse_resultant_x_n_per_m",
         "PandaThermalFemForceBalance.transverse_resultant_y_n_per_m",
+        "PandaThermalFemCoreSummary.stress_optic_coefficient_per_pa",
+        "PandaThermalFemResult.element_stress_optic_coefficient_per_pa",
     }
     violations: list[str] = []
 

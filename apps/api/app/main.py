@@ -107,6 +107,7 @@ from fibre_sim.thermal_fem import (
     PandaThermalFemManifest,
     PandaThermalFemRequest,
     PandaThermalFemResult,
+    PandaThermalFemShapeComparison,
     PandaThermalFemWarning,
     calculate_panda_thermal_fem,
 )
@@ -404,6 +405,7 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     PandaThermalFemManifest,
     PandaThermalFemRequest,
     PandaThermalFemResult,
+    PandaThermalFemShapeComparison,
     PandaThermalFemWarning,
     PulseSeries,
     SectionResult,

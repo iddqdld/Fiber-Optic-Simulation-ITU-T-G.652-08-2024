@@ -3786,6 +3786,11 @@
       "PandaThermalFemConvergenceSummary": {
         "additionalProperties": false,
         "properties": {
+          "core_average_local_material_birefringence": {
+            "minimum": 0,
+            "title": "Core Average Local Material Birefringence",
+            "type": "number"
+          },
           "core_average_principal_difference_pa": {
             "minimum": 0,
             "title": "Core Average Principal Difference Pa",
@@ -3795,6 +3800,27 @@
             "exclusiveMinimum": 0,
             "title": "Element Count",
             "type": "integer"
+          },
+          "local_material_birefringence_relative_change": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Material Birefringence Relative Change"
+          },
+          "local_material_birefringence_status": {
+            "enum": [
+              "unavailable",
+              "not_converged",
+              "converged"
+            ],
+            "title": "Local Material Birefringence Status",
+            "type": "string"
           },
           "node_count": {
             "exclusiveMinimum": 0,
@@ -3809,6 +3835,7 @@
           "relative_change": {
             "anyOf": [
               {
+                "minimum": 0,
                 "type": "number"
               },
               {
@@ -3833,7 +3860,10 @@
           "element_count",
           "core_average_principal_difference_pa",
           "relative_change",
-          "status"
+          "status",
+          "core_average_local_material_birefringence",
+          "local_material_birefringence_relative_change",
+          "local_material_birefringence_status"
         ],
         "title": "PandaThermalFemConvergenceSummary",
         "type": "object"
@@ -3862,6 +3892,22 @@
             "title": "Average Stress Zz Pa",
             "type": "number"
           },
+          "local_material_birefringence": {
+            "minimum": 0,
+            "title": "Local Material Birefringence",
+            "type": "number"
+          },
+          "local_material_slow_axis_angle_rad": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Material Slow Axis Angle Rad"
+          },
           "principal_axis_angle_rad": {
             "title": "Principal Axis Angle Rad",
             "type": "number"
@@ -3878,6 +3924,14 @@
           "principal_min_pa": {
             "title": "Principal Min Pa",
             "type": "number"
+          },
+          "signed_local_material_birefringence": {
+            "title": "Signed Local Material Birefringence",
+            "type": "number"
+          },
+          "stress_optic_coefficient_per_pa": {
+            "title": "Stress Optic Coefficient Per Pa",
+            "type": "number"
           }
         },
         "required": [
@@ -3889,7 +3943,11 @@
           "principal_max_pa",
           "principal_min_pa",
           "principal_difference_pa",
-          "principal_axis_angle_rad"
+          "principal_axis_angle_rad",
+          "stress_optic_coefficient_per_pa",
+          "signed_local_material_birefringence",
+          "local_material_birefringence",
+          "local_material_slow_axis_angle_rad"
         ],
         "title": "PandaThermalFemCoreSummary",
         "type": "object"
@@ -3991,10 +4049,28 @@
             "type": "string"
           },
           "birefringence_computed": {
-            "const": false,
-            "default": false,
+            "const": true,
+            "default": true,
             "title": "Birefringence Computed",
             "type": "boolean"
+          },
+          "birefringence_quantity": {
+            "const": "signed_local_material_index_difference",
+            "default": "signed_local_material_index_difference",
+            "title": "Birefringence Quantity",
+            "type": "string"
+          },
+          "birefringence_scope": {
+            "const": "local_material_only",
+            "default": "local_material_only",
+            "title": "Birefringence Scope",
+            "type": "string"
+          },
+          "birefringence_units": {
+            "const": "1",
+            "default": "1",
+            "title": "Birefringence Units",
+            "type": "string"
           },
           "displacement_units": {
             "const": "m",
@@ -4014,6 +4090,19 @@
             "title": "Equation",
             "type": "string"
           },
+          "equation_references": {
+            "default": [
+              "M1-6.9",
+              "M1-6.10",
+              "M1-6.11",
+              "M1-6.12"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Equation References",
+            "type": "array"
+          },
           "exterior_boundary": {
             "const": "traction_free",
             "default": "traction_free",
@@ -4024,13 +4113,21 @@
             "default": [
               "material and thermal values may be demonstration data rather than measured fibre data",
               "first-order triangles provide a mesh-dependent approximation",
-              "no birefringence or photoelastic observable is computed"
+              "local material stress-optic birefringence is computed without modal propagation",
+              "modal phase and group birefringence and beat length are not computed",
+              "demonstration material coefficients are not validated fibre measurements"
             ],
             "items": {
               "type": "string"
             },
             "title": "Limitations",
             "type": "array"
+          },
+          "local_not_modal": {
+            "const": true,
+            "default": true,
+            "title": "Local Not Modal",
+            "type": "boolean"
           },
           "method": {
             "const": "fem_generalized_plane_strain",
@@ -4045,8 +4142,8 @@
             "type": "string"
           },
           "model_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
+            "const": "1.1.0",
+            "default": "1.1.0",
             "title": "Model Version",
             "type": "string"
           },
@@ -4066,6 +4163,12 @@
             "const": "cauchy_stress",
             "default": "cauchy_stress",
             "title": "Stress Measure",
+            "type": "string"
+          },
+          "stress_optic_coefficient_units": {
+            "const": "Pa^-1",
+            "default": "Pa^-1",
+            "title": "Stress Optic Coefficient Units",
             "type": "string"
           },
           "stress_units": {
@@ -4149,6 +4252,28 @@
             "title": "Displacement Y M",
             "type": "array"
           },
+          "element_local_material_birefringence": {
+            "items": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "title": "Element Local Material Birefringence",
+            "type": "array"
+          },
+          "element_local_material_slow_axis_angle_rad": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Element Local Material Slow Axis Angle Rad",
+            "type": "array"
+          },
           "element_principal_axis_angle_rad": {
             "items": {
               "type": "number"
@@ -4178,6 +4303,13 @@
             "title": "Element Principal Min Pa",
             "type": "array"
           },
+          "element_signed_local_material_birefringence": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Signed Local Material Birefringence",
+            "type": "array"
+          },
           "element_strain_xx": {
             "items": {
               "type": "number"
@@ -4204,6 +4336,13 @@
               "type": "number"
             },
             "title": "Element Strain Zz",
+            "type": "array"
+          },
+          "element_stress_optic_coefficient_per_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Stress Optic Coefficient Per Pa",
             "type": "array"
           },
           "element_stress_xx_pa": {
@@ -4247,6 +4386,9 @@
           "model_manifest": {
             "$ref": "#/components/schemas/PandaThermalFemManifest"
           },
+          "qualitative_kernel_fem_shape_comparison": {
+            "$ref": "#/components/schemas/PandaThermalFemShapeComparison"
+          },
           "warnings": {
             "items": {
               "$ref": "#/components/schemas/PandaThermalFemWarning"
@@ -4272,15 +4414,171 @@
           "element_principal_min_pa",
           "element_principal_difference_pa",
           "element_principal_axis_angle_rad",
+          "element_stress_optic_coefficient_per_pa",
+          "element_signed_local_material_birefringence",
+          "element_local_material_birefringence",
+          "element_local_material_slow_axis_angle_rad",
           "epsilon_zz_0",
           "core_summary",
           "anchor_reactions",
           "force_balance",
           "convergence",
+          "qualitative_kernel_fem_shape_comparison",
           "warnings",
           "model_manifest"
         ],
         "title": "PandaThermalFemResult",
+        "type": "object"
+      },
+      "PandaThermalFemShapeComparison": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "best_polarity": {
+            "anyOf": [
+              {
+                "enum": [
+                  -1,
+                  1
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Polarity"
+          },
+          "correlation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation"
+          },
+          "domain": {
+            "const": "core_elements",
+            "default": "core_elements",
+            "title": "Domain",
+            "type": "string"
+          },
+          "fem_signed_deviatoric_stress_scale_pa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fem Signed Deviatoric Stress Scale Pa"
+          },
+          "kernel_scale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kernel Scale"
+          },
+          "limitations": {
+            "default": [
+              "the qualitative kernel has undefined sign and scale, so the best polarity is fitted",
+              "this is a normalized shape comparison and not a stress error",
+              "quantitative Eshelby error and birefringence error are unavailable"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "model_id": {
+            "const": "qualitative_kernel_fem_shape_comparison",
+            "default": "qualitative_kernel_fem_shape_comparison",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "quantitative": {
+            "const": false,
+            "default": false,
+            "title": "Quantitative",
+            "type": "boolean"
+          },
+          "rmse": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rmse"
+          },
+          "sample_count": {
+            "minimum": 0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "sign_agreement": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sign Agreement"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "insufficient_core_elements",
+                  "zero_or_nonfinite_scale",
+                  "nonfinite_metric"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "units": {
+            "const": "1",
+            "default": "1",
+            "title": "Units",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_count",
+          "available",
+          "kernel_scale",
+          "fem_signed_deviatoric_stress_scale_pa",
+          "best_polarity",
+          "rmse",
+          "correlation",
+          "sign_agreement",
+          "unavailable_reason"
+        ],
+        "title": "PandaThermalFemShapeComparison",
         "type": "object"
       },
       "PandaThermalFemWarning": {
@@ -4290,7 +4588,8 @@
             "enum": [
               "demonstration_data",
               "convergence_unavailable",
-              "convergence_above_threshold"
+              "convergence_above_threshold",
+              "local_material_birefringence_convergence_above_threshold"
             ],
             "title": "Code",
             "type": "string"

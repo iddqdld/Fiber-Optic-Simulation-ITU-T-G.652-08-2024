@@ -2062,10 +2062,19 @@ export interface components {
         };
         /** PandaThermalFemConvergenceSummary */
         PandaThermalFemConvergenceSummary: {
+            /** Core Average Local Material Birefringence */
+            core_average_local_material_birefringence: number;
             /** Core Average Principal Difference Pa */
             core_average_principal_difference_pa: number;
             /** Element Count */
             element_count: number;
+            /** Local Material Birefringence Relative Change */
+            local_material_birefringence_relative_change: number | null;
+            /**
+             * Local Material Birefringence Status
+             * @enum {string}
+             */
+            local_material_birefringence_status: "unavailable" | "not_converged" | "converged";
             /** Node Count */
             node_count: number;
             /** Refinement Level */
@@ -2090,6 +2099,10 @@ export interface components {
             average_stress_yy_pa: number;
             /** Average Stress Zz Pa */
             average_stress_zz_pa: number;
+            /** Local Material Birefringence */
+            local_material_birefringence: number;
+            /** Local Material Slow Axis Angle Rad */
+            local_material_slow_axis_angle_rad: number | null;
             /** Principal Axis Angle Rad */
             principal_axis_angle_rad: number;
             /** Principal Difference Pa */
@@ -2098,6 +2111,10 @@ export interface components {
             principal_max_pa: number;
             /** Principal Min Pa */
             principal_min_pa: number;
+            /** Signed Local Material Birefringence */
+            signed_local_material_birefringence: number;
+            /** Stress Optic Coefficient Per Pa */
+            stress_optic_coefficient_per_pa: number;
         };
         /** PandaThermalFemForceBalance */
         PandaThermalFemForceBalance: {
@@ -2151,10 +2168,28 @@ export interface components {
             axial_strain_model: "uniform_epsilon_zz_0";
             /**
              * Birefringence Computed
-             * @default false
+             * @default true
              * @constant
              */
-            birefringence_computed: false;
+            birefringence_computed: true;
+            /**
+             * Birefringence Quantity
+             * @default signed_local_material_index_difference
+             * @constant
+             */
+            birefringence_quantity: "signed_local_material_index_difference";
+            /**
+             * Birefringence Scope
+             * @default local_material_only
+             * @constant
+             */
+            birefringence_scope: "local_material_only";
+            /**
+             * Birefringence Units
+             * @default 1
+             * @constant
+             */
+            birefringence_units: "1";
             /**
              * Displacement Units
              * @default m
@@ -2174,6 +2209,16 @@ export interface components {
              */
             equation: "transverse_weak_equilibrium_plus_axial_resultant";
             /**
+             * Equation References
+             * @default [
+             *       "M1-6.9",
+             *       "M1-6.10",
+             *       "M1-6.11",
+             *       "M1-6.12"
+             *     ]
+             */
+            equation_references: string[];
+            /**
              * Exterior Boundary
              * @default traction_free
              * @constant
@@ -2184,10 +2229,18 @@ export interface components {
              * @default [
              *       "material and thermal values may be demonstration data rather than measured fibre data",
              *       "first-order triangles provide a mesh-dependent approximation",
-             *       "no birefringence or photoelastic observable is computed"
+             *       "local material stress-optic birefringence is computed without modal propagation",
+             *       "modal phase and group birefringence and beat length are not computed",
+             *       "demonstration material coefficients are not validated fibre measurements"
              *     ]
              */
             limitations: string[];
+            /**
+             * Local Not Modal
+             * @default true
+             * @constant
+             */
+            local_not_modal: true;
             /**
              * Method
              * @default fem_generalized_plane_strain
@@ -2202,10 +2255,10 @@ export interface components {
             model_id: "fem_generalized_plane_strain";
             /**
              * Model Version
-             * @default 1.0.0
+             * @default 1.1.0
              * @constant
              */
-            model_version: "1.0.0";
+            model_version: "1.1.0";
             /**
              * Quantity Type
              * @default quantitative_mechanical_output
@@ -2224,6 +2277,12 @@ export interface components {
              * @constant
              */
             stress_measure: "cauchy_stress";
+            /**
+             * Stress Optic Coefficient Units
+             * @default Pa^-1
+             * @constant
+             */
+            stress_optic_coefficient_units: "Pa^-1";
             /**
              * Stress Units
              * @default Pa
@@ -2260,6 +2319,10 @@ export interface components {
             displacement_x_m: number[];
             /** Displacement Y M */
             displacement_y_m: number[];
+            /** Element Local Material Birefringence */
+            element_local_material_birefringence: number[];
+            /** Element Local Material Slow Axis Angle Rad */
+            element_local_material_slow_axis_angle_rad: (number | null)[];
             /** Element Principal Axis Angle Rad */
             element_principal_axis_angle_rad: number[];
             /** Element Principal Difference Pa */
@@ -2268,6 +2331,8 @@ export interface components {
             element_principal_max_pa: number[];
             /** Element Principal Min Pa */
             element_principal_min_pa: number[];
+            /** Element Signed Local Material Birefringence */
+            element_signed_local_material_birefringence: number[];
             /** Element Strain Xx */
             element_strain_xx: number[];
             /** Element Strain Xy */
@@ -2276,6 +2341,8 @@ export interface components {
             element_strain_yy: number[];
             /** Element Strain Zz */
             element_strain_zz: number[];
+            /** Element Stress Optic Coefficient Per Pa */
+            element_stress_optic_coefficient_per_pa: number[];
             /** Element Stress Xx Pa */
             element_stress_xx_pa: number[];
             /** Element Stress Xy Pa */
@@ -2289,8 +2356,63 @@ export interface components {
             force_balance: components["schemas"]["PandaThermalFemForceBalance"];
             mesh: components["schemas"]["PandaMeshResult"];
             model_manifest: components["schemas"]["PandaThermalFemManifest"];
+            qualitative_kernel_fem_shape_comparison: components["schemas"]["PandaThermalFemShapeComparison"];
             /** Warnings */
             warnings: components["schemas"]["PandaThermalFemWarning"][];
+        };
+        /** PandaThermalFemShapeComparison */
+        PandaThermalFemShapeComparison: {
+            /** Available */
+            available: boolean;
+            /** Best Polarity */
+            best_polarity: (-1 | 1) | null;
+            /** Correlation */
+            correlation: number | null;
+            /**
+             * Domain
+             * @default core_elements
+             * @constant
+             */
+            domain: "core_elements";
+            /** Fem Signed Deviatoric Stress Scale Pa */
+            fem_signed_deviatoric_stress_scale_pa: number | null;
+            /** Kernel Scale */
+            kernel_scale: number | null;
+            /**
+             * Limitations
+             * @default [
+             *       "the qualitative kernel has undefined sign and scale, so the best polarity is fitted",
+             *       "this is a normalized shape comparison and not a stress error",
+             *       "quantitative Eshelby error and birefringence error are unavailable"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default qualitative_kernel_fem_shape_comparison
+             * @constant
+             */
+            model_id: "qualitative_kernel_fem_shape_comparison";
+            /**
+             * Quantitative
+             * @default false
+             * @constant
+             */
+            quantitative: false;
+            /** Rmse */
+            rmse: number | null;
+            /** Sample Count */
+            sample_count: number;
+            /** Sign Agreement */
+            sign_agreement: number | null;
+            /** Unavailable Reason */
+            unavailable_reason: ("insufficient_core_elements" | "zero_or_nonfinite_scale" | "nonfinite_metric") | null;
+            /**
+             * Units
+             * @default 1
+             * @constant
+             */
+            units: "1";
         };
         /** PandaThermalFemWarning */
         PandaThermalFemWarning: {
@@ -2298,7 +2420,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "demonstration_data" | "convergence_unavailable" | "convergence_above_threshold";
+            code: "demonstration_data" | "convergence_unavailable" | "convergence_above_threshold" | "local_material_birefringence_convergence_above_threshold";
             /** Message */
             message: string;
             /**

@@ -26,9 +26,13 @@ export type ThermalFemField =
   | 'element_principal_min_pa'
   | 'element_principal_difference_pa'
   | 'element_principal_axis_angle_rad'
+  | 'element_signed_local_material_birefringence'
+  | 'element_local_material_birefringence'
+  | 'element_local_material_slow_axis_angle_rad'
   | 'region'
 
-export type ThermalFemScaleKind = 'signed' | 'nonnegative' | 'region'
+export type ThermalFemScaleKind =
+  'signed' | 'nonnegative' | 'orientation' | 'region'
 
 export type ThermalFemFieldDefinition = {
   value: ThermalFemField
@@ -47,6 +51,22 @@ export const THERMAL_FEM_FIELD_OPTIONS: readonly ThermalFemFieldDefinition[] = [
     unit: 'MPa',
     conversion: 'Pa × 1e−6',
     factor: 1e-6,
+  },
+  {
+    value: 'element_signed_local_material_birefringence',
+    label: 'Signed local material birefringence Δn',
+    kind: 'signed',
+    unit: 'Δn',
+    conversion: 'dimensionless; unchanged',
+    factor: 1,
+  },
+  {
+    value: 'element_local_material_birefringence',
+    label: 'Local material birefringence |Δn|',
+    kind: 'nonnegative',
+    unit: 'Δn',
+    conversion: 'dimensionless; unchanged',
+    factor: 1,
   },
   {
     value: 'displacement_x_m',
@@ -161,6 +181,14 @@ export const THERMAL_FEM_FIELD_OPTIONS: readonly ThermalFemFieldDefinition[] = [
     factor: 180 / Math.PI,
   },
   {
+    value: 'element_local_material_slow_axis_angle_rad',
+    label: 'Local material slow optical-axis angle',
+    kind: 'orientation',
+    unit: '°',
+    conversion: 'rad × 180/π; undefined samples omitted',
+    factor: 180 / Math.PI,
+  },
+  {
     value: 'region',
     label: 'Mesh regions',
     kind: 'region',
@@ -271,14 +299,14 @@ function fieldDefinition(field: ThermalFemField): ThermalFemFieldDefinition {
   return THERMAL_FEM_FIELD_OPTIONS.find((option) => option.value === field)!
 }
 
-function finiteValues(values: readonly number[]) {
-  return values.filter((value) => Number.isFinite(value))
+function finiteValues(values: readonly (number | null)[]) {
+  return values.filter((value): value is number => Number.isFinite(value))
 }
 
 export function getThermalFemFieldValues(
   result: PandaThermalFemResult,
   field: ThermalFemField,
-): readonly number[] | readonly PandaMeshRegion[] {
+): readonly (number | null)[] | readonly PandaMeshRegion[] {
   if (field === 'region') {
     return result.mesh.region_tags as readonly PandaMeshRegion[]
   }
@@ -304,19 +332,21 @@ export function getThermalFemFieldValues(
         3,
     )
   }
-  return result[field] as readonly number[]
+  return result[field] as readonly (number | null)[]
 }
 
 export function getThermalFemDisplayValues(
   result: PandaThermalFemResult,
   field: ThermalFemField,
-): readonly number[] | readonly PandaMeshRegion[] {
+): readonly (number | null)[] | readonly PandaMeshRegion[] {
   const definition = fieldDefinition(field)
   const values = getThermalFemFieldValues(result, field)
   if (definition.kind === 'region') {
     return values as readonly PandaMeshRegion[]
   }
-  return (values as readonly number[]).map((value) => value * definition.factor)
+  return (values as readonly (number | null)[]).map((value) =>
+    value === null ? null : value * definition.factor,
+  )
 }
 
 export function buildThermalFemDisplayScale(
@@ -334,15 +364,20 @@ export function buildThermalFemDisplayScale(
     }
   }
   const values = finiteValues(
-    getThermalFemDisplayValues(result, field) as readonly number[],
+    getThermalFemDisplayValues(result, field) as readonly (number | null)[],
   )
   const extent =
-    definition.kind === 'signed'
-      ? Math.max(...values.map((value) => Math.abs(value)), 0)
-      : Math.max(...values, 0)
+    definition.kind === 'orientation'
+      ? 90
+      : definition.kind === 'signed'
+        ? Math.max(...values.map((value) => Math.abs(value)), 0)
+        : Math.max(...values, 0)
   return {
     kind: definition.kind,
-    minimum: definition.kind === 'signed' ? -extent : 0,
+    minimum:
+      definition.kind === 'signed' || definition.kind === 'orientation'
+        ? -extent
+        : 0,
     maximum: extent,
     unit: definition.unit,
     conversion: definition.conversion,
@@ -361,7 +396,7 @@ export function thermalFemBinIndex(
     return scale.kind === 'signed' ? Math.floor(binCount / 2) : 0
   }
   const normalized =
-    scale.kind === 'signed'
+    scale.kind === 'signed' || scale.kind === 'orientation'
       ? (value - scale.minimum) / (scale.maximum - scale.minimum)
       : value / scale.maximum
   return Math.max(0, Math.min(binCount - 1, Math.floor(normalized * binCount)))
@@ -390,6 +425,10 @@ function binColor(kind: ThermalFemScaleKind, index: number, binCount: number) {
     return amount <= 0.5
       ? rgb(interpolate([37, 99, 235], [241, 245, 249], amount * 2))
       : rgb(interpolate([241, 245, 249], [220, 38, 38], (amount - 0.5) * 2))
+  }
+  if (kind === 'orientation') {
+    const hue = (amount * 360) % 360
+    return `hsl(${hue.toFixed(1)} 70% 50%)`
   }
   return rgb(interpolate([226, 232, 240], [234, 88, 12], amount))
 }
@@ -463,12 +502,15 @@ export function buildPandaThermalFemDrawingGeometry(
     const value =
       definition.kind === 'region'
         ? ['cladding', 'core', 'sap_1', 'sap_2'].indexOf(rawValue as string)
-        : (rawValue as number)
-    const bin =
-      binBuilders[thermalFemBinIndex(value, scale, binBuilders.length)]
-    if (bin === undefined) return
-    addTrianglePath(bin.builder, result.mesh.nodes_m, element)
-    bin.count += 1
+        : (rawValue as number | null)
+    if (value !== null) {
+      const bin =
+        binBuilders[thermalFemBinIndex(value, scale, binBuilders.length)]
+      if (bin !== undefined) {
+        addTrianglePath(bin.builder, result.mesh.nodes_m, element)
+        bin.count += 1
+      }
+    }
     for (const [first, second] of [
       [element[0], element[1]],
       [element[1], element[2]],

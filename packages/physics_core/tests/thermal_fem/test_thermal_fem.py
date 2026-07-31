@@ -17,13 +17,20 @@ from fibre_sim.photoelastic import (
     PandaMaterialSet,
     PhotoelasticConvention,
     ThermalState,
+    stress_optic_coefficient_per_pa,
 )
 from fibre_sim.thermal_fem import (
+    PandaThermalFemConvergenceSummary,
     PandaThermalFemRequest,
     PandaThermalFemResult,
     calculate_panda_thermal_fem,
 )
-from fibre_sim.thermal_fem.calculations import _solve_level, _thermal_strain
+from fibre_sim.thermal_fem.calculations import (
+    _local_material_observables,
+    _relative_change,
+    _solve_level,
+    _thermal_strain,
+)
 
 
 def geometry(
@@ -76,6 +83,23 @@ def homogeneous_materials() -> PandaMaterialSet:
         cladding=shared,
         sap_1=shared,
         sap_2=shared,
+    )
+
+
+def c1_c2_material() -> PandaMaterial:
+    return PandaMaterial(
+        name="stress-optic",
+        young_modulus_pa=70.0e9,
+        poisson_ratio=0.2,
+        cte_per_k=5.5e-7,
+        refractive_index=1.45,
+        c1_per_pa=2.0e-12,
+        c2_per_pa=-0.5e-12,
+        photoelastic_convention=PhotoelasticConvention.C1_C2_STRESS_OPTIC,
+        source=MaterialSource(
+            citation="Step 2.7 test data",
+            confidence=MaterialConfidence.DEMONSTRATION_ONLY,
+        ),
     )
 
 
@@ -202,6 +226,63 @@ def test_isotropic_thermal_strain_has_no_shear_component() -> None:
     assert tuple(strain) == pytest.approx((-0.0056, -0.0056, -0.0056, 0.0))
 
 
+def test_stress_optic_coefficient_supports_both_conventions() -> None:
+    strain_material = material("strain", 70.0e9, 0.2, 5.5e-7)
+    expected = 1.45**3 * 1.2 * (0.27 - 0.12) / (2.0 * 70.0e9)
+
+    assert stress_optic_coefficient_per_pa(strain_material) == pytest.approx(expected)
+    assert stress_optic_coefficient_per_pa(c1_c2_material()) == pytest.approx(2.5e-12)
+
+
+def test_hydrostatic_stress_has_zero_local_material_birefringence() -> None:
+    signed, magnitude, axis = _local_material_observables(0.35, 0.0, 2.0e-12)
+
+    assert signed == 0.0
+    assert magnitude == 0.0
+    assert axis is None
+
+
+def test_x_y_swap_preserves_local_material_birefringence_magnitude() -> None:
+    first = _local_material_observables(0.2, 4.0e6, 2.0e-12)
+    swapped = _local_material_observables(0.2 + math.pi / 2.0, 4.0e6, 2.0e-12)
+
+    assert first[1] == pytest.approx(swapped[1])
+
+
+def test_slow_axis_follows_stress_or_rotates_for_coefficient_polarity() -> None:
+    positive = _local_material_observables(0.25, 4.0e6, 2.0e-12)
+    negative = _local_material_observables(0.25, 4.0e6, -2.0e-12)
+
+    assert positive[2] == pytest.approx(0.25)
+    assert negative[2] == pytest.approx(0.25 - math.pi / 2.0)
+
+
+def test_zero_stress_or_zero_coefficient_has_no_slow_axis() -> None:
+    assert _local_material_observables(0.25, 0.0, 2.0e-12)[2] is None
+    assert _local_material_observables(0.25, 4.0e6, 0.0)[2] is None
+
+
+def test_relative_convergence_change_is_scale_invariant() -> None:
+    assert _relative_change(4.0e6, 5.0e6) == pytest.approx(0.2)
+    assert _relative_change(4.0e-6, 5.0e-6) == pytest.approx(0.2)
+    assert _relative_change(0.0, 0.0) == 0.0
+
+
+def test_refined_convergence_rejects_unavailable_status() -> None:
+    with pytest.raises(ValidationError, match="available convergence states"):
+        PandaThermalFemConvergenceSummary(
+            refinement_level=1,
+            node_count=10,
+            element_count=12,
+            core_average_principal_difference_pa=1.0,
+            relative_change=0.1,
+            status="unavailable",
+            core_average_local_material_birefringence=1.0e-6,
+            local_material_birefringence_relative_change=0.1,
+            local_material_birefringence_status="unavailable",
+        )
+
+
 def test_sap_permutation_preserves_core_summary() -> None:
     original = request()
     swapped_geometry = geometry(sap_1=original.geometry.sap_2, sap_2=original.geometry.sap_1)
@@ -295,7 +376,50 @@ def test_output_counts_and_values_are_finite() -> None:
     assert len(result.element_stress_xx_pa) == result.mesh.element_count
     assert all(math.isfinite(value) for value in result.displacement_x_m)
     assert all(math.isfinite(value) for value in result.element_principal_difference_pa)
-    assert result.model_manifest.birefringence_computed is False
+    assert result.model_manifest.birefringence_computed is True
+    assert result.model_manifest.local_not_modal is True
+    assert all(
+        value is None or -math.pi / 2.0 <= value < math.pi / 2.0
+        for value in result.element_local_material_slow_axis_angle_rad
+    )
+
+
+def test_element_region_coefficients_follow_material_regions() -> None:
+    model_request = request()
+    result = calculate_panda_thermal_fem(model_request)
+    expected = {
+        PandaMeshRegion.CORE: stress_optic_coefficient_per_pa(model_request.materials.core),
+        PandaMeshRegion.CLADDING: stress_optic_coefficient_per_pa(model_request.materials.cladding),
+        PandaMeshRegion.SAP_1: stress_optic_coefficient_per_pa(model_request.materials.sap_1),
+        PandaMeshRegion.SAP_2: stress_optic_coefficient_per_pa(model_request.materials.sap_2),
+    }
+
+    for index, region in enumerate(result.mesh.region_tags):
+        assert result.element_stress_optic_coefficient_per_pa[index] == pytest.approx(
+            expected[region]
+        )
+
+
+def test_equal_cte_makes_kernel_fem_shape_comparison_unavailable() -> None:
+    result = calculate_panda_thermal_fem(request(model_materials=materials(equal_cte=True)))
+    comparison = result.qualitative_kernel_fem_shape_comparison
+
+    assert comparison.available is False
+    assert comparison.unavailable_reason == "zero_or_nonfinite_scale"
+    assert comparison.rmse is None
+
+
+def test_kernel_fem_shape_comparison_is_bounded_and_non_quantitative() -> None:
+    comparison = calculate_panda_thermal_fem(request()).qualitative_kernel_fem_shape_comparison
+
+    assert comparison.available is True
+    assert comparison.sample_count >= 2
+    assert comparison.best_polarity in (-1, 1)
+    assert comparison.rmse is not None and 0.0 <= comparison.rmse <= 2.0
+    assert comparison.correlation is None or -1.0 <= comparison.correlation <= 1.0
+    assert comparison.sign_agreement is not None and 0.0 <= comparison.sign_agreement <= 1.0
+    assert comparison.quantitative is False
+    assert "birefringence error" in " ".join(comparison.limitations)
 
 
 def test_convergence_has_counts_and_level_zero_status() -> None:
@@ -304,6 +428,8 @@ def test_convergence_has_counts_and_level_zero_status() -> None:
     assert len(result.convergence) == 2
     assert result.convergence[0].status == "unavailable"
     assert result.convergence[0].relative_change is None
+    assert result.convergence[0].local_material_birefringence_relative_change is None
+    assert result.convergence[0].local_material_birefringence_status == "unavailable"
     assert result.convergence[0].node_count < result.convergence[1].node_count
     assert result.convergence[0].element_count < result.convergence[1].element_count
     assert result.warnings[1].code == "convergence_unavailable"

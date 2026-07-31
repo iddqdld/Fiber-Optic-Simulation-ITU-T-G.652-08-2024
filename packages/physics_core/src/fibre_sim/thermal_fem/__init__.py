@@ -8,6 +8,7 @@ from .result import (
     PandaThermalFemForceBalance,
     PandaThermalFemManifest,
     PandaThermalFemResult,
+    PandaThermalFemShapeComparison,
     PandaThermalFemWarning,
 )
 
@@ -20,6 +21,7 @@ __all__ = [
     "PandaThermalFemManifest",
     "PandaThermalFemRequest",
     "PandaThermalFemResult",
+    "PandaThermalFemShapeComparison",
     "PandaThermalFemWarning",
     "calculate_panda_thermal_fem",
 ]

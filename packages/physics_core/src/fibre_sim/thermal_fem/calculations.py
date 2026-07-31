@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 import numpy as np
 from scipy.sparse import bmat, csc_matrix, lil_matrix  # type: ignore[import-untyped]
@@ -9,8 +9,13 @@ from skfem import Basis, MeshTri  # type: ignore[import-untyped]
 from skfem.element import ElementTriP1  # type: ignore[import-untyped]
 
 from fibre_sim.panda_mesh import PandaMeshRegion, PandaMeshResult, generate_panda_mesh
+from fibre_sim.photoelastic.calculations import qualitative_kernel_components_at
 from fibre_sim.photoelastic.loads import AxialCondition
-from fibre_sim.photoelastic.materials import MaterialConfidence, PandaMaterial
+from fibre_sim.photoelastic.materials import (
+    MaterialConfidence,
+    PandaMaterial,
+    stress_optic_coefficient_per_pa,
+)
 
 from .request import PandaThermalFemRequest
 from .result import (
@@ -21,11 +26,13 @@ from .result import (
     PandaThermalFemForceBalance,
     PandaThermalFemManifest,
     PandaThermalFemResult,
+    PandaThermalFemShapeComparison,
     PandaThermalFemWarning,
 )
 
 _CONVERGENCE_THRESHOLD = 0.05
-_SOLVER_TOLERANCE = 1.0e-8
+_ZERO_STRESS_TOLERANCE_PA = 1.0e-12
+_ZERO_COEFFICIENT_TOLERANCE_PER_PA = 1.0e-30
 _REFERENCE_GRADIENTS = np.array(((-1.0, -1.0), (1.0, 0.0), (0.0, 1.0)))
 
 
@@ -42,6 +49,10 @@ class _ElementResult(NamedTuple):
     principal_min: float
     principal_difference: float
     principal_axis_angle: float
+    stress_optic_coefficient: float
+    signed_local_material_birefringence: float
+    local_material_birefringence: float
+    local_material_slow_axis_angle: float | None
     area: float
 
 
@@ -253,6 +264,7 @@ def _element_result(
     thermal_strain: np.ndarray,
     local_displacement: np.ndarray,
     epsilon_zz: float,
+    stress_optic_coefficient: float,
 ) -> _ElementResult:
     strain = b_displacement @ local_displacement
     strain[2] = epsilon_zz
@@ -263,6 +275,15 @@ def _element_result(
     principal_min = 0.5 * (stress[0] + stress[1]) - radius
     principal_difference = 2.0 * radius
     axis_angle = 0.5 * math.atan2(2.0 * stress[3], stress[0] - stress[1])
+    (
+        signed_birefringence,
+        local_birefringence,
+        slow_axis_angle,
+    ) = _local_material_observables(
+        axis_angle,
+        principal_difference,
+        stress_optic_coefficient,
+    )
     return _ElementResult(
         float(strain[0]),
         float(strain[1]),
@@ -276,11 +297,57 @@ def _element_result(
         float(principal_min),
         float(principal_difference),
         float(axis_angle),
+        float(stress_optic_coefficient),
+        float(signed_birefringence),
+        float(local_birefringence),
+        slow_axis_angle,
         area,
     )
 
 
+def _normalise_unoriented_axis(angle: float) -> float:
+    while angle >= math.pi / 2.0:
+        angle -= math.pi
+    while angle < -math.pi / 2.0:
+        angle += math.pi
+    return angle
+
+
+def _slow_axis_angle(
+    principal_axis_angle: float,
+    principal_difference: float,
+    stress_optic_coefficient: float,
+) -> float | None:
+    if (
+        principal_difference <= _ZERO_STRESS_TOLERANCE_PA
+        or abs(stress_optic_coefficient) <= _ZERO_COEFFICIENT_TOLERANCE_PER_PA
+    ):
+        return None
+    slow_axis = principal_axis_angle
+    if stress_optic_coefficient < 0.0:
+        slow_axis += math.pi / 2.0
+    return _normalise_unoriented_axis(slow_axis)
+
+
+def _local_material_observables(
+    principal_axis_angle: float,
+    principal_difference: float,
+    stress_optic_coefficient: float,
+) -> tuple[float, float, float | None]:
+    signed_birefringence = stress_optic_coefficient * principal_difference
+    return (
+        signed_birefringence,
+        abs(signed_birefringence),
+        _slow_axis_angle(
+            principal_axis_angle,
+            principal_difference,
+            stress_optic_coefficient,
+        ),
+    )
+
+
 def _core_summary(
+    request: PandaThermalFemRequest,
     mesh: PandaMeshResult,
     elements: tuple[_ElementResult, ...],
 ) -> PandaThermalFemCoreSummary:
@@ -298,6 +365,14 @@ def _core_summary(
     ]
     half_difference = 0.5 * (average[0] - average[1])
     radius = math.hypot(half_difference, average[3])
+    principal_difference = 2.0 * radius
+    principal_axis_angle = 0.5 * math.atan2(2.0 * average[3], average[0] - average[1])
+    coefficient = stress_optic_coefficient_per_pa(request.materials.core)
+    (
+        signed_birefringence,
+        local_birefringence,
+        slow_axis_angle,
+    ) = _local_material_observables(principal_axis_angle, principal_difference, coefficient)
     return PandaThermalFemCoreSummary(
         area_m2=area,
         average_stress_xx_pa=average[0],
@@ -306,8 +381,12 @@ def _core_summary(
         average_stress_xy_pa=average[3],
         principal_max_pa=average[0] * 0.5 + average[1] * 0.5 + radius,
         principal_min_pa=average[0] * 0.5 + average[1] * 0.5 - radius,
-        principal_difference_pa=2.0 * radius,
-        principal_axis_angle_rad=0.5 * math.atan2(2.0 * average[3], average[0] - average[1]),
+        principal_difference_pa=principal_difference,
+        principal_axis_angle_rad=principal_axis_angle,
+        stress_optic_coefficient_per_pa=coefficient,
+        signed_local_material_birefringence=signed_birefringence,
+        local_material_birefringence=local_birefringence,
+        local_material_slow_axis_angle_rad=slow_axis_angle,
     )
 
 
@@ -379,11 +458,14 @@ def _solve_level(
             thermal_strain,
             local_displacement,
             epsilon_zz,
+            stress_optic_coefficient_per_pa(
+                _material_by_region(request, mesh.region_tags[element_index])
+            ),
         )
         elements.append(element)
         axial_resultant += area * element.stress_zz
     elements_tuple = tuple(elements)
-    core_summary = _core_summary(mesh, elements_tuple)
+    core_summary = _core_summary(request, mesh, elements_tuple)
     equilibrium_residual = matrix @ solution - load + constraints.T @ multipliers
     transverse_residual = equilibrium_residual[: 2 * node_count]
     residual_norm = float(np.linalg.norm(transverse_residual))
@@ -421,41 +503,173 @@ def _solve_level(
     )
 
 
+def _relative_change(current: float, previous: float) -> float:
+    denominator = max(abs(current), abs(previous))
+    if denominator == 0.0:
+        return 0.0
+    return abs(current - previous) / denominator
+
+
 def _convergence(solutions: tuple[_Solve, ...]) -> tuple[PandaThermalFemConvergenceSummary, ...]:
     summaries: list[PandaThermalFemConvergenceSummary] = []
-    previous: float | None = None
+    previous_stress: float | None = None
+    previous_birefringence: float | None = None
     for level, solution in enumerate(solutions):
-        value = solution.core_summary.principal_difference_pa
-        if previous is None:
+        stress_value = solution.core_summary.principal_difference_pa
+        birefringence_value = solution.core_summary.local_material_birefringence
+        if previous_stress is None or previous_birefringence is None:
             summaries.append(
                 PandaThermalFemConvergenceSummary(
                     refinement_level=level,
                     node_count=solution.mesh.node_count,
                     element_count=solution.mesh.element_count,
-                    core_average_principal_difference_pa=value,
+                    core_average_principal_difference_pa=stress_value,
                     relative_change=None,
                     status="unavailable",
+                    core_average_local_material_birefringence=birefringence_value,
+                    local_material_birefringence_relative_change=None,
+                    local_material_birefringence_status="unavailable",
                 )
             )
         else:
-            denominator = max(abs(value), abs(previous), _SOLVER_TOLERANCE)
-            relative_change = abs(value - previous) / denominator
+            stress_relative_change = _relative_change(stress_value, previous_stress)
+            birefringence_relative_change = _relative_change(
+                birefringence_value,
+                previous_birefringence,
+            )
             summaries.append(
                 PandaThermalFemConvergenceSummary(
                     refinement_level=level,
                     node_count=solution.mesh.node_count,
                     element_count=solution.mesh.element_count,
-                    core_average_principal_difference_pa=value,
-                    relative_change=relative_change,
+                    core_average_principal_difference_pa=stress_value,
+                    relative_change=stress_relative_change,
                     status=(
                         "converged"
-                        if relative_change <= _CONVERGENCE_THRESHOLD
+                        if stress_relative_change <= _CONVERGENCE_THRESHOLD
+                        else "not_converged"
+                    ),
+                    core_average_local_material_birefringence=birefringence_value,
+                    local_material_birefringence_relative_change=birefringence_relative_change,
+                    local_material_birefringence_status=(
+                        "converged"
+                        if birefringence_relative_change <= _CONVERGENCE_THRESHOLD
                         else "not_converged"
                     ),
                 )
             )
-        previous = value
+        previous_stress = stress_value
+        previous_birefringence = birefringence_value
     return tuple(summaries)
+
+
+def _comparison(
+    request: PandaThermalFemRequest,
+    solution: _Solve,
+) -> PandaThermalFemShapeComparison:
+    core_indices = [
+        index
+        for index, region in enumerate(solution.mesh.region_tags)
+        if region is PandaMeshRegion.CORE
+    ]
+    sample_count = len(core_indices)
+    mismatch_strains = (
+        (request.materials.sap_1.cte_per_k - request.materials.cladding.cte_per_k)
+        * (request.thermal.effective_fictive_temperature_k - request.thermal.temperature_k),
+        (request.materials.sap_2.cte_per_k - request.materials.cladding.cte_per_k)
+        * (request.thermal.effective_fictive_temperature_k - request.thermal.temperature_k),
+    )
+    kernel_values: list[float] = []
+    stress_values: list[float] = []
+    nodes = np.asarray(solution.mesh.nodes_m, dtype=float)
+    elements = np.asarray(solution.mesh.elements, dtype=np.int64)
+    for index in core_indices:
+        centroid = np.mean(nodes[elements[index]], axis=0)
+        kernel, _ = qualitative_kernel_components_at(
+            request.geometry,
+            mismatch_strains,
+            float(centroid[0]),
+            float(centroid[1]),
+        )
+        element = solution.elements[index]
+        kernel_values.append(kernel)
+        stress_values.append(element.stress_xx - element.stress_yy)
+
+    kernel_scale = max((abs(value) for value in kernel_values), default=0.0)
+    stress_scale = max((abs(value) for value in stress_values), default=0.0)
+    if (
+        sample_count < 2
+        or not math.isfinite(kernel_scale)
+        or not math.isfinite(stress_scale)
+        or kernel_scale <= 0.0
+        or stress_scale <= 0.0
+    ):
+        reason: Literal["insufficient_core_elements", "zero_or_nonfinite_scale"] = (
+            "insufficient_core_elements" if sample_count < 2 else "zero_or_nonfinite_scale"
+        )
+        return PandaThermalFemShapeComparison(
+            sample_count=sample_count,
+            available=False,
+            kernel_scale=kernel_scale if math.isfinite(kernel_scale) else None,
+            fem_signed_deviatoric_stress_scale_pa=stress_scale
+            if math.isfinite(stress_scale)
+            else None,
+            best_polarity=None,
+            rmse=None,
+            correlation=None,
+            sign_agreement=None,
+            unavailable_reason=reason,
+        )
+
+    normalized_kernel = np.asarray(kernel_values, dtype=float) / kernel_scale
+    normalized_stress = np.asarray(stress_values, dtype=float) / stress_scale
+    if not np.all(np.isfinite(normalized_kernel)) or not np.all(np.isfinite(normalized_stress)):
+        return PandaThermalFemShapeComparison(
+            sample_count=sample_count,
+            available=False,
+            kernel_scale=kernel_scale,
+            fem_signed_deviatoric_stress_scale_pa=stress_scale,
+            best_polarity=None,
+            rmse=None,
+            correlation=None,
+            sign_agreement=None,
+            unavailable_reason="nonfinite_metric",
+        )
+
+    positive_error = float(np.sqrt(np.mean((normalized_stress - normalized_kernel) ** 2)))
+    negative_error = float(np.sqrt(np.mean((normalized_stress + normalized_kernel) ** 2)))
+    polarity: Literal[-1, 1] = -1 if negative_error < positive_error else 1
+    aligned_kernel = polarity * normalized_kernel
+    rmse = min(positive_error, negative_error)
+    centered_kernel = aligned_kernel - float(np.mean(aligned_kernel))
+    centered_stress = normalized_stress - float(np.mean(normalized_stress))
+    denominator = float(np.linalg.norm(centered_kernel) * np.linalg.norm(centered_stress))
+    correlation = (
+        None
+        if denominator <= 0.0
+        else float(np.dot(centered_kernel, centered_stress) / denominator)
+    )
+    sign_agreement = float(
+        np.mean(
+            [
+                math.copysign(1.0, float(kernel_value)) == math.copysign(1.0, float(stress_value))
+                for kernel_value, stress_value in zip(
+                    aligned_kernel, normalized_stress, strict=True
+                )
+            ]
+        )
+    )
+    return PandaThermalFemShapeComparison(
+        sample_count=sample_count,
+        available=True,
+        kernel_scale=kernel_scale,
+        fem_signed_deviatoric_stress_scale_pa=stress_scale,
+        best_polarity=polarity,
+        rmse=rmse,
+        correlation=correlation,
+        sign_agreement=sign_agreement,
+        unavailable_reason=None,
+    )
 
 
 def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermalFemResult:
@@ -494,6 +708,17 @@ def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermal
                 refinement_level=latest.refinement_level,
             )
         )
+    if latest.local_material_birefringence_status == "not_converged":
+        warnings.append(
+            PandaThermalFemWarning(
+                code="local_material_birefringence_convergence_above_threshold",
+                message=(
+                    "The latest core local-material birefringence convergence change exceeds "
+                    "the 5% threshold."
+                ),
+                refinement_level=latest.refinement_level,
+            )
+        )
     return PandaThermalFemResult(
         configuration=request,
         mesh=selected.mesh,
@@ -515,11 +740,24 @@ def calculate_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermal
         element_principal_axis_angle_rad=tuple(
             element.principal_axis_angle for element in selected.elements
         ),
+        element_stress_optic_coefficient_per_pa=tuple(
+            element.stress_optic_coefficient for element in selected.elements
+        ),
+        element_signed_local_material_birefringence=tuple(
+            element.signed_local_material_birefringence for element in selected.elements
+        ),
+        element_local_material_birefringence=tuple(
+            element.local_material_birefringence for element in selected.elements
+        ),
+        element_local_material_slow_axis_angle_rad=tuple(
+            element.local_material_slow_axis_angle for element in selected.elements
+        ),
         epsilon_zz_0=selected.epsilon_zz,
         core_summary=selected.core_summary,
         anchor_reactions=selected.anchors,
         force_balance=selected.force_balance,
         convergence=convergence,
+        qualitative_kernel_fem_shape_comparison=_comparison(request, selected),
         warnings=tuple(warnings),
         model_manifest=PandaThermalFemManifest(),
     )

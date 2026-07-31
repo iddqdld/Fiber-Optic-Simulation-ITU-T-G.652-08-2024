@@ -62,7 +62,7 @@ export const initialPandaThermalFemControls: PandaThermalFemControls = {
 }
 
 const femModelId = 'fem_generalized_plane_strain'
-const femModelVersion = '1.0.0'
+const femModelVersion = '1.1.0'
 const femMethod = 'fem_generalized_plane_strain'
 const femAxialConditions = new Set([
   'free_resultant',
@@ -73,8 +73,14 @@ const femWarningCodes = new Set([
   'demonstration_data',
   'convergence_unavailable',
   'convergence_above_threshold',
+  'local_material_birefringence_convergence_above_threshold',
 ])
 const femStatuses = new Set(['unavailable', 'not_converged', 'converged'])
+const shapeComparisonLimitations = [
+  'the qualitative kernel has undefined sign and scale, so the best polarity is fitted',
+  'this is a normalized shape comparison and not a stress error',
+  'quantitative Eshelby error and birefringence error are unavailable',
+] as const
 const celsiusToKelvin = 273.15
 const microCteToCte = 1e-6
 const microstrainToStrain = 1e-6
@@ -126,6 +132,17 @@ function isNullableFiniteNumber(value: unknown): value is number | null {
   return value === null || isFiniteNumber(value)
 }
 
+function isNullableSlowAxisAngle(value: unknown): value is number | null {
+  return (
+    value === null ||
+    (isFiniteNumber(value) && value >= -Math.PI / 2 && value < Math.PI / 2)
+  )
+}
+
+function isStrictBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean'
+}
+
 function isStringArray(value: unknown, allowEmpty = false): value is string[] {
   return (
     Array.isArray(value) &&
@@ -139,6 +156,17 @@ function isFiniteArray(value: unknown, length: number): value is number[] {
     Array.isArray(value) &&
     value.length === length &&
     value.every(isFiniteNumber)
+  )
+}
+
+function isNullableSlowAxisArray(
+  value: unknown,
+  length: number,
+): value is (number | null)[] {
+  return (
+    Array.isArray(value) &&
+    value.length === length &&
+    value.every(isNullableSlowAxisAngle)
   )
 }
 
@@ -513,27 +541,20 @@ function isCoreSummary(value: unknown): boolean {
       'average_stress_xy_pa',
       'average_stress_yy_pa',
       'average_stress_zz_pa',
+      'local_material_birefringence',
+      'local_material_slow_axis_angle_rad',
       'principal_axis_angle_rad',
       'principal_difference_pa',
       'principal_max_pa',
       'principal_min_pa',
+      'signed_local_material_birefringence',
+      'stress_optic_coefficient_per_pa',
     ])
   ) {
     return false
   }
   const angle = value.principal_axis_angle_rad
   return (
-    hasExactKeys(value, [
-      'area_m2',
-      'average_stress_xx_pa',
-      'average_stress_xy_pa',
-      'average_stress_yy_pa',
-      'average_stress_zz_pa',
-      'principal_axis_angle_rad',
-      'principal_difference_pa',
-      'principal_max_pa',
-      'principal_min_pa',
-    ]) &&
     isPositiveNumber(value.area_m2) &&
     [
       value.average_stress_xx_pa,
@@ -543,11 +564,15 @@ function isCoreSummary(value: unknown): boolean {
       value.principal_axis_angle_rad,
       value.principal_max_pa,
       value.principal_min_pa,
+      value.signed_local_material_birefringence,
+      value.stress_optic_coefficient_per_pa,
     ].every(isFiniteNumber) &&
     isNonNegativeNumber(value.principal_difference_pa) &&
     isFiniteNumber(angle) &&
     angle >= -Math.PI / 2 &&
-    angle <= Math.PI / 2
+    angle <= Math.PI / 2 &&
+    isNonNegativeNumber(value.local_material_birefringence) &&
+    isNullableSlowAxisAngle(value.local_material_slow_axis_angle_rad)
   )
 }
 
@@ -611,8 +636,11 @@ function isConvergence(
   return value.every((entry, index) => {
     if (
       !hasExactKeys(entry, [
+        'core_average_local_material_birefringence',
         'core_average_principal_difference_pa',
         'element_count',
+        'local_material_birefringence_relative_change',
+        'local_material_birefringence_status',
         'node_count',
         'refinement_level',
         'relative_change',
@@ -624,14 +652,23 @@ function isConvergence(
       !isInteger(entry.element_count) ||
       entry.element_count <= 0 ||
       !isNonNegativeNumber(entry.core_average_principal_difference_pa) ||
+      !isNonNegativeNumber(entry.core_average_local_material_birefringence) ||
+      !femStatuses.has(String(entry.local_material_birefringence_status)) ||
       !femStatuses.has(String(entry.status))
     ) {
       return false
     }
     return index === 0
-      ? entry.relative_change === null && entry.status === 'unavailable'
+      ? entry.relative_change === null &&
+          entry.status === 'unavailable' &&
+          entry.local_material_birefringence_relative_change === null &&
+          entry.local_material_birefringence_status === 'unavailable'
       : isNonNegativeNumber(entry.relative_change) &&
-          entry.status !== 'unavailable'
+          entry.status !== 'unavailable' &&
+          isNonNegativeNumber(
+            entry.local_material_birefringence_relative_change,
+          ) &&
+          entry.local_material_birefringence_status !== 'unavailable'
   })
 }
 
@@ -655,17 +692,23 @@ function isManifest(value: unknown): boolean {
       'axial_equation',
       'axial_strain_model',
       'birefringence_computed',
+      'birefringence_quantity',
+      'birefringence_scope',
+      'birefringence_units',
       'displacement_units',
       'element_family',
       'equation',
+      'equation_references',
       'exterior_boundary',
       'limitations',
+      'local_not_modal',
       'method',
       'model_id',
       'model_version',
       'quantity_type',
       'strain_units',
       'stress_measure',
+      'stress_optic_coefficient_units',
       'stress_units',
       'thermal_strain_model',
     ]) &&
@@ -683,14 +726,110 @@ function isManifest(value: unknown): boolean {
     value.equation === 'transverse_weak_equilibrium_plus_axial_resultant' &&
     value.axial_equation === 'integral_sigma_zz_d_a_equals_n_z' &&
     value.thermal_strain_model === 'full_per_region_alpha_delta_t' &&
-    value.birefringence_computed === false &&
+    value.birefringence_computed === true &&
+    value.birefringence_scope === 'local_material_only' &&
+    value.birefringence_quantity === 'signed_local_material_index_difference' &&
+    value.birefringence_units === '1' &&
+    value.stress_optic_coefficient_units === 'Pa^-1' &&
+    value.local_not_modal === true &&
     Array.isArray(value.axial_conditions) &&
     value.axial_conditions.length === 3 &&
     value.axial_conditions[0] === 'free_resultant' &&
     value.axial_conditions[1] === 'prescribed_force' &&
     value.axial_conditions[2] === 'prescribed_strain' &&
+    isStringArray(value.equation_references) &&
+    value.equation_references.length === 4 &&
+    value.equation_references[0] === 'M1-6.9' &&
+    value.equation_references[1] === 'M1-6.10' &&
+    value.equation_references[2] === 'M1-6.11' &&
+    value.equation_references[3] === 'M1-6.12' &&
     isStringArray(value.assumptions) &&
-    isStringArray(value.limitations)
+    isStringArray(value.limitations) &&
+    value.limitations.includes(
+      'local material stress-optic birefringence is computed without modal propagation',
+    ) &&
+    value.limitations.includes(
+      'modal phase and group birefringence and beat length are not computed',
+    )
+  )
+}
+
+function isShapeComparison(value: unknown): boolean {
+  if (
+    !hasExactKeys(value, [
+      'available',
+      'best_polarity',
+      'correlation',
+      'domain',
+      'fem_signed_deviatoric_stress_scale_pa',
+      'kernel_scale',
+      'limitations',
+      'model_id',
+      'quantitative',
+      'rmse',
+      'sample_count',
+      'sign_agreement',
+      'unavailable_reason',
+      'units',
+    ])
+  ) {
+    return false
+  }
+  const limitations = value.limitations
+  if (
+    value.model_id !== 'qualitative_kernel_fem_shape_comparison' ||
+    value.quantitative !== false ||
+    value.units !== '1' ||
+    value.domain !== 'core_elements' ||
+    !isStrictBoolean(value.available) ||
+    !isNonNegativeInteger(value.sample_count) ||
+    !isStringArray(limitations) ||
+    limitations.length !== shapeComparisonLimitations.length ||
+    !shapeComparisonLimitations.every(
+      (limitation, index) => limitations[index] === limitation,
+    ) ||
+    !(
+      value.best_polarity === null ||
+      value.best_polarity === -1 ||
+      value.best_polarity === 1
+    ) ||
+    !(value.kernel_scale === null || isNonNegativeNumber(value.kernel_scale)) ||
+    !(
+      value.fem_signed_deviatoric_stress_scale_pa === null ||
+      isNonNegativeNumber(value.fem_signed_deviatoric_stress_scale_pa)
+    ) ||
+    !(
+      value.unavailable_reason === null ||
+      value.unavailable_reason === 'insufficient_core_elements' ||
+      value.unavailable_reason === 'zero_or_nonfinite_scale' ||
+      value.unavailable_reason === 'nonfinite_metric'
+    )
+  ) {
+    return false
+  }
+  if (!value.available) {
+    return (
+      value.best_polarity === null &&
+      value.rmse === null &&
+      value.correlation === null &&
+      value.sign_agreement === null &&
+      value.unavailable_reason !== null
+    )
+  }
+  return (
+    value.sample_count >= 2 &&
+    isPositiveNumber(value.kernel_scale) &&
+    isPositiveNumber(value.fem_signed_deviatoric_stress_scale_pa) &&
+    (value.best_polarity === -1 || value.best_polarity === 1) &&
+    isNonNegativeNumber(value.rmse) &&
+    value.rmse <= 2 &&
+    (value.correlation === null ||
+      (isFiniteNumber(value.correlation) &&
+        value.correlation >= -1 &&
+        value.correlation <= 1)) &&
+    isNonNegativeNumber(value.sign_agreement) &&
+    value.sign_agreement <= 1 &&
+    value.unavailable_reason === null
   )
 }
 
@@ -703,14 +842,18 @@ function isThermalFemResult(value: unknown): value is PandaThermalFemResult {
       'core_summary',
       'displacement_x_m',
       'displacement_y_m',
+      'element_local_material_birefringence',
+      'element_local_material_slow_axis_angle_rad',
       'element_principal_axis_angle_rad',
       'element_principal_difference_pa',
       'element_principal_max_pa',
       'element_principal_min_pa',
+      'element_signed_local_material_birefringence',
       'element_strain_xx',
       'element_strain_xy',
       'element_strain_yy',
       'element_strain_zz',
+      'element_stress_optic_coefficient_per_pa',
       'element_stress_xx_pa',
       'element_stress_xy_pa',
       'element_stress_yy_pa',
@@ -719,6 +862,7 @@ function isThermalFemResult(value: unknown): value is PandaThermalFemResult {
       'force_balance',
       'mesh',
       'model_manifest',
+      'qualitative_kernel_fem_shape_comparison',
       'warnings',
     ]) ||
     !isThermalRequest(value.configuration) ||
@@ -731,6 +875,7 @@ function isThermalFemResult(value: unknown): value is PandaThermalFemResult {
     ) ||
     !isFiniteNumber(value.epsilon_zz_0) ||
     !isManifest(value.model_manifest) ||
+    !isShapeComparison(value.qualitative_kernel_fem_shape_comparison) ||
     !Array.isArray(value.warnings) ||
     !value.warnings.every(isWarning) ||
     !isFiniteArray(value.displacement_x_m, value.mesh.node_count) ||
@@ -743,6 +888,10 @@ function isThermalFemResult(value: unknown): value is PandaThermalFemResult {
     !isFiniteArray(value.element_stress_yy_pa, value.mesh.element_count) ||
     !isFiniteArray(value.element_stress_zz_pa, value.mesh.element_count) ||
     !isFiniteArray(value.element_stress_xy_pa, value.mesh.element_count) ||
+    !isFiniteArray(
+      value.element_stress_optic_coefficient_per_pa,
+      value.mesh.element_count,
+    ) ||
     !isFiniteArray(value.element_principal_max_pa, value.mesh.element_count) ||
     !isFiniteArray(value.element_principal_min_pa, value.mesh.element_count) ||
     !isFiniteArray(
@@ -753,11 +902,26 @@ function isThermalFemResult(value: unknown): value is PandaThermalFemResult {
       value.element_principal_axis_angle_rad,
       value.mesh.element_count,
     ) ||
+    !isFiniteArray(
+      value.element_signed_local_material_birefringence,
+      value.mesh.element_count,
+    ) ||
+    !isFiniteArray(
+      value.element_local_material_birefringence,
+      value.mesh.element_count,
+    ) ||
+    !isNullableSlowAxisArray(
+      value.element_local_material_slow_axis_angle_rad,
+      value.mesh.element_count,
+    ) ||
     !isConvergence(value.convergence, value.configuration.refinement_level)
   ) {
     return false
   }
   if (!value.element_principal_difference_pa.every(isNonNegativeNumber)) {
+    return false
+  }
+  if (!value.element_local_material_birefringence.every(isNonNegativeNumber)) {
     return false
   }
   const selectedConvergence = value.convergence[value.convergence.length - 1]
