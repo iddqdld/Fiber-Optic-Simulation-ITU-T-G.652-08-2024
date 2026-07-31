@@ -71,13 +71,7 @@ def _raw_point(
         if r2_m2 == 0.0:
             continue
 
-        contribution = (
-            2.0
-            * relative_amplitude
-            * sap.radius_m
-            * sap.radius_m
-            / (r2_m2 * r2_m2)
-        )
+        contribution = 2.0 * relative_amplitude * sap.radius_m * sap.radius_m / (r2_m2 * r2_m2)
         raw_deviatoric_difference += contribution * (dx_m * dx_m - dy_m * dy_m)
         raw_shear += contribution * dx_m * dy_m
 
@@ -143,15 +137,12 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
             if valid:
                 valid_point_count += 1
                 raw_principal = 2.0 * math.hypot(s, t)
-                if not all(
-                    math.isfinite(value) for value in (raw_deviatoric, s, t, raw_principal)
-                ):
+                if not all(math.isfinite(value) for value in (raw_deviatoric, s, t, raw_principal)):
                     raise PandaFieldMapCalculationError()
                 kernel_scale = max(kernel_scale, abs(raw_deviatoric))
-                core_distance_squared = (
-                    (x_m - request.geometry.core_center_x_m) ** 2
-                    + (y_m - request.geometry.core_center_y_m) ** 2
-                )
+                core_distance_squared = (x_m - request.geometry.core_center_x_m) ** 2 + (
+                    y_m - request.geometry.core_center_y_m
+                ) ** 2
                 if core_distance_squared < nearest_core_distance_squared:
                     nearest_core_distance_squared = core_distance_squared
                     core_s = s
@@ -160,11 +151,7 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
         validity_rows.append(validity_row)
         raw_deviatoric_rows.append(raw_deviatoric_row)
 
-    if (
-        valid_point_count == 0
-        or not math.isfinite(kernel_scale)
-        or kernel_scale <= 0.0
-    ):
+    if valid_point_count == 0 or not math.isfinite(kernel_scale) or kernel_scale <= 0.0:
         raise PandaFieldMapCalculationError()
 
     for raw_row in raw_deviatoric_rows:
@@ -190,9 +177,7 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
         x_coordinates_m=x_coordinates_m,
         y_coordinates_m=y_coordinates_m,
         validity_mask=tuple(tuple(row) for row in validity_rows),
-        normalized_deviatoric_difference_kernel=tuple(
-            tuple(row) for row in raw_deviatoric_rows
-        ),
+        normalized_deviatoric_difference_kernel=tuple(tuple(row) for row in raw_deviatoric_rows),
         sap_thermal_mismatch_strains=mismatch_strains,
         kernel_scale=kernel_scale,
         core_principal_axis_angle_rad=core_axis_angle,

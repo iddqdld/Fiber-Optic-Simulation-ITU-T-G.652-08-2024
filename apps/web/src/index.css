@@ -4596,7 +4596,9 @@ summary:focus-visible,
   background: #101720;
   border: 1px solid #243242;
   border-radius: 8px;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .import-export-option-card:hover {

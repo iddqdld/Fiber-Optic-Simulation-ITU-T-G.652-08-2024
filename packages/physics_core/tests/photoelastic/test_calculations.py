@@ -246,12 +246,8 @@ def test_aligned_saps_have_x_and_y_reflection_symmetry() -> None:
                 continue
 
             deviatoric = result.normalized_deviatoric_difference_kernel[row_index][column_index]
-            x_reflected = result.normalized_deviatoric_difference_kernel[row_index][
-                mirrored_column
-            ]
-            y_reflected = result.normalized_deviatoric_difference_kernel[mirrored_row][
-                column_index
-            ]
+            x_reflected = result.normalized_deviatoric_difference_kernel[row_index][mirrored_column]
+            y_reflected = result.normalized_deviatoric_difference_kernel[mirrored_row][column_index]
             assert deviatoric is not None
             assert x_reflected == pytest.approx(deviatoric, abs=1.0e-14)
             assert y_reflected == pytest.approx(deviatoric, abs=1.0e-14)
