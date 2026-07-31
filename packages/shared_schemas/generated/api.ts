@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/photoelastic/panda/thermal-fem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Panda Thermal Fem */
+        post: operations["calculate_panda_thermal_fem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/simulations/preview": {
         parameters: {
             query?: never;
@@ -2028,6 +2045,268 @@ export interface components {
          * @enum {string}
          */
         PandaMeshWarningCode: "quality_below_target" | "polygonal_interface_approximation";
+        /** PandaThermalFemAnchorReactions */
+        PandaThermalFemAnchorReactions: {
+            /** Primary Node Index */
+            primary_node_index: number;
+            /** Primary Reaction X N Per M */
+            primary_reaction_x_n_per_m: number;
+            /** Primary Reaction Y N Per M */
+            primary_reaction_y_n_per_m: number;
+            /** Secondary Node Index */
+            secondary_node_index: number;
+            /** Secondary Reaction X N Per M */
+            secondary_reaction_x_n_per_m: number;
+            /** Secondary Reaction Y N Per M */
+            secondary_reaction_y_n_per_m: number;
+        };
+        /** PandaThermalFemConvergenceSummary */
+        PandaThermalFemConvergenceSummary: {
+            /** Core Average Principal Difference Pa */
+            core_average_principal_difference_pa: number;
+            /** Element Count */
+            element_count: number;
+            /** Node Count */
+            node_count: number;
+            /** Refinement Level */
+            refinement_level: number;
+            /** Relative Change */
+            relative_change: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unavailable" | "not_converged" | "converged";
+        };
+        /** PandaThermalFemCoreSummary */
+        PandaThermalFemCoreSummary: {
+            /** Area M2 */
+            area_m2: number;
+            /** Average Stress Xx Pa */
+            average_stress_xx_pa: number;
+            /** Average Stress Xy Pa */
+            average_stress_xy_pa: number;
+            /** Average Stress Yy Pa */
+            average_stress_yy_pa: number;
+            /** Average Stress Zz Pa */
+            average_stress_zz_pa: number;
+            /** Principal Axis Angle Rad */
+            principal_axis_angle_rad: number;
+            /** Principal Difference Pa */
+            principal_difference_pa: number;
+            /** Principal Max Pa */
+            principal_max_pa: number;
+            /** Principal Min Pa */
+            principal_min_pa: number;
+        };
+        /** PandaThermalFemForceBalance */
+        PandaThermalFemForceBalance: {
+            /** Axial Residual N */
+            axial_residual_n: number | null;
+            /** Axial Resultant N */
+            axial_resultant_n: number;
+            /** Axial Target N */
+            axial_target_n: number | null;
+            /** Transverse Free Residual L2 N Per M */
+            transverse_free_residual_l2_n_per_m: number;
+            /** Transverse Resultant X N Per M */
+            transverse_resultant_x_n_per_m: number;
+            /** Transverse Resultant Y N Per M */
+            transverse_resultant_y_n_per_m: number;
+        };
+        /** PandaThermalFemManifest */
+        PandaThermalFemManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "small strain isotropic thermoelasticity",
+             *       "generalized plane strain with uniform axial strain",
+             *       "zero xz and yz shear strains",
+             *       "piecewise constant material data per mesh element",
+             *       "traction-free exterior with no imposed exterior displacement",
+             *       "controlled rigid-body anchors only"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Axial Conditions
+             * @default [
+             *       "free_resultant",
+             *       "prescribed_force",
+             *       "prescribed_strain"
+             *     ]
+             */
+            axial_conditions: string[];
+            /**
+             * Axial Equation
+             * @default integral_sigma_zz_d_a_equals_n_z
+             * @constant
+             */
+            axial_equation: "integral_sigma_zz_d_a_equals_n_z";
+            /**
+             * Axial Strain Model
+             * @default uniform_epsilon_zz_0
+             * @constant
+             */
+            axial_strain_model: "uniform_epsilon_zz_0";
+            /**
+             * Birefringence Computed
+             * @default false
+             * @constant
+             */
+            birefringence_computed: false;
+            /**
+             * Displacement Units
+             * @default m
+             * @constant
+             */
+            displacement_units: "m";
+            /**
+             * Element Family
+             * @default first_order_triangles
+             * @constant
+             */
+            element_family: "first_order_triangles";
+            /**
+             * Equation
+             * @default transverse_weak_equilibrium_plus_axial_resultant
+             * @constant
+             */
+            equation: "transverse_weak_equilibrium_plus_axial_resultant";
+            /**
+             * Exterior Boundary
+             * @default traction_free
+             * @constant
+             */
+            exterior_boundary: "traction_free";
+            /**
+             * Limitations
+             * @default [
+             *       "material and thermal values may be demonstration data rather than measured fibre data",
+             *       "first-order triangles provide a mesh-dependent approximation",
+             *       "no birefringence or photoelastic observable is computed"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Method
+             * @default fem_generalized_plane_strain
+             * @constant
+             */
+            method: "fem_generalized_plane_strain";
+            /**
+             * Model Id
+             * @default fem_generalized_plane_strain
+             * @constant
+             */
+            model_id: "fem_generalized_plane_strain";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Quantity Type
+             * @default quantitative_mechanical_output
+             * @constant
+             */
+            quantity_type: "quantitative_mechanical_output";
+            /**
+             * Strain Units
+             * @default 1
+             * @constant
+             */
+            strain_units: "1";
+            /**
+             * Stress Measure
+             * @default cauchy_stress
+             * @constant
+             */
+            stress_measure: "cauchy_stress";
+            /**
+             * Stress Units
+             * @default Pa
+             * @constant
+             */
+            stress_units: "Pa";
+            /**
+             * Thermal Strain Model
+             * @default full_per_region_alpha_delta_t
+             * @constant
+             */
+            thermal_strain_model: "full_per_region_alpha_delta_t";
+        };
+        /** PandaThermalFemRequest */
+        PandaThermalFemRequest: {
+            axial_load: components["schemas"]["AxialLoad"];
+            geometry: components["schemas"]["PandaGeometry"];
+            materials: components["schemas"]["PandaMaterialSet"];
+            /**
+             * Refinement Level
+             * @default 1
+             */
+            refinement_level: number;
+            thermal: components["schemas"]["ThermalState"];
+        };
+        /** PandaThermalFemResult */
+        PandaThermalFemResult: {
+            anchor_reactions: components["schemas"]["PandaThermalFemAnchorReactions"];
+            configuration: components["schemas"]["PandaThermalFemRequest"];
+            /** Convergence */
+            convergence: components["schemas"]["PandaThermalFemConvergenceSummary"][];
+            core_summary: components["schemas"]["PandaThermalFemCoreSummary"];
+            /** Displacement X M */
+            displacement_x_m: number[];
+            /** Displacement Y M */
+            displacement_y_m: number[];
+            /** Element Principal Axis Angle Rad */
+            element_principal_axis_angle_rad: number[];
+            /** Element Principal Difference Pa */
+            element_principal_difference_pa: number[];
+            /** Element Principal Max Pa */
+            element_principal_max_pa: number[];
+            /** Element Principal Min Pa */
+            element_principal_min_pa: number[];
+            /** Element Strain Xx */
+            element_strain_xx: number[];
+            /** Element Strain Xy */
+            element_strain_xy: number[];
+            /** Element Strain Yy */
+            element_strain_yy: number[];
+            /** Element Strain Zz */
+            element_strain_zz: number[];
+            /** Element Stress Xx Pa */
+            element_stress_xx_pa: number[];
+            /** Element Stress Xy Pa */
+            element_stress_xy_pa: number[];
+            /** Element Stress Yy Pa */
+            element_stress_yy_pa: number[];
+            /** Element Stress Zz Pa */
+            element_stress_zz_pa: number[];
+            /** Epsilon Zz 0 */
+            epsilon_zz_0: number;
+            force_balance: components["schemas"]["PandaThermalFemForceBalance"];
+            mesh: components["schemas"]["PandaMeshResult"];
+            model_manifest: components["schemas"]["PandaThermalFemManifest"];
+            /** Warnings */
+            warnings: components["schemas"]["PandaThermalFemWarning"][];
+        };
+        /** PandaThermalFemWarning */
+        PandaThermalFemWarning: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "demonstration_data" | "convergence_unavailable" | "convergence_above_threshold";
+            /** Message */
+            message: string;
+            /**
+             * Refinement Level
+             * @default null
+             */
+            refinement_level: number | null;
+        };
         /**
          * PhotoelasticConvention
          * @enum {string}
@@ -2428,6 +2707,39 @@ export interface operations {
                 };
             };
             /** @description Request validation or mesh generation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    calculate_panda_thermal_fem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PandaThermalFemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PandaThermalFemResult"];
+                };
+            };
+            /** @description Request validation or thermal FEM calculation failed */
             422: {
                 headers: {
                     [name: string]: unknown;

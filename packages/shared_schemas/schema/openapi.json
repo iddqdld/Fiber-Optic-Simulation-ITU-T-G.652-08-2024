@@ -3742,6 +3742,585 @@
         "title": "PandaMeshWarningCode",
         "type": "string"
       },
+      "PandaThermalFemAnchorReactions": {
+        "additionalProperties": false,
+        "properties": {
+          "primary_node_index": {
+            "minimum": 0,
+            "title": "Primary Node Index",
+            "type": "integer"
+          },
+          "primary_reaction_x_n_per_m": {
+            "title": "Primary Reaction X N Per M",
+            "type": "number"
+          },
+          "primary_reaction_y_n_per_m": {
+            "title": "Primary Reaction Y N Per M",
+            "type": "number"
+          },
+          "secondary_node_index": {
+            "minimum": 0,
+            "title": "Secondary Node Index",
+            "type": "integer"
+          },
+          "secondary_reaction_x_n_per_m": {
+            "title": "Secondary Reaction X N Per M",
+            "type": "number"
+          },
+          "secondary_reaction_y_n_per_m": {
+            "title": "Secondary Reaction Y N Per M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "primary_node_index",
+          "secondary_node_index",
+          "primary_reaction_x_n_per_m",
+          "primary_reaction_y_n_per_m",
+          "secondary_reaction_x_n_per_m",
+          "secondary_reaction_y_n_per_m"
+        ],
+        "title": "PandaThermalFemAnchorReactions",
+        "type": "object"
+      },
+      "PandaThermalFemConvergenceSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "core_average_principal_difference_pa": {
+            "minimum": 0,
+            "title": "Core Average Principal Difference Pa",
+            "type": "number"
+          },
+          "element_count": {
+            "exclusiveMinimum": 0,
+            "title": "Element Count",
+            "type": "integer"
+          },
+          "node_count": {
+            "exclusiveMinimum": 0,
+            "title": "Node Count",
+            "type": "integer"
+          },
+          "refinement_level": {
+            "minimum": 0,
+            "title": "Refinement Level",
+            "type": "integer"
+          },
+          "relative_change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relative Change"
+          },
+          "status": {
+            "enum": [
+              "unavailable",
+              "not_converged",
+              "converged"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refinement_level",
+          "node_count",
+          "element_count",
+          "core_average_principal_difference_pa",
+          "relative_change",
+          "status"
+        ],
+        "title": "PandaThermalFemConvergenceSummary",
+        "type": "object"
+      },
+      "PandaThermalFemCoreSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "area_m2": {
+            "exclusiveMinimum": 0,
+            "title": "Area M2",
+            "type": "number"
+          },
+          "average_stress_xx_pa": {
+            "title": "Average Stress Xx Pa",
+            "type": "number"
+          },
+          "average_stress_xy_pa": {
+            "title": "Average Stress Xy Pa",
+            "type": "number"
+          },
+          "average_stress_yy_pa": {
+            "title": "Average Stress Yy Pa",
+            "type": "number"
+          },
+          "average_stress_zz_pa": {
+            "title": "Average Stress Zz Pa",
+            "type": "number"
+          },
+          "principal_axis_angle_rad": {
+            "title": "Principal Axis Angle Rad",
+            "type": "number"
+          },
+          "principal_difference_pa": {
+            "minimum": 0,
+            "title": "Principal Difference Pa",
+            "type": "number"
+          },
+          "principal_max_pa": {
+            "title": "Principal Max Pa",
+            "type": "number"
+          },
+          "principal_min_pa": {
+            "title": "Principal Min Pa",
+            "type": "number"
+          }
+        },
+        "required": [
+          "area_m2",
+          "average_stress_xx_pa",
+          "average_stress_yy_pa",
+          "average_stress_zz_pa",
+          "average_stress_xy_pa",
+          "principal_max_pa",
+          "principal_min_pa",
+          "principal_difference_pa",
+          "principal_axis_angle_rad"
+        ],
+        "title": "PandaThermalFemCoreSummary",
+        "type": "object"
+      },
+      "PandaThermalFemForceBalance": {
+        "additionalProperties": false,
+        "properties": {
+          "axial_residual_n": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Axial Residual N"
+          },
+          "axial_resultant_n": {
+            "title": "Axial Resultant N",
+            "type": "number"
+          },
+          "axial_target_n": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Axial Target N"
+          },
+          "transverse_free_residual_l2_n_per_m": {
+            "minimum": 0,
+            "title": "Transverse Free Residual L2 N Per M",
+            "type": "number"
+          },
+          "transverse_resultant_x_n_per_m": {
+            "title": "Transverse Resultant X N Per M",
+            "type": "number"
+          },
+          "transverse_resultant_y_n_per_m": {
+            "title": "Transverse Resultant Y N Per M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "transverse_free_residual_l2_n_per_m",
+          "transverse_resultant_x_n_per_m",
+          "transverse_resultant_y_n_per_m",
+          "axial_resultant_n",
+          "axial_target_n",
+          "axial_residual_n"
+        ],
+        "title": "PandaThermalFemForceBalance",
+        "type": "object"
+      },
+      "PandaThermalFemManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "default": [
+              "small strain isotropic thermoelasticity",
+              "generalized plane strain with uniform axial strain",
+              "zero xz and yz shear strains",
+              "piecewise constant material data per mesh element",
+              "traction-free exterior with no imposed exterior displacement",
+              "controlled rigid-body anchors only"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "axial_conditions": {
+            "default": [
+              "free_resultant",
+              "prescribed_force",
+              "prescribed_strain"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Axial Conditions",
+            "type": "array"
+          },
+          "axial_equation": {
+            "const": "integral_sigma_zz_d_a_equals_n_z",
+            "default": "integral_sigma_zz_d_a_equals_n_z",
+            "title": "Axial Equation",
+            "type": "string"
+          },
+          "axial_strain_model": {
+            "const": "uniform_epsilon_zz_0",
+            "default": "uniform_epsilon_zz_0",
+            "title": "Axial Strain Model",
+            "type": "string"
+          },
+          "birefringence_computed": {
+            "const": false,
+            "default": false,
+            "title": "Birefringence Computed",
+            "type": "boolean"
+          },
+          "displacement_units": {
+            "const": "m",
+            "default": "m",
+            "title": "Displacement Units",
+            "type": "string"
+          },
+          "element_family": {
+            "const": "first_order_triangles",
+            "default": "first_order_triangles",
+            "title": "Element Family",
+            "type": "string"
+          },
+          "equation": {
+            "const": "transverse_weak_equilibrium_plus_axial_resultant",
+            "default": "transverse_weak_equilibrium_plus_axial_resultant",
+            "title": "Equation",
+            "type": "string"
+          },
+          "exterior_boundary": {
+            "const": "traction_free",
+            "default": "traction_free",
+            "title": "Exterior Boundary",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [
+              "material and thermal values may be demonstration data rather than measured fibre data",
+              "first-order triangles provide a mesh-dependent approximation",
+              "no birefringence or photoelastic observable is computed"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "method": {
+            "const": "fem_generalized_plane_strain",
+            "default": "fem_generalized_plane_strain",
+            "title": "Method",
+            "type": "string"
+          },
+          "model_id": {
+            "const": "fem_generalized_plane_strain",
+            "default": "fem_generalized_plane_strain",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "model_version": {
+            "const": "1.0.0",
+            "default": "1.0.0",
+            "title": "Model Version",
+            "type": "string"
+          },
+          "quantity_type": {
+            "const": "quantitative_mechanical_output",
+            "default": "quantitative_mechanical_output",
+            "title": "Quantity Type",
+            "type": "string"
+          },
+          "strain_units": {
+            "const": "1",
+            "default": "1",
+            "title": "Strain Units",
+            "type": "string"
+          },
+          "stress_measure": {
+            "const": "cauchy_stress",
+            "default": "cauchy_stress",
+            "title": "Stress Measure",
+            "type": "string"
+          },
+          "stress_units": {
+            "const": "Pa",
+            "default": "Pa",
+            "title": "Stress Units",
+            "type": "string"
+          },
+          "thermal_strain_model": {
+            "const": "full_per_region_alpha_delta_t",
+            "default": "full_per_region_alpha_delta_t",
+            "title": "Thermal Strain Model",
+            "type": "string"
+          }
+        },
+        "title": "PandaThermalFemManifest",
+        "type": "object"
+      },
+      "PandaThermalFemRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "axial_load": {
+            "$ref": "#/components/schemas/AxialLoad"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/PandaGeometry"
+          },
+          "materials": {
+            "$ref": "#/components/schemas/PandaMaterialSet"
+          },
+          "refinement_level": {
+            "default": 1,
+            "maximum": 2,
+            "minimum": 0,
+            "title": "Refinement Level",
+            "type": "integer"
+          },
+          "thermal": {
+            "$ref": "#/components/schemas/ThermalState"
+          }
+        },
+        "required": [
+          "geometry",
+          "materials",
+          "thermal",
+          "axial_load"
+        ],
+        "title": "PandaThermalFemRequest",
+        "type": "object"
+      },
+      "PandaThermalFemResult": {
+        "additionalProperties": false,
+        "properties": {
+          "anchor_reactions": {
+            "$ref": "#/components/schemas/PandaThermalFemAnchorReactions"
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/PandaThermalFemRequest"
+          },
+          "convergence": {
+            "items": {
+              "$ref": "#/components/schemas/PandaThermalFemConvergenceSummary"
+            },
+            "title": "Convergence",
+            "type": "array"
+          },
+          "core_summary": {
+            "$ref": "#/components/schemas/PandaThermalFemCoreSummary"
+          },
+          "displacement_x_m": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Displacement X M",
+            "type": "array"
+          },
+          "displacement_y_m": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Displacement Y M",
+            "type": "array"
+          },
+          "element_principal_axis_angle_rad": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Principal Axis Angle Rad",
+            "type": "array"
+          },
+          "element_principal_difference_pa": {
+            "items": {
+              "minimum": 0,
+              "type": "number"
+            },
+            "title": "Element Principal Difference Pa",
+            "type": "array"
+          },
+          "element_principal_max_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Principal Max Pa",
+            "type": "array"
+          },
+          "element_principal_min_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Principal Min Pa",
+            "type": "array"
+          },
+          "element_strain_xx": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Strain Xx",
+            "type": "array"
+          },
+          "element_strain_xy": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Strain Xy",
+            "type": "array"
+          },
+          "element_strain_yy": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Strain Yy",
+            "type": "array"
+          },
+          "element_strain_zz": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Strain Zz",
+            "type": "array"
+          },
+          "element_stress_xx_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Stress Xx Pa",
+            "type": "array"
+          },
+          "element_stress_xy_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Stress Xy Pa",
+            "type": "array"
+          },
+          "element_stress_yy_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Stress Yy Pa",
+            "type": "array"
+          },
+          "element_stress_zz_pa": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Element Stress Zz Pa",
+            "type": "array"
+          },
+          "epsilon_zz_0": {
+            "title": "Epsilon Zz 0",
+            "type": "number"
+          },
+          "force_balance": {
+            "$ref": "#/components/schemas/PandaThermalFemForceBalance"
+          },
+          "mesh": {
+            "$ref": "#/components/schemas/PandaMeshResult"
+          },
+          "model_manifest": {
+            "$ref": "#/components/schemas/PandaThermalFemManifest"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/PandaThermalFemWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configuration",
+          "mesh",
+          "displacement_x_m",
+          "displacement_y_m",
+          "element_strain_xx",
+          "element_strain_yy",
+          "element_strain_zz",
+          "element_strain_xy",
+          "element_stress_xx_pa",
+          "element_stress_yy_pa",
+          "element_stress_zz_pa",
+          "element_stress_xy_pa",
+          "element_principal_max_pa",
+          "element_principal_min_pa",
+          "element_principal_difference_pa",
+          "element_principal_axis_angle_rad",
+          "epsilon_zz_0",
+          "core_summary",
+          "anchor_reactions",
+          "force_balance",
+          "convergence",
+          "warnings",
+          "model_manifest"
+        ],
+        "title": "PandaThermalFemResult",
+        "type": "object"
+      },
+      "PandaThermalFemWarning": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "enum": [
+              "demonstration_data",
+              "convergence_unavailable",
+              "convergence_above_threshold"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "refinement_level": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Refinement Level"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "PandaThermalFemWarning",
+        "type": "object"
+      },
       "PhotoelasticConvention": {
         "enum": [
           "p11_p12_strain",
@@ -4616,6 +5195,44 @@
           }
         },
         "summary": "Post Panda Mesh"
+      }
+    },
+    "/api/v1/photoelastic/panda/thermal-fem": {
+      "post": {
+        "operationId": "calculate_panda_thermal_fem",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PandaThermalFemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PandaThermalFemResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation or thermal FEM calculation failed"
+          }
+        },
+        "summary": "Post Panda Thermal Fem"
       }
     },
     "/api/v1/simulations/preview": {

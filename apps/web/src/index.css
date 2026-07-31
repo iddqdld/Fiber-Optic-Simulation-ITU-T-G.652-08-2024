@@ -2228,6 +2228,31 @@ summary:focus-visible,
   border: 0;
 }
 
+.panda-mesh-controls[aria-label='Thermal FEM field controls'] {
+  grid-template-columns: auto minmax(12rem, 1fr) auto;
+}
+
+.panda-mesh-controls select {
+  min-height: 2.1rem;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  color: #d9eaf8;
+  font: inherit;
+  font-size: 0.72rem;
+  background: #172737;
+  border: 1px solid #3f6f92;
+  border-radius: 3px;
+}
+
+.panda-mesh-controls select:focus-visible {
+  outline: 2px solid #72b7dc;
+  outline-offset: 2px;
+}
+
+.panda-mesh-controls input[type='checkbox'] {
+  accent-color: #4fa5d3;
+}
+
 .panda-mesh-control-help,
 .panda-mesh-figure figcaption {
   color: var(--editor-text-muted);
@@ -2287,6 +2312,29 @@ summary:focus-visible,
 
 .panda-mesh-status {
   min-height: clamp(15rem, 36vh, 25rem);
+}
+
+.m1-fem-notice {
+  max-width: 62rem;
+  margin: 0.7rem auto 0;
+  padding: 0.45rem 0.6rem;
+  color: #b8eaf3;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  background: #142832;
+  border: 1px solid #2d6172;
+  border-radius: 3px;
+}
+
+@media (max-width: 640px) {
+  .panda-mesh-controls[aria-label='Thermal FEM field controls'] {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .panda-mesh-controls[aria-label='Thermal FEM field controls']
+    label:last-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .m1-result-section {

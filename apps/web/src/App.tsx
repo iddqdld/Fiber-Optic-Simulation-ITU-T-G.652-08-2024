@@ -34,7 +34,7 @@ import { M1Results } from './m1/M1Results'
 import { M1Workspace } from './m1/M1Workspace'
 import type { M1WorkspaceId } from './m1/M1WorkspaceCatalog'
 import { usePandaFieldMap } from './m1/usePandaFieldMap'
-import { usePandaMesh } from './m1/usePandaMesh'
+import { usePandaThermalFem } from './m1/usePandaThermalFem'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
 import { SweepWorkspace } from './SweepWorkspace'
@@ -694,7 +694,10 @@ function App() {
   const isPandaFieldWorkspaceActive = activeM1Workspace === 'panda-field'
   const isPandaMeshWorkspaceActive = activeM1Workspace === 'fem-mesh'
   const pandaField = usePandaFieldMap(isPandaFieldWorkspaceActive)
-  const pandaMesh = usePandaMesh(isPandaMeshWorkspaceActive, pandaField.values)
+  const thermalFem = usePandaThermalFem(
+    isPandaMeshWorkspaceActive,
+    pandaField.values,
+  )
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
@@ -900,7 +903,7 @@ function App() {
   const displayPreviewStatus = isPandaFieldWorkspaceActive
     ? pandaField.statusLabel
     : isPandaMeshWorkspaceActive
-      ? pandaMesh.statusLabel
+      ? thermalFem.statusLabel
       : isM1WorkspaceActive
         ? 'M1 2D foundation · not calculated'
         : formValidation.error !== null
@@ -917,13 +920,13 @@ function App() {
             ? 'error'
             : 'neutral'
     : isPandaMeshWorkspaceActive
-      ? pandaMesh.phase === 'ready'
+      ? thermalFem.phase === 'ready'
         ? 'success'
-        : pandaMesh.phase === 'loading'
+        : thermalFem.phase === 'loading'
           ? 'info'
-          : pandaMesh.phase === 'validation'
+          : thermalFem.phase === 'validation'
             ? 'warning'
-            : pandaMesh.phase === 'error'
+            : thermalFem.phase === 'error'
               ? 'error'
               : 'neutral'
       : isM1WorkspaceActive
@@ -943,7 +946,7 @@ function App() {
   const warningCount = isPandaFieldWorkspaceActive
     ? (pandaField.result?.warnings.length ?? 0)
     : isPandaMeshWorkspaceActive
-      ? (pandaMesh.result?.warnings.length ?? 0)
+      ? (thermalFem.result?.warnings.length ?? 0)
       : isM1WorkspaceActive
         ? 0
         : (result?.warnings.length ?? 0)
@@ -952,9 +955,9 @@ function App() {
       ? `${pandaField.result.model_manifest.model_id} · ${pandaField.result.model_manifest.model_version}`
       : `PANDA field · ${pandaField.phase}`
     : isPandaMeshWorkspaceActive
-      ? pandaMesh.result
-        ? `${pandaMesh.result.model_manifest.model_id} · ${pandaMesh.result.model_manifest.model_version}`
-        : `PANDA mesh · ${pandaMesh.phase}`
+      ? thermalFem.result
+        ? `${thermalFem.result.model_manifest.model_id} · ${thermalFem.result.model_manifest.model_version}`
+        : `PANDA thermal FEM · ${thermalFem.phase}`
       : isM1WorkspaceActive
         ? 'M1 2D foundation · no calculation'
         : result
@@ -972,7 +975,7 @@ function App() {
       <M1Workspace
         workspace={activeM1Workspace}
         pandaField={pandaField}
-        pandaMesh={pandaMesh}
+        thermalFem={thermalFem}
       />
     )
   } else if (activeWorkspace === 'scene') {
@@ -1028,7 +1031,7 @@ function App() {
       <M1Inspector
         workspace={activeM1Workspace}
         pandaField={pandaField}
-        pandaMesh={pandaMesh}
+        thermalFem={thermalFem}
       />
     ) : (
       <SimulationInspector
@@ -1050,7 +1053,7 @@ function App() {
       <M1Results
         workspace={activeM1Workspace}
         pandaField={pandaField}
-        pandaMesh={pandaMesh}
+        thermalFem={thermalFem}
       />
     ) : result ? (
       <Level1Preview result={result} />

@@ -7,14 +7,14 @@ import type {
   PandaFieldPresentationMode,
 } from './pandaFieldModel'
 import {
-  PANDA_MESH_REFINEMENT_LEVELS,
-  type PandaMeshController,
-} from './pandaMeshModel'
+  PANDA_THERMAL_FEM_REFINEMENT_LEVELS,
+  type PandaThermalFemController,
+} from './pandaThermalFemModel'
 
 export type M1InspectorProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
-  pandaMesh?: PandaMeshController | null
+  thermalFem?: PandaThermalFemController | null
 }
 
 type InputDefinition = {
@@ -184,6 +184,19 @@ const presentationModeOptions: ReadonlyArray<{
   },
 ]
 
+const thermalFemInputGroup: InputGroup = {
+  id: 'thermal-fem-thermal',
+  title: 'Thermal mismatch',
+  note: 'These are full per-region thermoelastic controls. Equal CTE values and zero temperature difference are valid test cases.',
+  inputs: inputGroups[1].inputs.map((input) => ({
+    ...input,
+    boundary:
+      input.name === 'temperatureC' || input.name === 'fictiveTemperatureC'
+        ? 'Above −273.15 °C; equal temperatures are valid.'
+        : 'Finite demonstration value in ×10⁻⁶/K; equal CTE values are valid.',
+  })),
+}
+
 function NumericInput({
   definition,
   controller,
@@ -227,26 +240,78 @@ function NumericInput({
   )
 }
 
-function MeshInspector({
+function ThermalFemControlInput({
+  id,
+  label,
+  unit,
+  value,
+  error,
+  onChange,
+}: {
+  id: string
+  label: string
+  unit: string
+  value: string
+  error: string | undefined
+  onChange: (value: string) => void
+}) {
+  const boundaryId = `${id}-boundary`
+  const errorId = `${id}-error`
+  return (
+    <div className={`m1-input-field${error ? ' m1-input-field--error' : ''}`}>
+      <label htmlFor={id}>
+        {label} ({unit})
+      </label>
+      <input
+        id={id}
+        type="number"
+        step="any"
+        value={value}
+        aria-invalid={error ? 'true' : 'false'}
+        aria-describedby={`${boundaryId}${error ? ` ${errorId}` : ''}`}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+      <p id={boundaryId} className="m1-boundary-note">
+        {unit === 'N'
+          ? 'Axial resultant target in newtons.'
+          : 'Input in microstrain; sent to the FEM service as dimensionless strain.'}
+      </p>
+      {error && (
+        <p id={errorId} className="m1-input-error">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ThermalFemInspector({
   pandaField,
-  pandaMesh,
+  thermalFem,
 }: {
   pandaField: PandaFieldController
-  pandaMesh: PandaMeshController
+  thermalFem: PandaThermalFemController
 }) {
   const geometryGroup = inputGroups[0]
+  const fieldController = {
+    values: pandaField.values,
+    fieldErrors: thermalFem.fieldErrors,
+    onValueChange: pandaField.onValueChange,
+  }
   return (
     <>
       <p className="m1-inspector-status" role="status">
-        {pandaMesh.statusLabel}
+        {thermalFem.statusLabel}
       </p>
       <p className="m1-inspector-status">
-        Mesh-only geometry generation. This step creates a 2D constrained
-        triangular mesh; it is not an FEM solve and exposes no solved fields.
+        Generalized-plane-strain thermoelastic FEM. The current UI uses
+        demonstration values E = 72 GPa and ν = 0.17 in every region; CTE and
+        temperature remain editable. Calculations run only when you press
+        Calculate FEM.
       </p>
-      {pandaMesh.phase === 'error' && pandaMesh.errorMessage && (
+      {thermalFem.phase === 'error' && thermalFem.errorMessage && (
         <p className="m1-input-error" role="alert">
-          {pandaMesh.errorMessage}
+          {thermalFem.errorMessage}
         </p>
       )}
       <form
@@ -257,55 +322,153 @@ function MeshInspector({
           <summary>{geometryGroup.title}</summary>
           <div className="m1-inspector-group-content">
             <p className="m1-group-note">
-              {geometryGroup.note} The same geometry drives the field map and
-              mesh request.
+              {geometryGroup.note} The same geometry drives both PANDA tabs.
             </p>
             <div className="m1-input-grid">
               {geometryGroup.inputs.map((definition) => (
                 <NumericInput
                   key={definition.name}
                   definition={definition}
-                  controller={{
-                    values: pandaField.values,
-                    fieldErrors: pandaMesh.fieldErrors,
-                    onValueChange: pandaField.onValueChange,
-                  }}
+                  controller={fieldController}
+                />
+              ))}
+            </div>
+          </div>
+        </details>
+        <details className="m1-inspector-group" open>
+          <summary>{thermalFemInputGroup.title}</summary>
+          <div className="m1-inspector-group-content">
+            <p className="m1-group-note">{thermalFemInputGroup.note}</p>
+            <div className="m1-input-grid">
+              {thermalFemInputGroup.inputs.map((definition) => (
+                <NumericInput
+                  key={definition.name}
+                  definition={definition}
+                  controller={fieldController}
                 />
               ))}
             </div>
           </div>
         </details>
         <fieldset className="m1-presentation-fieldset">
-          <legend>Mesh refinement</legend>
-          <label htmlFor="m1-panda-mesh-refinement">Refinement level</label>
+          <legend>Axial condition</legend>
+          <div className="m1-presentation-options">
+            <label className="m1-radio-label">
+              <span>
+                <input
+                  type="radio"
+                  name="m1-panda-thermal-axial-condition"
+                  value="free_resultant"
+                  checked={
+                    thermalFem.controls.axialCondition === 'free_resultant'
+                  }
+                  onChange={() =>
+                    thermalFem.onAxialConditionChange('free_resultant')
+                  }
+                />{' '}
+                Free axial resultant
+              </span>
+              <small>Solves the coupled axial equation with Nᶻ = 0.</small>
+            </label>
+            <label className="m1-radio-label">
+              <span>
+                <input
+                  type="radio"
+                  name="m1-panda-thermal-axial-condition"
+                  value="prescribed_force"
+                  checked={
+                    thermalFem.controls.axialCondition === 'prescribed_force'
+                  }
+                  onChange={() =>
+                    thermalFem.onAxialConditionChange('prescribed_force')
+                  }
+                />{' '}
+                Prescribed axial force
+              </span>
+              <small>Sets the axial resultant target in newtons.</small>
+            </label>
+            <label className="m1-radio-label">
+              <span>
+                <input
+                  type="radio"
+                  name="m1-panda-thermal-axial-condition"
+                  value="prescribed_strain"
+                  checked={
+                    thermalFem.controls.axialCondition === 'prescribed_strain'
+                  }
+                  onChange={() =>
+                    thermalFem.onAxialConditionChange('prescribed_strain')
+                  }
+                />{' '}
+                Prescribed axial strain
+              </span>
+              <small>
+                Fixes εᶻᶻ⁰; the axial resultant is reported, not forced to zero.
+              </small>
+            </label>
+          </div>
+          {thermalFem.controls.axialCondition === 'prescribed_force' && (
+            <ThermalFemControlInput
+              id="m1-panda-thermal-force"
+              label="Axial force"
+              unit="N"
+              value={thermalFem.controls.prescribedForceN}
+              error={thermalFem.fieldErrors.axialForceN}
+              onChange={thermalFem.onPrescribedForceChange}
+            />
+          )}
+          {thermalFem.controls.axialCondition === 'prescribed_strain' && (
+            <ThermalFemControlInput
+              id="m1-panda-thermal-strain"
+              label="Axial strain"
+              unit="µε"
+              value={thermalFem.controls.prescribedStrainMicrostrain}
+              error={thermalFem.fieldErrors.prescribedStrainMicrostrain}
+              onChange={thermalFem.onPrescribedStrainMicrostrainChange}
+            />
+          )}
+        </fieldset>
+        <fieldset className="m1-presentation-fieldset">
+          <legend>FEM refinement</legend>
+          <label htmlFor="m1-panda-thermal-refinement">Refinement level</label>
           <select
-            id="m1-panda-mesh-refinement"
-            value={pandaMesh.refinementLevel}
+            id="m1-panda-thermal-refinement"
+            value={thermalFem.controls.refinementLevel}
             onChange={(event) =>
-              pandaMesh.onRefinementLevelChange(
+              thermalFem.onRefinementLevelChange(
                 Number(event.currentTarget.value) as 0 | 1 | 2,
               )
             }
           >
-            {PANDA_MESH_REFINEMENT_LEVELS.map((option) => (
+            {PANDA_THERMAL_FEM_REFINEMENT_LEVELS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
           <p className="m1-boundary-note">
-            Preview is the fastest option; Fine increases the triangle count.
-            Refinement changes request a new mesh automatically.
+            Standard is the normal interactive choice. Fine uses more compute
+            and is intended for comparison.
           </p>
         </fieldset>
-      </form>
-      {pandaMesh.phase === 'error' && (
         <button
           className="m1-retry-button"
           type="button"
-          onClick={pandaMesh.onRetry}
+          disabled={thermalFem.phase === 'loading'}
+          onClick={thermalFem.onCalculate}
         >
-          Retry mesh generation
+          {thermalFem.phase === 'loading'
+            ? 'Calculating FEM…'
+            : 'Calculate FEM'}
+        </button>
+      </form>
+      {thermalFem.phase === 'error' && (
+        <button
+          className="m1-retry-button"
+          type="button"
+          onClick={thermalFem.onRetry}
+        >
+          Retry FEM calculation
         </button>
       )}
     </>
@@ -421,25 +584,29 @@ function PandaInspector({ controller }: { controller: PandaFieldController }) {
 export function M1Inspector({
   workspace,
   pandaField = null,
-  pandaMesh = null,
+  thermalFem = null,
 }: M1InspectorProps) {
   const isPandaField = workspace === 'panda-field'
   const isFemMesh = workspace === 'fem-mesh'
 
   return (
     <div className="m1-inspector">
-      <h2>{getM1WorkspaceLabel(workspace)} inspector</h2>
+      <h2>
+        {isFemMesh
+          ? 'Thermal FEM inspector'
+          : `${getM1WorkspaceLabel(workspace)} inspector`}
+      </h2>
       {isPandaField && pandaField ? (
         <PandaInspector controller={pandaField} />
-      ) : isFemMesh && pandaField && pandaMesh ? (
-        <MeshInspector pandaField={pandaField} pandaMesh={pandaMesh} />
+      ) : isFemMesh && pandaField && thermalFem ? (
+        <ThermalFemInspector pandaField={pandaField} thermalFem={thermalFem} />
       ) : (
         <>
           <M1FoundationCopy />
           <p className="m1-inspector-status" role="status">
             {isPandaField
               ? 'PANDA field controls are unavailable.'
-              : 'The FEM mesh controls are unavailable.'}
+              : 'The thermal FEM controls are unavailable.'}
           </p>
           <div className="m1-inspector-sections">
             <section aria-labelledby="m1-inspector-foundation-section">
@@ -447,7 +614,7 @@ export function M1Inspector({
               <p>
                 {isPandaField
                   ? 'Connect the field-map controller to configure this view.'
-                  : 'Connect the shared geometry and mesh controller to configure this view.'}
+                  : 'Connect the shared geometry and thermal FEM controller to configure this view.'}
               </p>
             </section>
           </div>
