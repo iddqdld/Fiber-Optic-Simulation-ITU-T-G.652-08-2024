@@ -1,6 +1,6 @@
 import { useState, type ReactNode, type DragEvent } from 'react'
 
-import type { operations } from '../../../packages/shared_schemas/generated/api'
+import type { components, operations } from '../../../packages/shared_schemas/generated/api'
 import type { FieldIssue, FieldIssues } from './fieldIssues'
 import { parseAndValidateConfiguration } from './importExport'
 import {
@@ -22,6 +22,7 @@ type PreviewRequest =
 
 export type Preset = PreviewRequest['preset']
 export type CableApplication = PreviewRequest['fibre']['cable_application']
+export type MacrobendInput = components['schemas']['MacrobendInput']
 
 export type FormValues = {
   preset: Preset
@@ -52,6 +53,10 @@ export type Level1FormProps = {
   onCableApplicationChange: (application: CableApplication) => void
   activeConfigFileName?: string | null
   onDropImportConfig?: (importedValues: FormValues, filename: string) => void
+  macrobends?: readonly MacrobendInput[]
+  onAddMacrobend?: (bend: MacrobendInput) => void
+  onRemoveMacrobend?: (index: number) => void
+  totalBendLossDb?: number | null
 }
 
 type NumericInputProps = {
@@ -73,6 +78,7 @@ type InspectorSectionId =
   | 'fibre-propagation'
   | 'optical-source'
   | 'link-section'
+  | 'macrobends'
   | 'numerical-sampling'
 
 type InspectorSectionProps = {
@@ -705,6 +711,168 @@ function NumericalSamplingInspectorSection({
   )
 }
 
+type MacrobendsSectionProps = {
+  expanded: boolean
+  onToggle: () => void
+  macrobends?: readonly MacrobendInput[]
+  onAddMacrobend?: (bend: MacrobendInput) => void
+  onRemoveMacrobend?: (index: number) => void
+  totalBendLossDb?: number | null
+  lengthKm?: string
+}
+
+function MacrobendsInspectorSection({
+  expanded,
+  onToggle,
+  macrobends = [],
+  onAddMacrobend,
+  onRemoveMacrobend,
+  totalBendLossDb,
+  lengthKm,
+}: MacrobendsSectionProps) {
+  const [positionPct, setPositionPct] = useState('30')
+  const [radiusMm, setRadiusMm] = useState('15')
+  const [angleDeg, setAngleDeg] = useState('360')
+  const [lossDb, setLossDb] = useState('0.15')
+
+  const handleAdd = () => {
+    const pos = Math.max(0, Math.min(1, (parseFloat(positionPct) || 0) / 100))
+    const rad = Math.max(0.1, parseFloat(radiusMm) || 15)
+    const ang = Math.max(1, Math.min(360, parseFloat(angleDeg) || 360))
+    const loss = Math.max(0, parseFloat(lossDb) || 0.1)
+
+    if (onAddMacrobend !== undefined) {
+      onAddMacrobend({
+        position_fraction: pos,
+        radius_mm: rad,
+        angle_deg: ang,
+        supplied_loss_db: loss,
+      })
+    }
+  }
+
+  const length = parseFloat(lengthKm ?? '0') || 0
+
+  return (
+    <InspectorSection
+      id="macrobends"
+      title="Macrobends & Bend Loss"
+      expanded={expanded}
+      onToggle={onToggle}
+      issues={[]}
+    >
+      <div className="macrobend-section-content">
+        {totalBendLossDb !== undefined && totalBendLossDb !== null && (
+          <div className="macrobend-total-loss-banner">
+            <span>Total Backend Bend Loss:</span>
+            <strong>{totalBendLossDb.toFixed(3)} dB</strong>
+          </div>
+        )}
+
+        <div className="macrobend-add-form">
+          <div className="macrobend-input-grid">
+            <div className="form-field level1-inspector-field">
+              <label htmlFor="bend-pos">Position (%)</label>
+              <input
+                id="bend-pos"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={positionPct}
+                onChange={(e) => setPositionPct(e.target.value)}
+              />
+            </div>
+            <div className="form-field level1-inspector-field">
+              <label htmlFor="bend-rad">Radius (mm)</label>
+              <input
+                id="bend-rad"
+                type="number"
+                min="1"
+                max="100"
+                step="0.5"
+                value={radiusMm}
+                onChange={(e) => setRadiusMm(e.target.value)}
+              />
+            </div>
+            <div className="form-field level1-inspector-field">
+              <label htmlFor="bend-ang">Angle (°)</label>
+              <input
+                id="bend-ang"
+                type="number"
+                min="1"
+                max="360"
+                step="15"
+                value={angleDeg}
+                onChange={(e) => setAngleDeg(e.target.value)}
+              />
+            </div>
+            <div className="form-field level1-inspector-field">
+              <label htmlFor="bend-loss">Loss (dB)</label>
+              <input
+                id="bend-loss"
+                type="number"
+                min="0"
+                max="10"
+                step="0.05"
+                value={lossDb}
+                onChange={(e) => setLossDb(e.target.value)}
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            className="editor-shell-tab macrobend-add-btn"
+            onClick={handleAdd}
+          >
+            + Add Bend Hotspot
+          </button>
+        </div>
+
+        <div className="macrobend-list">
+          <h4 className="macrobend-list-title">Configured Bends ({macrobends.length})</h4>
+          {macrobends.length === 0 ? (
+            <p className="macrobend-empty-hint">No macrobends added to this link.</p>
+          ) : (
+            <ul className="macrobend-item-list">
+              {macrobends.map((bend, itemIndex) => {
+                const distKm = (bend.position_fraction * length).toFixed(1)
+                const pct = (bend.position_fraction * 100).toFixed(0)
+                return (
+                  <li key={`${bend.position_fraction}-${itemIndex}`} className="macrobend-item">
+                    <div className="macrobend-item-details">
+                      <strong>Hotspot #{itemIndex + 1}</strong>
+                      <span>
+                        Pos: {pct}% {length > 0 ? `(${distKm} km)` : ''}
+                      </span>
+                      <span>
+                        r={bend.radius_mm}mm, {bend.angle_deg}°
+                      </span>
+                      <span className="macrobend-loss-badge">
+                        -{bend.supplied_loss_db} dB
+                      </span>
+                    </div>
+                    {onRemoveMacrobend !== undefined && (
+                      <button
+                        type="button"
+                        className="macrobend-remove-btn"
+                        title="Remove bend"
+                        onClick={() => onRemoveMacrobend(itemIndex)}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </InspectorSection>
+  )
+}
+
 export function Level1Form({
   values,
   error,
@@ -715,6 +883,10 @@ export function Level1Form({
   onCableApplicationChange,
   activeConfigFileName,
   onDropImportConfig,
+  macrobends,
+  onAddMacrobend,
+  onRemoveMacrobend,
+  totalBendLossDb,
 }: Level1FormProps) {
   const [expandedSections, setExpandedSections] = useState<
     Set<InspectorSectionId>
@@ -824,6 +996,15 @@ export function Level1Form({
             {...sectionProps}
             expanded={expandedSections.has('link-section')}
             onToggle={() => toggleSection('link-section')}
+          />
+          <MacrobendsInspectorSection
+            expanded={expandedSections.has('macrobends')}
+            onToggle={() => toggleSection('macrobends')}
+            macrobends={macrobends}
+            onAddMacrobend={onAddMacrobend}
+            onRemoveMacrobend={onRemoveMacrobend}
+            totalBendLossDb={totalBendLossDb}
+            lengthKm={values.length_km}
           />
           <NumericalSamplingInspectorSection
             {...sectionProps}

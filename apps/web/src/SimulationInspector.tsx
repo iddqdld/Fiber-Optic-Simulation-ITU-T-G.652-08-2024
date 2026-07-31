@@ -7,6 +7,7 @@ import {
   type CableApplication,
   type FieldBoundaries,
   type FormValues,
+  type MacrobendInput,
   type NumericFormField,
   type Preset,
 } from './Level1Form'
@@ -26,6 +27,10 @@ type SimulationInspectorProps = {
   onSettingsChange: (settings: VisualizationSettings) => void
   activeConfigFileName?: string | null
   onDropImportConfig?: (importedValues: FormValues, filename: string) => void
+  macrobends?: readonly MacrobendInput[]
+  onAddMacrobend?: (bend: MacrobendInput) => void
+  onRemoveMacrobend?: (index: number) => void
+  totalBendLossDb?: number | null
 }
 
 export function SimulationInspector({
@@ -41,6 +46,10 @@ export function SimulationInspector({
   onSettingsChange,
   activeConfigFileName,
   onDropImportConfig,
+  macrobends,
+  onAddMacrobend,
+  onRemoveMacrobend,
+  totalBendLossDb,
 }: SimulationInspectorProps) {
   const [visualizationExpanded, setVisualizationExpanded] = useState(true)
 
@@ -56,6 +65,10 @@ export function SimulationInspector({
         onCableApplicationChange={onCableApplicationChange}
         activeConfigFileName={activeConfigFileName}
         onDropImportConfig={onDropImportConfig}
+        macrobends={macrobends}
+        onAddMacrobend={onAddMacrobend}
+        onRemoveMacrobend={onRemoveMacrobend}
+        totalBendLossDb={totalBendLossDb}
       />
       <section
         className="level1-inspector-section visualization-section"
