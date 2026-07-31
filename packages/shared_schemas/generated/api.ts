@@ -38,6 +38,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/photoelastic/panda/field-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Panda Field Map */
+        post: operations["calculate_panda_field_map"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photoelastic/panda/mesh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Panda Mesh */
+        post: operations["generate_panda_mesh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/photoelastic/panda/thermal-fem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Panda Thermal Fem */
+        post: operations["calculate_panda_thermal_fem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/simulations/preview": {
         parameters: {
             query?: never;
@@ -76,6 +127,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AxialCondition
+         * @enum {string}
+         */
+        AxialCondition: "free_resultant" | "prescribed_force" | "prescribed_strain";
+        /** AxialLoad */
+        AxialLoad: {
+            condition: components["schemas"]["AxialCondition"];
+            /**
+             * Prescribed Force N
+             * @default null
+             */
+            prescribed_force_n: number | null;
+            /**
+             * Prescribed Strain
+             * @default null
+             */
+            prescribed_strain: number | null;
+        };
         /** Bend */
         Bend: {
             /** Angle Deg */
@@ -170,6 +240,15 @@ export interface components {
             output_pulse_fwhm_ps: number;
             /** Spectral Width Fwhm Nm */
             spectral_width_fwhm_nm: number;
+        };
+        /** CircularSAP */
+        CircularSAP: {
+            /** Center X M */
+            center_x_m: number;
+            /** Center Y M */
+            center_y_m: number;
+            /** Radius M */
+            radius_m: number;
         };
         /** Connector */
         Connector: {
@@ -312,6 +391,21 @@ export interface components {
             x_um?: number[];
             /** Y Um */
             y_um?: number[];
+        };
+        /** FieldMapSamplingConfig */
+        FieldMapSamplingConfig: {
+            /** Grid Half Width M */
+            grid_half_width_m: number;
+            /**
+             * Grid Points
+             * @default 601
+             */
+            grid_points: number;
+            /**
+             * Interface Buffer M
+             * @default 0
+             */
+            interface_buffer_m: number;
         };
         /**
          * G652DAttenuationApplication
@@ -1506,6 +1600,27 @@ export interface components {
             total_bend_loss_db: number;
         };
         /**
+         * MaterialConfidence
+         * @enum {string}
+         */
+        MaterialConfidence: "measured_sample" | "manufacturer" | "literature_composition" | "calibrated_effective" | "demonstration_only";
+        /** MaterialSource */
+        MaterialSource: {
+            /** Citation */
+            citation: string;
+            confidence: components["schemas"]["MaterialConfidence"];
+            /**
+             * Notes
+             * @default
+             */
+            notes: string;
+            /**
+             * Source Date
+             * @default null
+             */
+            source_date: string | null;
+        };
+        /**
          * ModeRegime
          * @enum {string}
          */
@@ -1562,6 +1677,641 @@ export interface components {
             /** @default WARNING */
             severity: components["schemas"]["WarningSeverity"];
         };
+        /** PandaFieldMapManifest */
+        PandaFieldMapManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "constant thermal expansion coefficients over the temperature interval",
+             *       "circular SAP inclusions in homogeneous cladding",
+             *       "linear superposition of two far-field inclusion kernels",
+             *       "K_i is undefined and omitted from each inclusion contribution",
+             *       "the primary signed deviatoric kernel is normalized by its maximum valid absolute value",
+             *       "the core principal-axis angle is sampled at the nearest valid grid point to the configured core center"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Equation References
+             * @default [
+             *       "M1-3.3",
+             *       "M1-5.3",
+             *       "M1-5.4",
+             *       "M1-5.5",
+             *       "M1-5.6",
+             *       "M1-5.7"
+             *     ]
+             */
+            equation_references: string[];
+            /**
+             * Limitations
+             * @default [
+             *       "the deviatoric field output is a normalized qualitative kernel without calibrated stress values",
+             *       "the finite cladding boundary is not solved",
+             *       "SAP interiors and configured interface regions are excluded",
+             *       "elastic and photoelastic material coefficients do not enter this kernel"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Method
+             * @default qualitative_far_field_kernel
+             * @constant
+             */
+            method: "qualitative_far_field_kernel";
+            /**
+             * Model Id
+             * @default panda_qualitative_far_field_kernel
+             * @constant
+             */
+            model_id: "panda_qualitative_far_field_kernel";
+            /**
+             * Model Version
+             * @default 1.2.0
+             * @constant
+             */
+            model_version: "1.2.0";
+            /**
+             * Normalization
+             * @default max_valid_absolute_deviatoric_difference
+             * @constant
+             */
+            normalization: "max_valid_absolute_deviatoric_difference";
+            /**
+             * Quantitative
+             * @default false
+             * @constant
+             */
+            quantitative: false;
+            /**
+             * Quantity Type
+             * @default normalized_dimensionless_kernel
+             * @constant
+             */
+            quantity_type: "normalized_dimensionless_kernel";
+            /**
+             * Units
+             * @default 1
+             * @constant
+             */
+            units: "1";
+            validity: components["schemas"]["PandaFieldMapValidity"];
+        };
+        /** PandaFieldMapRequest */
+        PandaFieldMapRequest: {
+            geometry: components["schemas"]["PandaGeometry"];
+            materials: components["schemas"]["PandaMaterialSet"];
+            sampling: components["schemas"]["FieldMapSamplingConfig"];
+            thermal: components["schemas"]["ThermalState"];
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /** PandaFieldMapResult */
+        PandaFieldMapResult: {
+            configuration: components["schemas"]["PandaFieldMapRequest"];
+            /** Core Principal Axis Angle Rad */
+            core_principal_axis_angle_rad: number | null;
+            /** Kernel Scale */
+            kernel_scale: number;
+            model_manifest: components["schemas"]["PandaFieldMapManifest"];
+            /** Normalized Deviatoric Difference Kernel */
+            normalized_deviatoric_difference_kernel: (number | null)[][];
+            /** Sap Thermal Mismatch Strains */
+            sap_thermal_mismatch_strains: [
+                number,
+                number
+            ];
+            /** Validity Mask */
+            validity_mask: boolean[][];
+            /** Warnings */
+            warnings: components["schemas"]["PandaFieldMapWarning"][];
+            /** X Coordinates M */
+            x_coordinates_m: number[];
+            /** Y Coordinates M */
+            y_coordinates_m: number[];
+        };
+        /** PandaFieldMapValidity */
+        PandaFieldMapValidity: {
+            /** Interface Buffer M */
+            interface_buffer_m: number;
+            /**
+             * Outside Cladding Masked
+             * @default true
+             * @constant
+             */
+            outside_cladding_masked: true;
+            /**
+             * Sap Interiors Masked
+             * @default true
+             * @constant
+             */
+            sap_interiors_masked: true;
+            /** Valid Point Count */
+            valid_point_count: number;
+        };
+        /** PandaFieldMapWarning */
+        PandaFieldMapWarning: {
+            code: components["schemas"]["PandaFieldMapWarningCode"];
+            /** Message */
+            message: string;
+            /** Output Field */
+            output_field: string;
+        };
+        /**
+         * PandaFieldMapWarningCode
+         * @enum {string}
+         */
+        PandaFieldMapWarningCode: "qualitative_uncalibrated" | "finite_cladding_approximation" | "zero_interface_buffer";
+        /** PandaGeometry */
+        PandaGeometry: {
+            /** Cladding Radius M */
+            cladding_radius_m: number;
+            /** Core Center X M */
+            core_center_x_m: number;
+            /** Core Center Y M */
+            core_center_y_m: number;
+            /** Core Radius M */
+            core_radius_m: number;
+            sap_1: components["schemas"]["CircularSAP"];
+            sap_2: components["schemas"]["CircularSAP"];
+        };
+        /** PandaMaterial */
+        PandaMaterial: {
+            /**
+             * C1 Per Pa
+             * @default null
+             */
+            c1_per_pa: number | null;
+            /**
+             * C2 Per Pa
+             * @default null
+             */
+            c2_per_pa: number | null;
+            /**
+             * Composition
+             * @default null
+             */
+            composition: string | null;
+            /** Cte Per K */
+            cte_per_k: number;
+            /** Name */
+            name: string;
+            /**
+             * P11
+             * @default null
+             */
+            p11: number | null;
+            /**
+             * P12
+             * @default null
+             */
+            p12: number | null;
+            photoelastic_convention: components["schemas"]["PhotoelasticConvention"];
+            /** Poisson Ratio */
+            poisson_ratio: number;
+            /** Refractive Index */
+            refractive_index: number;
+            source: components["schemas"]["MaterialSource"];
+            /** Young Modulus Pa */
+            young_modulus_pa: number;
+        };
+        /** PandaMaterialSet */
+        PandaMaterialSet: {
+            cladding: components["schemas"]["PandaMaterial"];
+            core: components["schemas"]["PandaMaterial"];
+            sap_1: components["schemas"]["PandaMaterial"];
+            sap_2: components["schemas"]["PandaMaterial"];
+        };
+        /** PandaMeshManifest */
+        PandaMeshManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "circular cladding, core, and SAP boundaries are represented by polygonal PSLG interfaces",
+             *       "Triangle generates a deterministic constrained-Delaunay triangulation",
+             *       "all elements are first-order linear triangles"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Coordinate Units
+             * @default m
+             * @constant
+             */
+            coordinate_units: "m";
+            /**
+             * Element Family
+             * @default first_order_triangles
+             * @constant
+             */
+            element_family: "first_order_triangles";
+            /**
+             * Fem Compatibility Version
+             * @default scikit-fem 12.0.2
+             * @constant
+             */
+            fem_compatibility_version: "scikit-fem 12.0.2";
+            /**
+             * Generator Version
+             * @default triangle 20250106
+             * @constant
+             */
+            generator_version: "triangle 20250106";
+            /**
+             * Geometry Model
+             * @default PandaGeometry
+             * @constant
+             */
+            geometry_model: "PandaGeometry";
+            /**
+             * Interface Model
+             * @default piecewise_linear_circular_interfaces
+             * @constant
+             */
+            interface_model: "piecewise_linear_circular_interfaces";
+            /**
+             * Limitations
+             * @default [
+             *       "the mesh is a geometry discretization and contains no solved FEM fields",
+             *       "polygonal interfaces approximate the configured circular boundaries"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Mesh Only
+             * @default true
+             * @constant
+             */
+            mesh_only: true;
+            /**
+             * Method
+             * @default constrained_delaunay
+             * @constant
+             */
+            method: "constrained_delaunay";
+            /**
+             * Model Id
+             * @default panda_constrained_delaunay_mesh
+             * @constant
+             */
+            model_id: "panda_constrained_delaunay_mesh";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Quality Target Minimum Angle Deg
+             * @default 20
+             * @constant
+             */
+            quality_target_minimum_angle_deg: 20;
+            /**
+             * Solved Fem Fields
+             * @default false
+             * @constant
+             */
+            solved_fem_fields: false;
+        };
+        /** PandaMeshQuality */
+        PandaMeshQuality: {
+            /** Mean Normalized Quality */
+            mean_normalized_quality: number;
+            /** Minimum Angle Deg */
+            minimum_angle_deg: number;
+            /** Minimum Normalized Quality */
+            minimum_normalized_quality: number;
+        };
+        /**
+         * PandaMeshRegion
+         * @enum {string}
+         */
+        PandaMeshRegion: "cladding" | "core" | "sap_1" | "sap_2";
+        /** PandaMeshRegionSummary */
+        PandaMeshRegionSummary: {
+            /** Element Count */
+            element_count: number;
+            region: components["schemas"]["PandaMeshRegion"];
+            /** Target Area M2 */
+            target_area_m2: number;
+            /** Total Area M2 */
+            total_area_m2: number;
+        };
+        /** PandaMeshRequest */
+        PandaMeshRequest: {
+            geometry: components["schemas"]["PandaGeometry"];
+            /**
+             * Refinement Level
+             * @default 0
+             */
+            refinement_level: number;
+        };
+        /** PandaMeshResult */
+        PandaMeshResult: {
+            configuration: components["schemas"]["PandaMeshRequest"];
+            /** Element Count */
+            element_count: number;
+            /** Elements */
+            elements: [
+                number,
+                number,
+                number
+            ][];
+            model_manifest: components["schemas"]["PandaMeshManifest"];
+            /** Node Count */
+            node_count: number;
+            /** Nodes M */
+            nodes_m: [
+                number,
+                number
+            ][];
+            quality: components["schemas"]["PandaMeshQuality"];
+            /** Region Summaries */
+            region_summaries: components["schemas"]["PandaMeshRegionSummary"][];
+            /** Region Tags */
+            region_tags: components["schemas"]["PandaMeshRegion"][];
+            /** Warnings */
+            warnings: components["schemas"]["PandaMeshWarning"][];
+        };
+        /** PandaMeshWarning */
+        PandaMeshWarning: {
+            code: components["schemas"]["PandaMeshWarningCode"];
+            /** Message */
+            message: string;
+        };
+        /**
+         * PandaMeshWarningCode
+         * @enum {string}
+         */
+        PandaMeshWarningCode: "quality_below_target" | "polygonal_interface_approximation";
+        /** PandaThermalFemAnchorReactions */
+        PandaThermalFemAnchorReactions: {
+            /** Primary Node Index */
+            primary_node_index: number;
+            /** Primary Reaction X N Per M */
+            primary_reaction_x_n_per_m: number;
+            /** Primary Reaction Y N Per M */
+            primary_reaction_y_n_per_m: number;
+            /** Secondary Node Index */
+            secondary_node_index: number;
+            /** Secondary Reaction X N Per M */
+            secondary_reaction_x_n_per_m: number;
+            /** Secondary Reaction Y N Per M */
+            secondary_reaction_y_n_per_m: number;
+        };
+        /** PandaThermalFemConvergenceSummary */
+        PandaThermalFemConvergenceSummary: {
+            /** Core Average Principal Difference Pa */
+            core_average_principal_difference_pa: number;
+            /** Element Count */
+            element_count: number;
+            /** Node Count */
+            node_count: number;
+            /** Refinement Level */
+            refinement_level: number;
+            /** Relative Change */
+            relative_change: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unavailable" | "not_converged" | "converged";
+        };
+        /** PandaThermalFemCoreSummary */
+        PandaThermalFemCoreSummary: {
+            /** Area M2 */
+            area_m2: number;
+            /** Average Stress Xx Pa */
+            average_stress_xx_pa: number;
+            /** Average Stress Xy Pa */
+            average_stress_xy_pa: number;
+            /** Average Stress Yy Pa */
+            average_stress_yy_pa: number;
+            /** Average Stress Zz Pa */
+            average_stress_zz_pa: number;
+            /** Principal Axis Angle Rad */
+            principal_axis_angle_rad: number;
+            /** Principal Difference Pa */
+            principal_difference_pa: number;
+            /** Principal Max Pa */
+            principal_max_pa: number;
+            /** Principal Min Pa */
+            principal_min_pa: number;
+        };
+        /** PandaThermalFemForceBalance */
+        PandaThermalFemForceBalance: {
+            /** Axial Residual N */
+            axial_residual_n: number | null;
+            /** Axial Resultant N */
+            axial_resultant_n: number;
+            /** Axial Target N */
+            axial_target_n: number | null;
+            /** Transverse Free Residual L2 N Per M */
+            transverse_free_residual_l2_n_per_m: number;
+            /** Transverse Resultant X N Per M */
+            transverse_resultant_x_n_per_m: number;
+            /** Transverse Resultant Y N Per M */
+            transverse_resultant_y_n_per_m: number;
+        };
+        /** PandaThermalFemManifest */
+        PandaThermalFemManifest: {
+            /**
+             * Assumptions
+             * @default [
+             *       "small strain isotropic thermoelasticity",
+             *       "generalized plane strain with uniform axial strain",
+             *       "zero xz and yz shear strains",
+             *       "piecewise constant material data per mesh element",
+             *       "traction-free exterior with no imposed exterior displacement",
+             *       "controlled rigid-body anchors only"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Axial Conditions
+             * @default [
+             *       "free_resultant",
+             *       "prescribed_force",
+             *       "prescribed_strain"
+             *     ]
+             */
+            axial_conditions: string[];
+            /**
+             * Axial Equation
+             * @default integral_sigma_zz_d_a_equals_n_z
+             * @constant
+             */
+            axial_equation: "integral_sigma_zz_d_a_equals_n_z";
+            /**
+             * Axial Strain Model
+             * @default uniform_epsilon_zz_0
+             * @constant
+             */
+            axial_strain_model: "uniform_epsilon_zz_0";
+            /**
+             * Birefringence Computed
+             * @default false
+             * @constant
+             */
+            birefringence_computed: false;
+            /**
+             * Displacement Units
+             * @default m
+             * @constant
+             */
+            displacement_units: "m";
+            /**
+             * Element Family
+             * @default first_order_triangles
+             * @constant
+             */
+            element_family: "first_order_triangles";
+            /**
+             * Equation
+             * @default transverse_weak_equilibrium_plus_axial_resultant
+             * @constant
+             */
+            equation: "transverse_weak_equilibrium_plus_axial_resultant";
+            /**
+             * Exterior Boundary
+             * @default traction_free
+             * @constant
+             */
+            exterior_boundary: "traction_free";
+            /**
+             * Limitations
+             * @default [
+             *       "material and thermal values may be demonstration data rather than measured fibre data",
+             *       "first-order triangles provide a mesh-dependent approximation",
+             *       "no birefringence or photoelastic observable is computed"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Method
+             * @default fem_generalized_plane_strain
+             * @constant
+             */
+            method: "fem_generalized_plane_strain";
+            /**
+             * Model Id
+             * @default fem_generalized_plane_strain
+             * @constant
+             */
+            model_id: "fem_generalized_plane_strain";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+            /**
+             * Quantity Type
+             * @default quantitative_mechanical_output
+             * @constant
+             */
+            quantity_type: "quantitative_mechanical_output";
+            /**
+             * Strain Units
+             * @default 1
+             * @constant
+             */
+            strain_units: "1";
+            /**
+             * Stress Measure
+             * @default cauchy_stress
+             * @constant
+             */
+            stress_measure: "cauchy_stress";
+            /**
+             * Stress Units
+             * @default Pa
+             * @constant
+             */
+            stress_units: "Pa";
+            /**
+             * Thermal Strain Model
+             * @default full_per_region_alpha_delta_t
+             * @constant
+             */
+            thermal_strain_model: "full_per_region_alpha_delta_t";
+        };
+        /** PandaThermalFemRequest */
+        PandaThermalFemRequest: {
+            axial_load: components["schemas"]["AxialLoad"];
+            geometry: components["schemas"]["PandaGeometry"];
+            materials: components["schemas"]["PandaMaterialSet"];
+            /**
+             * Refinement Level
+             * @default 1
+             */
+            refinement_level: number;
+            thermal: components["schemas"]["ThermalState"];
+        };
+        /** PandaThermalFemResult */
+        PandaThermalFemResult: {
+            anchor_reactions: components["schemas"]["PandaThermalFemAnchorReactions"];
+            configuration: components["schemas"]["PandaThermalFemRequest"];
+            /** Convergence */
+            convergence: components["schemas"]["PandaThermalFemConvergenceSummary"][];
+            core_summary: components["schemas"]["PandaThermalFemCoreSummary"];
+            /** Displacement X M */
+            displacement_x_m: number[];
+            /** Displacement Y M */
+            displacement_y_m: number[];
+            /** Element Principal Axis Angle Rad */
+            element_principal_axis_angle_rad: number[];
+            /** Element Principal Difference Pa */
+            element_principal_difference_pa: number[];
+            /** Element Principal Max Pa */
+            element_principal_max_pa: number[];
+            /** Element Principal Min Pa */
+            element_principal_min_pa: number[];
+            /** Element Strain Xx */
+            element_strain_xx: number[];
+            /** Element Strain Xy */
+            element_strain_xy: number[];
+            /** Element Strain Yy */
+            element_strain_yy: number[];
+            /** Element Strain Zz */
+            element_strain_zz: number[];
+            /** Element Stress Xx Pa */
+            element_stress_xx_pa: number[];
+            /** Element Stress Xy Pa */
+            element_stress_xy_pa: number[];
+            /** Element Stress Yy Pa */
+            element_stress_yy_pa: number[];
+            /** Element Stress Zz Pa */
+            element_stress_zz_pa: number[];
+            /** Epsilon Zz 0 */
+            epsilon_zz_0: number;
+            force_balance: components["schemas"]["PandaThermalFemForceBalance"];
+            mesh: components["schemas"]["PandaMeshResult"];
+            model_manifest: components["schemas"]["PandaThermalFemManifest"];
+            /** Warnings */
+            warnings: components["schemas"]["PandaThermalFemWarning"][];
+        };
+        /** PandaThermalFemWarning */
+        PandaThermalFemWarning: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "demonstration_data" | "convergence_unavailable" | "convergence_above_threshold";
+            /** Message */
+            message: string;
+            /**
+             * Refinement Level
+             * @default null
+             */
+            refinement_level: number | null;
+        };
+        /**
+         * PhotoelasticConvention
+         * @enum {string}
+         */
+        PhotoelasticConvention: "p11_p12_strain" | "c1_c2_stress_optic";
         /** PulseSeries */
         PulseSeries: {
             /** Power Dbm */
@@ -1777,6 +2527,13 @@ export interface components {
          * @enum {string}
          */
         StandardsCheckStatus: "PASS" | "FAIL" | "NOT_CHECKED";
+        /** ThermalState */
+        ThermalState: {
+            /** Effective Fictive Temperature K */
+            effective_fictive_temperature_k: number;
+            /** Temperature K */
+            temperature_k: number;
+        };
         /** ValidInputRange */
         ValidInputRange: {
             /**
@@ -1890,6 +2647,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    calculate_panda_field_map: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PandaFieldMapRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PandaFieldMapResult"];
+                };
+            };
+            /** @description Request validation or calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    generate_panda_mesh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PandaMeshRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PandaMeshResult"];
+                };
+            };
+            /** @description Request validation or mesh generation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    calculate_panda_thermal_fem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PandaThermalFemRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PandaThermalFemResult"];
+                };
+            };
+            /** @description Request validation or thermal FEM calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

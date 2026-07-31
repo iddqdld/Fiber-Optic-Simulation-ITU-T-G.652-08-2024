@@ -7,23 +7,13 @@ import {
   type ReactNode,
 } from 'react'
 
-export type WorkspaceId = 'scene' | 'graphs' | 'standards' | 'compare' | 'sweep'
+import { EditorNavigation } from './EditorNavigation'
+import { workspaceTabs, type WorkspaceId } from './editorWorkspaceCatalog'
+
+export type { WorkspaceId } from './editorWorkspaceCatalog'
 
 export type PreviewStateTone =
   'neutral' | 'info' | 'success' | 'warning' | 'error'
-
-type WorkspaceTab = {
-  id: WorkspaceId
-  label: string
-}
-
-const workspaceTabs: readonly WorkspaceTab[] = [
-  { id: 'scene', label: 'Scene' },
-  { id: 'graphs', label: 'Graphs' },
-  { id: 'standards', label: 'Standards' },
-  { id: 'compare', label: 'Compare' },
-  { id: 'sweep', label: 'Sweep' },
-]
 
 export type EditorShellProps = {
   activeWorkspace: WorkspaceId
@@ -65,7 +55,6 @@ export function EditorShell({
   const shellId = `editor-shell-${useId().replaceAll(':', '')}`
   const inspectorId = `${shellId}-inspector`
   const resultDrawerId = `${shellId}-result-drawer`
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const resultDrawerTriggerRef = useRef<HTMLButtonElement>(null)
   const resultDrawerCloseRef = useRef<HTMLButtonElement>(null)
   const resultDrawerWasOpen = useRef(false)
@@ -88,34 +77,6 @@ export function EditorShell({
       mobileInspectorCloseRef.current?.focus()
     }
   }, [mobileInspectorOpen])
-
-  const handleWorkspaceKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    workspaceId: WorkspaceId,
-  ) => {
-    const currentIndex = workspaceTabs.findIndex(
-      (tab) => tab.id === workspaceId,
-    )
-    let nextIndex: number
-
-    if (event.key === 'ArrowRight') {
-      nextIndex = (currentIndex + 1) % workspaceTabs.length
-    } else if (event.key === 'ArrowLeft') {
-      nextIndex =
-        (currentIndex - 1 + workspaceTabs.length) % workspaceTabs.length
-    } else if (event.key === 'Home') {
-      nextIndex = 0
-    } else if (event.key === 'End') {
-      nextIndex = workspaceTabs.length - 1
-    } else {
-      return
-    }
-
-    event.preventDefault()
-    const nextWorkspace = workspaceTabs[nextIndex].id
-    onWorkspaceChange(nextWorkspace)
-    tabRefs.current[nextIndex]?.focus()
-  }
 
   const closeMobileInspector = () => {
     setMobileInspectorOpen(false)
@@ -169,39 +130,11 @@ export function EditorShell({
           )}
         </div>
 
-        <nav aria-label="Workspaces">
-          <div
-            className="editor-shell-tabs"
-            role="tablist"
-            aria-label="Workspace"
-          >
-            {workspaceTabs.map((tab, index) => {
-              const tabId = `${shellId}-tab-${tab.id}`
-              const panelId = `${shellId}-panel-${tab.id}`
-              const selected = activeWorkspace === tab.id
-
-              return (
-                <button
-                  key={tab.id}
-                  ref={(element) => {
-                    tabRefs.current[index] = element
-                  }}
-                  id={tabId}
-                  className="editor-shell-tab"
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  aria-controls={panelId}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => onWorkspaceChange(tab.id)}
-                  onKeyDown={(event) => handleWorkspaceKeyDown(event, tab.id)}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
-        </nav>
+        <EditorNavigation
+          shellId={shellId}
+          activeWorkspace={activeWorkspace}
+          onWorkspaceChange={onWorkspaceChange}
+        />
 
         <div className="editor-shell-actions">
           <p

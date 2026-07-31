@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 from pydantic.json_schema import JsonSchemaMode, models_json_schema
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import GZipMiddleware
 
 from fibre_sim.attenuation import (
     ConstantAttenuationCalculationError,
@@ -52,6 +53,33 @@ from fibre_sim.level1 import (
     calculate_level1_simulation,
 )
 from fibre_sim.modes import GaussianModeProfileManifest, GaussianModeProfileResult
+from fibre_sim.panda_mesh import (
+    PandaMeshGenerationError,
+    PandaMeshManifest,
+    PandaMeshQuality,
+    PandaMeshRegionSummary,
+    PandaMeshRequest,
+    PandaMeshResult,
+    PandaMeshWarning,
+    generate_panda_mesh,
+)
+from fibre_sim.photoelastic import (
+    AxialLoad,
+    CircularSAP,
+    FieldMapSamplingConfig,
+    MaterialSource,
+    PandaFieldMapCalculationError,
+    PandaFieldMapManifest,
+    PandaFieldMapRequest,
+    PandaFieldMapResult,
+    PandaFieldMapValidity,
+    PandaFieldMapWarning,
+    PandaGeometry,
+    PandaMaterial,
+    PandaMaterialSet,
+    ThermalState,
+    calculate_panda_field_map,
+)
 from fibre_sim.standards import (
     G652DAttenuationCheckManifest,
     G652DAttenuationCheckResult,
@@ -69,6 +97,18 @@ from fibre_sim.sweeps import (
     Level1SweepRequest,
     Level1SweepResult,
     calculate_level1_sweep,
+)
+from fibre_sim.thermal_fem import (
+    PandaThermalFemAnchorReactions,
+    PandaThermalFemCalculationError,
+    PandaThermalFemConvergenceSummary,
+    PandaThermalFemCoreSummary,
+    PandaThermalFemForceBalance,
+    PandaThermalFemManifest,
+    PandaThermalFemRequest,
+    PandaThermalFemResult,
+    PandaThermalFemWarning,
+    calculate_panda_thermal_fem,
 )
 
 from .schemas import (
@@ -113,6 +153,7 @@ app = ContractFastAPI(
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)
@@ -128,6 +169,98 @@ def get_health() -> dict[str, str]:
 )
 async def post_guidance_calculate(request: GuidanceRequest) -> GuidanceResult:
     return calculate_guidance(request)
+
+
+@app.post(
+    "/api/v1/photoelastic/panda/field-map",
+    operation_id="calculate_panda_field_map",
+    response_model=PandaFieldMapResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or calculation failed",
+        }
+    },
+)
+async def post_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapResult:
+    try:
+        return calculate_panda_field_map(request)
+    except (
+        PandaFieldMapCalculationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        reason = (
+            exc.reason if isinstance(exc, PandaFieldMapCalculationError) else "non_finite_result"
+        )
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message=(
+                "Qualitative PANDA field map could not be normalized from the supplied values."
+            ),
+            field=None,
+            details={"reason": reason},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
+    "/api/v1/photoelastic/panda/mesh",
+    operation_id="generate_panda_mesh",
+    response_model=PandaMeshResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or mesh generation failed",
+        }
+    },
+)
+async def post_panda_mesh(request: PandaMeshRequest) -> PandaMeshResult:
+    try:
+        return generate_panda_mesh(request)
+    except (
+        PandaMeshGenerationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        reason = getattr(exc, "reason", "mesh_generation_failed")
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="PANDA mesh could not be generated from the supplied geometry.",
+            field=None,
+            details={"reason": reason},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
+    "/api/v1/photoelastic/panda/thermal-fem",
+    operation_id="calculate_panda_thermal_fem",
+    response_model=PandaThermalFemResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or thermal FEM calculation failed",
+        }
+    },
+)
+async def post_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermalFemResult:
+    try:
+        return calculate_panda_thermal_fem(request)
+    except (
+        PandaThermalFemCalculationError,
+        PandaMeshGenerationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        reason = getattr(exc, "reason", "thermal_fem_calculation_failed")
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="PANDA thermal FEM could not be calculated from the supplied values.",
+            field=None,
+            details={"reason": reason},
+            status_code=422,
+        ) from exc
 
 
 @app.post(
@@ -196,16 +329,19 @@ async def post_simulation_sweep(request: Level1SweepRequest) -> Level1SweepResul
 
 
 CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
+    AxialLoad,
     CableSection,
     ChromaticPulseBroadeningManifest,
     ChromaticPulseBroadeningResult,
     ConstantAttenuationManifest,
     ConstantAttenuationResult,
     Connector,
+    CircularSAP,
     DistanceSeries,
     ErrorBody,
     ErrorResponse,
     FieldCrossSection,
+    FieldMapSamplingConfig,
     FibreDefinition,
     G652DAttenuationCheckManifest,
     G652DAttenuationCheckResult,
@@ -243,9 +379,32 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     MacrobendLossPoint,
     MacrobendLossRequest,
     MacrobendLossResult,
+    MaterialSource,
     ModelManifest,
     ModelReference,
     ModelWarning,
+    PandaFieldMapManifest,
+    PandaFieldMapRequest,
+    PandaFieldMapResult,
+    PandaFieldMapValidity,
+    PandaFieldMapWarning,
+    PandaGeometry,
+    PandaMaterial,
+    PandaMaterialSet,
+    PandaMeshManifest,
+    PandaMeshQuality,
+    PandaMeshRegionSummary,
+    PandaMeshRequest,
+    PandaMeshResult,
+    PandaMeshWarning,
+    PandaThermalFemAnchorReactions,
+    PandaThermalFemConvergenceSummary,
+    PandaThermalFemCoreSummary,
+    PandaThermalFemForceBalance,
+    PandaThermalFemManifest,
+    PandaThermalFemRequest,
+    PandaThermalFemResult,
+    PandaThermalFemWarning,
     PulseSeries,
     SectionResult,
     SimulationConfig,
@@ -256,6 +415,7 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     Splice,
     StandardsCheckItem,
     StandardsCheckMetadata,
+    ThermalState,
     ValidInputRange,
     WavelengthSeries,
 )
