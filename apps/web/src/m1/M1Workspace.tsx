@@ -134,8 +134,10 @@ function FemWorkspace({
             Generalized-plane-strain thermoelastic FEM
           </h2>
           <p>
-            Quantitative mechanical fields solved on the constrained triangular
-            PANDA mesh with one uniform axial strain degree of freedom.
+            Step 2.8 extends the quantitative thermoelastic fields with
+            bare-glass lateral pressure, a first-order scalar LP₀₁ photoelastic
+            estimate, and a separate analytical torsion reference on the
+            constrained triangular PANDA mesh.
           </p>
         </div>
         <span className="m1-workspace-badge">Quantitative FEM</span>
@@ -143,8 +145,11 @@ function FemWorkspace({
       <M1FoundationCopy />
       <PandaThermalFemStatus controller={controller} />
       <p className="m1-fem-notice">
-        Figure 9.1 shows mechanical thermoelastic FEM fields only; birefringence
-        is not calculated yet.
+        Figure 9.1 shows the thermoelastic FEM fields, pressure increment, and
+        local material birefringence. The optical result also reports a
+        first-order scalar LP₀₁ photoelastic phase-birefringence estimate. It is
+        not a validated vector-mode solution and does not include
+        moving-boundary or deformed-waveguide contributions.
       </p>
       <span className="sr-only">Quantitative thermoelastic FEM is active.</span>
     </section>

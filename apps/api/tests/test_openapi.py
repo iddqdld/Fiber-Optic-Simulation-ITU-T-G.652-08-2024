@@ -96,6 +96,7 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         "PandaThermalFemManifest",
         "PandaThermalFemRequest",
         "PandaThermalFemResult",
+        "PandaThermalFemShapeComparison",
         "PandaThermalFemWarning",
         "ThermalState",
     ):
@@ -119,6 +120,24 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     assert grid_schema["default"] == 601
     assert schemas["MaterialSource"]["properties"]["confidence"]["$ref"] == (
         "#/components/schemas/MaterialConfidence"
+    )
+    assert schemas["PandaThermalFemManifest"]["properties"]["model_version"]["const"] == "1.2.0"
+    assert schemas["PandaThermalFemManifest"]["properties"]["exterior_boundary_model"]["const"] == (
+        "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure"
+    )
+    assert schemas["PandaThermalFemManifest"]["properties"]["local_not_modal"]["const"] is True
+    assert schemas["PandaThermalFemManifest"]["properties"]["birefringence_units"]["const"] == "1"
+    assert (
+        schemas["PandaThermalFemManifest"]["properties"]["stress_optic_coefficient_units"]["const"]
+        == "Pa^-1"
+    )
+    assert schemas["PandaThermalFemResult"]["properties"][
+        "qualitative_kernel_fem_shape_comparison"
+    ] == {"$ref": "#/components/schemas/PandaThermalFemShapeComparison"}
+    assert schemas["PandaThermalFemShapeComparison"]["properties"]["quantitative"]["const"] is False
+    assert (
+        schemas["PandaThermalFemShapeComparison"]["properties"]["domain"]["const"]
+        == "core_elements"
     )
     assert schemas["PhotoelasticConvention"]["enum"] == [
         "p11_p12_strain",

@@ -20,6 +20,14 @@ describe('usePandaThermalFem', () => {
       result.current.onRefinementLevelChange(2)
       result.current.onAxialConditionChange('prescribed_force')
       result.current.onPrescribedForceChange('0.25')
+      result.current.onLateralPressureMPaChange('1.5')
+      result.current.onWavelengthNmChange('1310')
+      result.current.onGaussianModeFieldRadiusUmChange('4.5')
+      result.current.onTorsionCapabilityChange(
+        'saint_venant_homogeneous_circular_reference',
+      )
+      result.current.onTorsionInputModeChange('applied_torque')
+      result.current.onAppliedTorqueNmChange('0')
     })
     expect(fetchMock).not.toHaveBeenCalled()
 
@@ -31,12 +39,34 @@ describe('usePandaThermalFem', () => {
     const request = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
       refinement_level: number
       axial_load: { condition: string; prescribed_force_n: number }
+      lateral_pressure_pa: number
+      optical_mode: {
+        wavelength_m: number
+        gaussian_mode_field_radius_m: number
+      }
+      torsion: {
+        capability: string
+        input_mode: string
+        applied_torque_n_m: number
+      }
     }
     expect(request.refinement_level).toBe(2)
     expect(request.axial_load).toEqual({
       condition: 'prescribed_force',
       prescribed_force_n: 0.25,
       prescribed_strain: null,
+    })
+    expect(request.lateral_pressure_pa).toBe(1.5e6)
+    expect(request.optical_mode.wavelength_m).toBeCloseTo(1310e-9, 18)
+    expect(request.optical_mode.gaussian_mode_field_radius_m).toBeCloseTo(
+      4.5e-6,
+      18,
+    )
+    expect(request.torsion).toEqual({
+      capability: 'saint_venant_homogeneous_circular_reference',
+      input_mode: 'applied_torque',
+      twist_rate_per_m: null,
+      applied_torque_n_m: 0,
     })
     await waitFor(() => expect(result.current.phase).toBe('error'))
   })

@@ -147,15 +147,28 @@ async def test_thermal_fem_response_contains_configuration_units_and_solved_fiel
         "element_stress_yy_pa",
         "element_stress_zz_pa",
         "element_stress_xy_pa",
+        "element_pressure_increment_stress_xx_pa",
+        "element_pressure_increment_stress_yy_pa",
+        "element_pressure_increment_stress_zz_pa",
+        "element_pressure_increment_stress_xy_pa",
         "element_principal_max_pa",
         "element_principal_min_pa",
         "element_principal_difference_pa",
         "element_principal_axis_angle_rad",
+        "element_stress_optic_coefficient_per_pa",
+        "element_signed_local_material_birefringence",
+        "element_local_material_birefringence",
+        "element_local_material_slow_axis_angle_rad",
         "epsilon_zz_0",
         "core_summary",
+        "baseline_core_summary",
+        "pressure_increment_core_summary",
         "anchor_reactions",
         "force_balance",
         "convergence",
+        "qualitative_kernel_fem_shape_comparison",
+        "optical_birefringence",
+        "torsion",
         "warnings",
         "model_manifest",
     }
@@ -168,9 +181,33 @@ async def test_thermal_fem_response_contains_configuration_units_and_solved_fiel
     assert manifest["axial_strain_model"] == "uniform_epsilon_zz_0"
     assert manifest["equation"] == "transverse_weak_equilibrium_plus_axial_resultant"
     assert manifest["axial_equation"] == "integral_sigma_zz_d_a_equals_n_z"
-    assert manifest["birefringence_computed"] is False
-    assert "birefringence" not in body
-    assert "modal" not in json.dumps(body).lower()
+    assert manifest["model_version"] == "1.2.0"
+    assert manifest["exterior_boundary_model"] == (
+        "traction_free_at_zero_pressure_or_prescribed_bare_glass_lateral_pressure"
+    )
+    assert manifest["birefringence_computed"] is True
+    assert manifest["birefringence_scope"] == "local_material_and_first_order_scalar_lp01_phase"
+    assert manifest["birefringence_units"] == "1"
+    assert manifest["stress_optic_coefficient_units"] == "Pa^-1"
+    assert manifest["local_not_modal"] is True
+    assert manifest["equation_references"] == [
+        "M1-6.9",
+        "M1-6.10",
+        "M1-6.11",
+        "M1-6.12",
+        "M1-7.3",
+        "M1-7.5",
+        "M1-8.1",
+        "M1-8.2",
+        "M1-8.3",
+        "M1-8.4",
+    ]
+    comparison = body["qualitative_kernel_fem_shape_comparison"]
+    assert comparison["model_id"] == "qualitative_kernel_fem_shape_comparison"
+    assert comparison["quantitative"] is False
+    assert comparison["units"] == "1"
+    assert comparison["domain"] == "core_elements"
+    assert "modal phase" in " ".join(manifest["limitations"])
     assert len(body["displacement_x_m"]) == mesh["node_count"]
     assert len(body["displacement_y_m"]) == mesh["node_count"]
     for field in (
@@ -179,10 +216,16 @@ async def test_thermal_fem_response_contains_configuration_units_and_solved_fiel
         "element_stress_zz_pa",
         "element_stress_xy_pa",
         "element_principal_difference_pa",
+        "element_stress_optic_coefficient_per_pa",
+        "element_signed_local_material_birefringence",
+        "element_local_material_birefringence",
     ):
         assert len(body[field]) == mesh["element_count"]
     assert body["convergence"][0]["status"] == "unavailable"
     assert body["force_balance"]["axial_target_n"] == 0.0
+    assert body["optical_birefringence"]["pressure_induced"]["phase_birefringence_magnitude"] == 0.0
+    assert body["optical_birefringence"]["group_birefringence"]["available"] is False
+    assert body["torsion"]["analytical_mechanics_benchmark_only"] is True
 
 
 @pytest.mark.parametrize(

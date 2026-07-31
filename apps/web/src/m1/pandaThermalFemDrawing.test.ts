@@ -49,6 +49,15 @@ function result(): PandaThermalFemResult {
       materials: {} as PandaThermalFemResult['configuration']['materials'],
       thermal: {} as PandaThermalFemResult['configuration']['thermal'],
       axial_load: {} as PandaThermalFemResult['configuration']['axial_load'],
+      lateral_pressure_pa: 0,
+      optical_mode: {} as NonNullable<
+        PandaThermalFemResult['configuration']['optical_mode']
+      >,
+      torsion: {
+        capability: 'none',
+        element_centroid_stress_xz_pa: [0, 0, 0, 0],
+        element_centroid_stress_yz_pa: [0, 0, 0, 0],
+      } as PandaThermalFemResult['torsion'],
       refinement_level: 0,
     },
     mesh: {
@@ -84,17 +93,36 @@ function result(): PandaThermalFemResult {
     element_stress_yy_pa: [-4e6, -2e6, 2e6, 4e6],
     element_stress_zz_pa: [-6e6, -3e6, 3e6, 6e6],
     element_stress_xy_pa: [-8e6, -4e6, 4e6, 8e6],
+    element_pressure_increment_stress_xx_pa: [-2e6, -1e6, 1e6, 2e6],
+    element_pressure_increment_stress_yy_pa: [-4e6, -2e6, 2e6, 4e6],
+    element_pressure_increment_stress_zz_pa: [-6e6, -3e6, 3e6, 6e6],
+    element_pressure_increment_stress_xy_pa: [-8e6, -4e6, 4e6, 8e6],
     element_principal_max_pa: [-10e6, -5e6, 5e6, 10e6],
     element_principal_min_pa: [-12e6, -6e6, 6e6, 12e6],
     element_principal_difference_pa: [0, 2e6, 4e6, 6e6],
     element_principal_axis_angle_rad: [0, 0, 0, 0],
+    element_stress_optic_coefficient_per_pa: [1, 1, 1, 1],
+    element_signed_local_material_birefringence: [-0.4, -0.1, 0.2, 0.6],
+    element_local_material_birefringence: [0.4, 0.1, 0.2, 0.6],
+    element_local_material_slow_axis_angle_rad: [null, 0, Math.PI / 4, null],
     epsilon_zz_0: 0,
     core_summary: {} as PandaThermalFemResult['core_summary'],
+    baseline_core_summary: {} as PandaThermalFemResult['baseline_core_summary'],
+    pressure_increment_core_summary:
+      {} as PandaThermalFemResult['pressure_increment_core_summary'],
     anchor_reactions: {} as PandaThermalFemResult['anchor_reactions'],
     force_balance: {} as PandaThermalFemResult['force_balance'],
     convergence: [],
     warnings: [],
     model_manifest: {} as PandaThermalFemResult['model_manifest'],
+    optical_birefringence: {} as PandaThermalFemResult['optical_birefringence'],
+    torsion: {
+      capability: 'none',
+      element_centroid_stress_xz_pa: [0, 0, 0, 0],
+      element_centroid_stress_yz_pa: [0, 0, 0, 0],
+    } as PandaThermalFemResult['torsion'],
+    qualitative_kernel_fem_shape_comparison:
+      {} as PandaThermalFemResult['qualitative_kernel_fem_shape_comparison'],
   }
 }
 
@@ -159,6 +187,42 @@ describe('PANDA thermal FEM drawing', () => {
     expect(geometry.bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(4)
   })
 
+  test('keeps null slow-axis samples undefined and omits their triangles', () => {
+    const model = result()
+    const values = getThermalFemFieldValues(
+      model,
+      'element_local_material_slow_axis_angle_rad',
+    )
+    const geometry = buildPandaThermalFemDrawingGeometry(
+      model,
+      'element_local_material_slow_axis_angle_rad',
+    )
+
+    expect(values).toEqual([null, 0, Math.PI / 4, null])
+    expect(geometry.scale).toEqual({
+      kind: 'orientation',
+      minimum: -90,
+      maximum: 90,
+      unit: '°',
+      conversion: 'rad × 180/π; undefined samples omitted',
+    })
+    expect(geometry.bins.reduce((sum, bin) => sum + bin.count, 0)).toBe(2)
+    expect(geometry.bins[0].color).toBe(geometry.bins.at(-1)?.color)
+  })
+
+  test('reads pressure increment and separate torsion benchmark arrays', () => {
+    const model = result()
+    expect(
+      getThermalFemFieldValues(
+        model,
+        'element_pressure_increment_stress_xx_pa',
+      ),
+    ).toEqual([-2e6, -1e6, 1e6, 2e6])
+    expect(
+      getThermalFemFieldValues(model, 'element_centroid_stress_xz_pa'),
+    ).toEqual([0, 0, 0, 0])
+  })
+
   test('renders accessible quantity, units, conversion, and mechanical caption', () => {
     render(createElement(PandaThermalFemCanvas, { result: result() }))
 
@@ -168,12 +232,43 @@ describe('PANDA thermal FEM drawing', () => {
     expect(screen.getAllByText(/Pa × 1e−6/)).not.toHaveLength(0)
     expect(screen.getByText(/quantitative mechanical FEM/i)).toBeVisible()
     expect(
-      screen.getByText(/does not calculate or claim birefringence/i),
+      screen.getByText(/Torsion fields are separate analytical homogeneous/i),
     ).toBeVisible()
     fireEvent.change(screen.getByLabelText('FEM quantity'), {
-      target: { value: 'displacement_x_m' },
+      target: { value: 'element_signed_local_material_birefringence' },
     })
-    expect(screen.getByText('m × 1e6')).toBeVisible()
-    expect(screen.getByText('µm')).toBeVisible()
+    expect(screen.getByText('dimensionless; unchanged')).toBeVisible()
+    expect(screen.getByText('Δn')).toBeVisible()
+    fireEvent.change(screen.getByLabelText('FEM quantity'), {
+      target: { value: 'element_local_material_slow_axis_angle_rad' },
+    })
+    expect(screen.getByText(/undefined samples omitted/)).toBeVisible()
+  })
+
+  test('hides disabled torsion fields and keeps an enabled zero benchmark selectable', () => {
+    const disabled = result()
+    const first = render(
+      createElement(PandaThermalFemCanvas, { result: disabled }),
+    )
+    expect(
+      screen.queryByRole('option', { name: 'Torsion benchmark σₓz' }),
+    ).not.toBeInTheDocument()
+    first.unmount()
+
+    const enabled = result()
+    enabled.torsion.capability = 'saint_venant_homogeneous_circular_reference'
+    render(
+      createElement(PandaThermalFemCanvas, {
+        result: enabled,
+        initialField: 'element_centroid_stress_xz_pa',
+      }),
+    )
+    expect(screen.getByLabelText('FEM quantity')).toHaveValue(
+      'element_centroid_stress_xz_pa',
+    )
+    expect(
+      screen.getByRole('option', { name: 'Torsion benchmark σₓz' }),
+    ).toBeVisible()
+    expect(screen.getAllByText('0 to 0 MPa')).not.toHaveLength(0)
   })
 })
