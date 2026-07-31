@@ -2,13 +2,13 @@ import { M1FoundationCopy, PandaQualitativeNotice } from './M1Foundation'
 import type { M1WorkspaceId } from './M1WorkspaceCatalog'
 import { PandaFieldCanvas } from './PandaFieldCanvas'
 import type { PandaFieldController } from './pandaFieldModel'
-import { PandaMeshCanvas } from './PandaMeshCanvas'
-import type { PandaMeshController } from './pandaMeshModel'
+import { PandaThermalFemCanvas } from './PandaThermalFemCanvas'
+import type { PandaThermalFemController } from './pandaThermalFemModel'
 
 export type M1WorkspaceProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
-  pandaMesh?: PandaMeshController | null
+  thermalFem?: PandaThermalFemController | null
 }
 
 function PandaFieldStatus({
@@ -78,27 +78,29 @@ function PandaFieldWorkspace({
   )
 }
 
-function PandaMeshStatus({
+function PandaThermalFemStatus({
   controller,
 }: {
-  controller: PandaMeshController | null
+  controller: PandaThermalFemController | null
 }) {
   if (controller?.phase === 'ready' && controller.result) {
-    return <PandaMeshCanvas result={controller.result} />
+    return <PandaThermalFemCanvas result={controller.result} />
   }
 
-  let message = 'Configure the PANDA geometry to generate the Figure 9.1 mesh.'
+  let message =
+    'Calculate the PANDA thermoelastic FEM result to view Figure 9.1.'
   if (controller?.phase === 'loading') {
-    message = 'Generating the constrained triangular PANDA mesh…'
+    message =
+      'Calculating the generalized-plane-strain thermoelastic FEM result…'
   } else if (controller?.phase === 'validation') {
     message =
-      'The PANDA mesh is unavailable until the highlighted inputs are valid.'
+      'The thermoelastic FEM result is unavailable until the highlighted inputs are valid.'
   } else if (controller?.phase === 'error') {
     message =
       controller.errorMessage ??
-      'The PANDA mesh service could not complete this calculation.'
+      'The PANDA thermal FEM service could not complete this calculation.'
   } else if (controller?.phase === 'ready') {
-    message = 'The PANDA mesh result is unavailable.'
+    message = 'The PANDA thermal FEM result is unavailable.'
   }
 
   return (
@@ -108,7 +110,7 @@ function PandaMeshStatus({
       aria-live="polite"
     >
       <p>{message}</p>
-      <p>No stale mesh is displayed in this state.</p>
+      <p>No stale quantitative FEM field is displayed in this state.</p>
     </div>
   )
 }
@@ -116,7 +118,7 @@ function PandaMeshStatus({
 function FemWorkspace({
   controller,
 }: {
-  controller: PandaMeshController | null
+  controller: PandaThermalFemController | null
 }) {
   return (
     <section
@@ -128,17 +130,23 @@ function FemWorkspace({
       <header className="m1-workspace-header">
         <div>
           <p className="m1-workspace-kicker">M1 · 2D only · Figure 9.1</p>
-          <h2 id="m1-workspace-title">FEM mesh</h2>
+          <h2 id="m1-workspace-title">
+            Generalized-plane-strain thermoelastic FEM
+          </h2>
           <p>
-            A constrained triangular mesh preview of the core, cladding and two
-            SAP regions, ready for the later FEM field step.
+            Quantitative mechanical fields solved on the constrained triangular
+            PANDA mesh with one uniform axial strain degree of freedom.
           </p>
         </div>
-        <span className="m1-workspace-badge">Mesh preview</span>
+        <span className="m1-workspace-badge">Quantitative FEM</span>
       </header>
       <M1FoundationCopy />
-      <PandaMeshStatus controller={controller} />
-      <span className="sr-only">FEM mesh is active.</span>
+      <PandaThermalFemStatus controller={controller} />
+      <p className="m1-fem-notice">
+        Figure 9.1 shows mechanical thermoelastic FEM fields only; birefringence
+        is not calculated yet.
+      </p>
+      <span className="sr-only">Quantitative thermoelastic FEM is active.</span>
     </section>
   )
 }
@@ -146,11 +154,11 @@ function FemWorkspace({
 export function M1Workspace({
   workspace,
   pandaField = null,
-  pandaMesh = null,
+  thermalFem = null,
 }: M1WorkspaceProps) {
   return workspace === 'panda-field' ? (
     <PandaFieldWorkspace controller={pandaField} />
   ) : (
-    <FemWorkspace controller={pandaMesh} />
+    <FemWorkspace controller={thermalFem} />
   )
 }

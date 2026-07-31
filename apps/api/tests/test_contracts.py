@@ -205,6 +205,21 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "MacrobendInput.position_fraction",
         "MacrobendLossPoint.position_fraction",
     }
+    thermal_fem_dimensionless_fields = {
+        "PandaThermalFemAnchorReactions.primary_node_index",
+        "PandaThermalFemAnchorReactions.secondary_node_index",
+        "PandaThermalFemResult.element_strain_xx",
+        "PandaThermalFemResult.element_strain_yy",
+        "PandaThermalFemResult.element_strain_zz",
+        "PandaThermalFemResult.element_strain_xy",
+        "PandaThermalFemResult.epsilon_zz_0",
+        "PandaThermalFemConvergenceSummary.relative_change",
+    }
+    thermal_fem_unit_fields = {
+        "PandaThermalFemForceBalance.transverse_free_residual_l2_n_per_m",
+        "PandaThermalFemForceBalance.transverse_resultant_x_n_per_m",
+        "PandaThermalFemForceBalance.transverse_resultant_y_n_per_m",
+    }
     violations: list[str] = []
 
     for model in main.CONTRACT_MODELS:
@@ -216,7 +231,9 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
                 "_dimensionless"
             )
             field_key = f"{model.__name__}.{field_name}"
+            has_unit_suffix = has_unit_suffix or field_key in thermal_fem_unit_fields
             is_dimensionless = is_dimensionless or field_key in dimensionless_bend_fields
+            is_dimensionless = is_dimensionless or field_key in thermal_fem_dimensionless_fields
             if (
                 not has_unit_suffix
                 and not is_dimensionless

@@ -34,15 +34,6 @@ export const PANDA_MESH_MODEL_ID = 'panda_constrained_delaunay_mesh'
 export const PANDA_MESH_MODEL_VERSION = '1.0.0'
 export const PANDA_MESH_GENERATOR_VERSION = 'triangle 20250106'
 export const PANDA_MESH_FEM_VERSION = 'scikit-fem 12.0.2'
-export const PANDA_MESH_REFINEMENT_LEVELS: readonly {
-  value: PandaMeshRefinementLevel
-  label: string
-}[] = [
-  { value: 0, label: '0 Preview' },
-  { value: 1, label: '1 Standard' },
-  { value: 2, label: '2 Fine' },
-]
-
 const meshRegions = new Set(['cladding', 'core', 'sap_1', 'sap_2'])
 const warningCodes = new Set([
   'quality_below_target',

@@ -98,6 +98,18 @@ from fibre_sim.sweeps import (
     Level1SweepResult,
     calculate_level1_sweep,
 )
+from fibre_sim.thermal_fem import (
+    PandaThermalFemAnchorReactions,
+    PandaThermalFemCalculationError,
+    PandaThermalFemConvergenceSummary,
+    PandaThermalFemCoreSummary,
+    PandaThermalFemForceBalance,
+    PandaThermalFemManifest,
+    PandaThermalFemRequest,
+    PandaThermalFemResult,
+    PandaThermalFemWarning,
+    calculate_panda_thermal_fem,
+)
 
 from .schemas import (
     ApplicationError,
@@ -215,6 +227,36 @@ async def post_panda_mesh(request: PandaMeshRequest) -> PandaMeshResult:
         raise ApplicationError(
             code="CALCULATION_ERROR",
             message="PANDA mesh could not be generated from the supplied geometry.",
+            field=None,
+            details={"reason": reason},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
+    "/api/v1/photoelastic/panda/thermal-fem",
+    operation_id="calculate_panda_thermal_fem",
+    response_model=PandaThermalFemResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or thermal FEM calculation failed",
+        }
+    },
+)
+async def post_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaThermalFemResult:
+    try:
+        return calculate_panda_thermal_fem(request)
+    except (
+        PandaThermalFemCalculationError,
+        PandaMeshGenerationError,
+        ValidationError,
+        OverflowError,
+    ) as exc:
+        reason = getattr(exc, "reason", "thermal_fem_calculation_failed")
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="PANDA thermal FEM could not be calculated from the supplied values.",
             field=None,
             details={"reason": reason},
             status_code=422,
@@ -355,6 +397,14 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     PandaMeshRequest,
     PandaMeshResult,
     PandaMeshWarning,
+    PandaThermalFemAnchorReactions,
+    PandaThermalFemConvergenceSummary,
+    PandaThermalFemCoreSummary,
+    PandaThermalFemForceBalance,
+    PandaThermalFemManifest,
+    PandaThermalFemRequest,
+    PandaThermalFemResult,
+    PandaThermalFemWarning,
     PulseSeries,
     SectionResult,
     SimulationConfig,

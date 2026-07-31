@@ -89,6 +89,14 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         "PandaMeshRequest",
         "PandaMeshResult",
         "PandaMeshWarning",
+        "PandaThermalFemAnchorReactions",
+        "PandaThermalFemConvergenceSummary",
+        "PandaThermalFemCoreSummary",
+        "PandaThermalFemForceBalance",
+        "PandaThermalFemManifest",
+        "PandaThermalFemRequest",
+        "PandaThermalFemResult",
+        "PandaThermalFemWarning",
         "ThermalState",
     ):
         assert name in schemas
@@ -158,6 +166,7 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         "/api/v1/guidance/calculate",
         "/api/v1/photoelastic/panda/field-map",
         "/api/v1/photoelastic/panda/mesh",
+        "/api/v1/photoelastic/panda/thermal-fem",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }
@@ -190,6 +199,22 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
     )
     assert (
         mesh_operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
+
+    thermal_operation = schema["paths"]["/api/v1/photoelastic/panda/thermal-fem"]["post"]
+    assert thermal_operation["operationId"] == "calculate_panda_thermal_fem"
+    assert (
+        thermal_operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaThermalFemRequest"
+    )
+    assert set(thermal_operation["responses"]) == {"200", "422"}
+    assert (
+        thermal_operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/PandaThermalFemResult"
+    )
+    assert (
+        thermal_operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
 
@@ -280,6 +305,7 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
         "/api/v1/guidance/calculate",
         "/api/v1/photoelastic/panda/field-map",
         "/api/v1/photoelastic/panda/mesh",
+        "/api/v1/photoelastic/panda/thermal-fem",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }

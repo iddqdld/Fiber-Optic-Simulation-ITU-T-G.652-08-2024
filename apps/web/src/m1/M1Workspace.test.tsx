@@ -6,14 +6,17 @@ import { M1Results } from './M1Results'
 import { M1Workspace } from './M1Workspace'
 import * as pandaFieldContours from './pandaFieldContours'
 import { ISOLINE_THRESHOLDS } from './pandaFieldContours'
-import * as pandaMeshDrawing from './pandaMeshDrawing'
-import { buildPandaMeshDrawingGeometry } from './pandaMeshDrawing'
+import * as pandaThermalFemDrawing from './pandaThermalFemDrawing'
+import { buildPandaThermalFemDrawingGeometry } from './pandaThermalFemDrawing'
 import {
   initialPandaFieldValues,
   type PandaFieldController,
   type PandaFieldResult,
 } from './pandaFieldModel'
-import type { PandaMeshController, PandaMeshResult } from './pandaMeshModel'
+import type {
+  PandaThermalFemController,
+  PandaThermalFemResult,
+} from './pandaThermalFemModel'
 
 const canvasContext = {
   arc: vi.fn(),
@@ -183,7 +186,7 @@ function controller(
   }
 }
 
-function meshResult(): PandaMeshResult {
+function thermalFemResult(): PandaThermalFemResult {
   return {
     configuration: {
       geometry: {
@@ -194,86 +197,181 @@ function meshResult(): PandaMeshResult {
         sap_1: { radius_m: 15e-6, center_x_m: -30e-6, center_y_m: 0 },
         sap_2: { radius_m: 15e-6, center_x_m: 30e-6, center_y_m: 0 },
       },
+      materials: {} as PandaThermalFemResult['configuration']['materials'],
+      thermal: {} as PandaThermalFemResult['configuration']['thermal'],
+      axial_load: {
+        condition: 'free_resultant',
+        prescribed_force_n: null,
+        prescribed_strain: null,
+      },
       refinement_level: 1,
     },
-    nodes_m: [
-      [-62.5e-6, -62.5e-6],
-      [62.5e-6, -62.5e-6],
-      [62.5e-6, 62.5e-6],
-      [-62.5e-6, 62.5e-6],
-      [0, -4e-6],
-      [0, 4e-6],
-      [-15e-6, 0],
-      [15e-6, 0],
-    ],
-    elements: [
-      [0, 1, 4],
-      [1, 2, 5],
-      [2, 3, 5],
-      [3, 0, 4],
-      [4, 5, 6],
-      [4, 7, 5],
-    ],
-    region_tags: ['cladding', 'core', 'sap_1', 'sap_2', 'cladding', 'core'],
-    node_count: 8,
-    element_count: 6,
-    region_summaries: [
-      {
-        region: 'cladding',
-        element_count: 2,
-        target_area_m2: 1,
-        total_area_m2: 1,
+    mesh: {
+      configuration: {
+        geometry: {
+          cladding_radius_m: 62.5e-6,
+          core_radius_m: 4.1e-6,
+          core_center_x_m: 0,
+          core_center_y_m: 0,
+          sap_1: { radius_m: 15e-6, center_x_m: -30e-6, center_y_m: 0 },
+          sap_2: { radius_m: 15e-6, center_x_m: 30e-6, center_y_m: 0 },
+        },
+        refinement_level: 1,
       },
-      { region: 'core', element_count: 2, target_area_m2: 1, total_area_m2: 1 },
-      {
-        region: 'sap_1',
-        element_count: 1,
-        target_area_m2: 1,
-        total_area_m2: 1,
+      nodes_m: [
+        [-62.5e-6, -62.5e-6],
+        [62.5e-6, -62.5e-6],
+        [62.5e-6, 62.5e-6],
+        [-62.5e-6, 62.5e-6],
+        [0, 0],
+      ],
+      elements: [
+        [0, 1, 4],
+        [1, 2, 4],
+        [2, 3, 4],
+        [3, 0, 4],
+      ],
+      region_tags: ['cladding', 'core', 'sap_1', 'sap_2'],
+      node_count: 5,
+      element_count: 4,
+      region_summaries: [],
+      quality: {
+        minimum_angle_deg: 30,
+        minimum_normalized_quality: 0.5,
+        mean_normalized_quality: 0.8,
       },
-      {
-        region: 'sap_2',
-        element_count: 1,
-        target_area_m2: 1,
-        total_area_m2: 1,
-      },
-    ],
-    quality: {
-      minimum_angle_deg: 30,
-      minimum_normalized_quality: 0.5,
-      mean_normalized_quality: 0.8,
+      warnings: [],
+      model_manifest: {
+        model_id: 'panda_constrained_delaunay_mesh',
+        model_version: '1.0.0',
+        geometry_model: 'PandaGeometry',
+        interface_model: 'piecewise_linear_circular_interfaces',
+        method: 'constrained_delaunay',
+        element_family: 'first_order_triangles',
+        generator_version: 'triangle 20250106',
+        fem_compatibility_version: 'scikit-fem 12.0.2',
+        quality_target_minimum_angle_deg: 20,
+        mesh_only: true,
+        solved_fem_fields: false,
+        coordinate_units: 'm',
+        assumptions: [],
+        limitations: [],
+      } as PandaThermalFemResult['mesh']['model_manifest'],
     },
-    warnings: [],
+    displacement_x_m: [-2e-6, -1e-6, 1e-6, 2e-6, 0],
+    displacement_y_m: [1e-6, 2e-6, -2e-6, -1e-6, 0],
+    element_strain_xx: [-1e-4, -5e-5, 5e-5, 1e-4],
+    element_strain_yy: [-2e-4, -1e-4, 1e-4, 2e-4],
+    element_strain_zz: [-3e-4, -1.5e-4, 1.5e-4, 3e-4],
+    element_strain_xy: [-4e-4, -2e-4, 2e-4, 4e-4],
+    element_stress_xx_pa: [-2e6, -1e6, 1e6, 2e6],
+    element_stress_yy_pa: [-4e6, -2e6, 2e6, 4e6],
+    element_stress_zz_pa: [-6e6, -3e6, 3e6, 6e6],
+    element_stress_xy_pa: [-8e6, -4e6, 4e6, 8e6],
+    element_principal_max_pa: [-10e6, -5e6, 5e6, 10e6],
+    element_principal_min_pa: [-12e6, -6e6, 6e6, 12e6],
+    element_principal_difference_pa: [1e6, 2e6, 3e6, 4e6],
+    element_principal_axis_angle_rad: [0, 0, 0, 0],
+    epsilon_zz_0: 1.25e-4,
+    core_summary: {
+      area_m2: 5e-11,
+      average_stress_xx_pa: 1.2e6,
+      average_stress_yy_pa: -0.8e6,
+      average_stress_zz_pa: 0.4e6,
+      average_stress_xy_pa: 0.2e6,
+      principal_max_pa: 1.3e6,
+      principal_min_pa: -0.9e6,
+      principal_difference_pa: 2.2e6,
+      principal_axis_angle_rad: Math.PI / 6,
+    },
+    anchor_reactions: {
+      primary_node_index: 0,
+      secondary_node_index: 1,
+      primary_reaction_x_n_per_m: 0,
+      primary_reaction_y_n_per_m: 0,
+      secondary_reaction_x_n_per_m: 0,
+      secondary_reaction_y_n_per_m: 0,
+    },
+    force_balance: {
+      transverse_free_residual_l2_n_per_m: 1e-9,
+      transverse_resultant_x_n_per_m: 0,
+      transverse_resultant_y_n_per_m: 0,
+      axial_resultant_n: 0,
+      axial_target_n: 0,
+      axial_residual_n: 0,
+    },
+    convergence: [
+      {
+        refinement_level: 0,
+        node_count: 5,
+        element_count: 4,
+        core_average_principal_difference_pa: 2e6,
+        relative_change: null,
+        status: 'unavailable',
+      },
+      {
+        refinement_level: 1,
+        node_count: 5,
+        element_count: 4,
+        core_average_principal_difference_pa: 2.2e6,
+        relative_change: 0.09,
+        status: 'not_converged',
+      },
+    ],
+    warnings: [
+      {
+        code: 'demonstration_data',
+        message: 'At least one material uses demonstration-only data.',
+        refinement_level: null,
+      },
+    ],
     model_manifest: {
-      model_id: 'panda_constrained_delaunay_mesh',
+      model_id: 'fem_generalized_plane_strain',
       model_version: '1.0.0',
-      geometry_model: 'PandaGeometry',
-      interface_model: 'piecewise_linear_circular_interfaces',
-      method: 'constrained_delaunay',
+      method: 'fem_generalized_plane_strain',
+      stress_measure: 'cauchy_stress',
+      quantity_type: 'quantitative_mechanical_output',
+      stress_units: 'Pa',
+      displacement_units: 'm',
+      strain_units: '1',
+      exterior_boundary: 'traction_free',
       element_family: 'first_order_triangles',
-      generator_version: 'triangle 20250106',
-      fem_compatibility_version: 'scikit-fem 12.0.2',
-      quality_target_minimum_angle_deg: 20,
-      mesh_only: true,
-      solved_fem_fields: false,
-      coordinate_units: 'm',
-      assumptions: [],
-      limitations: [],
+      axial_strain_model: 'uniform_epsilon_zz_0',
+      equation: 'transverse_weak_equilibrium_plus_axial_resultant',
+      axial_equation: 'integral_sigma_zz_d_a_equals_n_z',
+      axial_conditions: [
+        'free_resultant',
+        'prescribed_force',
+        'prescribed_strain',
+      ],
+      thermal_strain_model: 'full_per_region_alpha_delta_t',
+      birefringence_computed: false,
+      assumptions: ['small strain isotropic thermoelasticity'],
+      limitations: ['no birefringence or photoelastic observable is computed'],
     },
-  } as PandaMeshResult
+  } as PandaThermalFemResult
 }
 
-function meshController(
-  overrides: Partial<PandaMeshController> = {},
-): PandaMeshController {
+function thermalFemController(
+  overrides: Partial<PandaThermalFemController> = {},
+): PandaThermalFemController {
   return {
-    refinementLevel: 0,
+    controls: {
+      axialCondition: 'free_resultant',
+      prescribedForceN: '0',
+      prescribedStrainMicrostrain: '0',
+      refinementLevel: 1,
+    },
     result: null,
     phase: 'idle',
-    statusLabel: 'Waiting for PANDA mesh…',
+    statusLabel: 'PANDA thermal FEM not calculated',
     errorMessage: null,
     fieldErrors: {},
+    onAxialConditionChange: vi.fn(),
+    onPrescribedForceChange: vi.fn(),
+    onPrescribedStrainMicrostrainChange: vi.fn(),
     onRefinementLevelChange: vi.fn(),
+    onCalculate: vi.fn(),
     onRetry: vi.fn(),
     ...overrides,
   }
@@ -586,81 +684,146 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText(/does not report stress in pascals/)).toBeVisible()
   })
 
-  test.each([
-    ['idle', 'Configure the PANDA geometry'],
-    ['loading', 'Generating the constrained triangular PANDA mesh'],
-    ['validation', 'highlighted inputs are valid'],
-    ['error', 'Mesh service unavailable'],
-  ] as const)('does not show a stale mesh in %s state', (phase, message) => {
+  test('reports quantitative FEM metadata, balance, convergence, and limits', () => {
+    const result = thermalFemResult()
+    const prescribedStrainResult = {
+      ...result,
+      configuration: {
+        ...result.configuration,
+        axial_load: {
+          condition: 'prescribed_strain' as const,
+          prescribed_force_n: null,
+          prescribed_strain: 1.25e-4,
+        },
+      },
+      force_balance: {
+        ...result.force_balance,
+        axial_target_n: null,
+        axial_residual_n: null,
+      },
+    }
+
     render(
-      <M1Workspace
+      <M1Results
         workspace="fem-mesh"
-        pandaMesh={meshController({
-          phase,
-          result: meshResult(),
-          errorMessage: phase === 'error' ? 'Mesh service unavailable' : null,
+        thermalFem={thermalFemController({
+          phase: 'ready',
+          result: prescribedStrainResult,
         })}
       />,
     )
 
     expect(
-      screen.getByRole(phase === 'error' ? 'alert' : 'status'),
-    ).toHaveTextContent(message)
-    expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    expect(screen.getByText(/No stale mesh/)).toBeVisible()
+      screen.getByRole('heading', { name: 'Thermoelastic FEM results' }),
+    ).toBeVisible()
+    expect(screen.getByText(/Quantitative mechanical FEM result/)).toBeVisible()
+    expect(screen.getByText('Prescribed axial strain')).toBeVisible()
+    expect(screen.getByText(/1.250000e-4/)).toBeVisible()
+    expect(screen.getByText('1.200000 MPa / -0.800000 MPa')).toBeVisible()
+    expect(screen.getByText('2.200000 MPa')).toBeVisible()
+    expect(
+      screen.getAllByText(/Not imposed for prescribed strain/),
+    ).toHaveLength(2)
+    expect(
+      screen.getByText(/Level 1: 5 nodes · 4 elements · change 9.00%/),
+    ).toBeVisible()
+    expect(screen.getByText(/Minimum angle: 30.000°/)).toBeVisible()
+    expect(screen.getByText(/MPa = Pa × 1e−6/)).toBeVisible()
+    expect(screen.getByText('Demonstration data')).toBeVisible()
+    expect(
+      screen.getByText(/small strain isotropic thermoelasticity/),
+    ).toBeVisible()
+    expect(
+      screen.getByText(/no birefringence or photoelastic observable/),
+    ).toBeVisible()
   })
 
-  test('draws all mesh regions and retained deduplicated interfaces when ready', () => {
-    const result = meshResult()
-    const geometry = buildPandaMeshDrawingGeometry(result)
-    expect(geometry.nodeCount).toBe(result.node_count)
-    expect(geometry.elementCount).toBe(result.element_count)
-    expect(geometry.edgeCount).toBeLessThan(result.element_count * 3)
+  test.each([
+    ['idle', 'Calculate the PANDA thermoelastic FEM result'],
+    [
+      'loading',
+      'Calculating the generalized-plane-strain thermoelastic FEM result',
+    ],
+    ['validation', 'highlighted inputs are valid'],
+    ['error', 'Thermal FEM service unavailable'],
+  ] as const)(
+    'does not show a stale FEM field in %s state',
+    (phase, message) => {
+      render(
+        <M1Workspace
+          workspace="fem-mesh"
+          thermalFem={thermalFemController({
+            phase,
+            result: thermalFemResult(),
+            errorMessage:
+              phase === 'error' ? 'Thermal FEM service unavailable' : null,
+          })}
+        />,
+      )
+
+      expect(
+        screen.getByRole(phase === 'error' ? 'alert' : 'status'),
+      ).toHaveTextContent(message)
+      expect(screen.queryByRole('img')).not.toBeInTheDocument()
+      expect(screen.getByText(/No stale quantitative FEM field/)).toBeVisible()
+    },
+  )
+
+  test('renders ready quantitative FEM output with explicit no-birefringence text', () => {
+    const result = thermalFemResult()
+    const geometry = buildPandaThermalFemDrawingGeometry(result)
+    expect(geometry.nodeCount).toBe(result.mesh.node_count)
+    expect(geometry.elementCount).toBe(result.mesh.element_count)
+    expect(geometry.bins).toHaveLength(21)
     expect(geometry.interfaceEdgeCount).toBeGreaterThan(0)
     expect(geometry.outerEdgeCount).toBeGreaterThan(0)
 
     render(
       <M1Workspace
         workspace="fem-mesh"
-        pandaMesh={meshController({ phase: 'ready', result })}
+        thermalFem={thermalFemController({ phase: 'ready', result })}
       />,
     )
 
     expect(
       screen.getByRole('img', {
-        name: 'Figure 9.1 PANDA triangular mesh preview',
+        name: /Principal stress difference.*quantitative mechanical FEM field/,
       }),
     ).toBeVisible()
-    expect(screen.getByText('Cladding')).toBeVisible()
-    expect(screen.getByText('Core')).toBeVisible()
-    expect(screen.getByText('SAP 1')).toBeVisible()
-    expect(screen.getByText('SAP 2')).toBeVisible()
     expect(
-      screen.getByText(/Mesh preview · no solved FEM fields/),
+      screen.getByRole('heading', {
+        name: 'Generalized-plane-strain thermoelastic FEM',
+      }),
     ).toBeVisible()
-    expect(screen.getByText(/Level 1/)).toBeVisible()
-    expect(screen.getByText(/8/)).toBeVisible()
+    expect(screen.getByText('Quantitative FEM')).toBeVisible()
+    expect(
+      screen.getByText(/birefringence is not calculated yet/),
+    ).toBeVisible()
+    expect(screen.getByText(/MPa from Pa × 1e−6/)).toBeVisible()
     expect(canvasContext.fill).toHaveBeenCalled()
     expect(canvasContext.stroke).toHaveBeenCalled()
   })
 
-  test('keeps mesh view controls local, bounded, and accessible', () => {
+  test('keeps FEM field view controls local, bounded, and accessible', () => {
     render(
       <M1Workspace
         workspace="fem-mesh"
-        pandaMesh={meshController({ phase: 'ready', result: meshResult() })}
+        thermalFem={thermalFemController({
+          phase: 'ready',
+          result: thermalFemResult(),
+        })}
       />,
     )
 
     const canvas = screen.getByRole('img', {
-      name: 'Figure 9.1 PANDA triangular mesh preview',
+      name: /quantitative mechanical FEM field/,
     })
-    const zoom = screen.getByLabelText('Mesh zoom')
+    const zoom = screen.getByLabelText('Zoom')
     expect(zoom).toHaveAttribute('min', '0.5')
     expect(zoom).toHaveAttribute('max', '4')
     expect(screen.getByText('100%', { selector: 'output' })).toBeVisible()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom in mesh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in FEM field' }))
     expect(screen.getByText('120%', { selector: 'output' })).toBeVisible()
     fireEvent.change(zoom, { target: { value: '4' } })
     expect(screen.getByText('400%', { selector: 'output' })).toBeVisible()
@@ -668,30 +831,37 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText('100%', { selector: 'output' })).toBeVisible()
     fireEvent.wheel(canvas, { deltaY: -100, clientX: 30, clientY: 30 })
     expect(screen.getByText('120%', { selector: 'output' })).toBeVisible()
-    fireEvent.click(screen.getByRole('button', { name: 'Reset mesh view' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reset FEM field view' }),
+    )
     expect(screen.getByText('100%', { selector: 'output' })).toBeVisible()
   })
 
-  test('retains mesh topology while view controls change', () => {
+  test('retains FEM topology while view controls change', () => {
     const buildGeometry = vi.spyOn(
-      pandaMeshDrawing,
-      'buildPandaMeshDrawingGeometry',
+      pandaThermalFemDrawing,
+      'buildPandaThermalFemDrawingGeometry',
     )
     render(
       <M1Workspace
         workspace="fem-mesh"
-        pandaMesh={meshController({ phase: 'ready', result: meshResult() })}
+        thermalFem={thermalFemController({
+          phase: 'ready',
+          result: thermalFemResult(),
+        })}
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom in mesh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in FEM field' }))
     fireEvent.keyDown(
       screen.getByRole('img', {
-        name: 'Figure 9.1 PANDA triangular mesh preview',
+        name: /quantitative mechanical FEM field/,
       }),
       { key: 'ArrowRight' },
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Reset mesh view' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reset FEM field view' }),
+    )
 
     expect(buildGeometry).toHaveBeenCalledOnce()
   })
@@ -709,9 +879,15 @@ describe('M1 PANDA field workspace', () => {
       </>,
     )
 
-    expect(screen.getByRole('heading', { name: 'FEM mesh' })).toBeVisible()
+    expect(
+      screen.getByRole('heading', {
+        name: 'Generalized-plane-strain thermoelastic FEM',
+      }),
+    ).toBeVisible()
     expect(screen.getByText('M1 · 2D only · Figure 9.1')).toBeVisible()
-    expect(screen.getByText(/Configure the PANDA geometry/)).toBeVisible()
+    expect(
+      screen.getByText(/Calculate the PANDA thermoelastic FEM result/),
+    ).toBeVisible()
     expect(container.querySelector('canvas')).not.toBeInTheDocument()
     expect(container.querySelector('input')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Displayed field')).not.toBeInTheDocument()
