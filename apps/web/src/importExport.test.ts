@@ -33,7 +33,6 @@ const sampleFormValues: FormValues = {
 }
 
 describe('importExport module', () => {
-
   it('serializes configuration to valid JSON string and validates it back', () => {
     const jsonString = serializeConfiguration(sampleFormValues)
     expect(jsonString).toContain('g652-simulation-config')
@@ -150,8 +149,13 @@ describe('importExport module', () => {
       macrobend_loss: null,
     } as const
 
-    const csvContent = exportMetricsCsv(mockPreviewResult as never, sampleFormValues)
-    expect(csvContent).toContain('Category,Parameter / Metric,Value,Unit,Details / Compliance')
+    const csvContent = exportMetricsCsv(
+      mockPreviewResult as never,
+      sampleFormValues,
+    )
+    expect(csvContent).toContain(
+      'Category,Parameter / Metric,Value,Unit,Details / Compliance',
+    )
     expect(csvContent).toContain('Input,Preset,g652d')
     expect(csvContent).toContain('Calculated Metric,V Parameter,2.14')
     expect(csvContent).toContain('Standard Check,Attenuation Standard,PASS')
@@ -184,7 +188,9 @@ describe('importExport module', () => {
     }
 
     const csvContent = exportRadialIntensityCsv(mockModeProfile as never)
-    expect(csvContent).toContain('Radius (µm),Normalized Intensity,Electric Field Amplitude')
+    expect(csvContent).toContain(
+      'Radius (µm),Normalized Intensity,Electric Field Amplitude',
+    )
     expect(csvContent).toContain('0,1,1')
     expect(csvContent).toContain('2.5,0.75,0.866')
   })
@@ -212,7 +218,9 @@ describe('importExport module', () => {
     }
 
     const csvContent = exportPulseComparisonCsv(mockPulseData as never)
-    expect(csvContent).toContain('Time (ps),Input Pulse Intensity,Output Pulse Intensity')
+    expect(csvContent).toContain(
+      'Time (ps),Input Pulse Intensity,Output Pulse Intensity',
+    )
     expect(csvContent).toContain('0,1,1')
     expect(csvContent).toContain('-12.5,0.5,0.5')
   })
@@ -239,13 +247,19 @@ describe('importExport module', () => {
     }
 
     const csvContent = exportMacrobendLossCsv(mockMacrobendResult as never)
-    expect(csvContent).toContain('Bend #,Position Fraction,Radius (mm),Angle (deg)')
+    expect(csvContent).toContain(
+      'Bend #,Position Fraction,Radius (mm),Angle (deg)',
+    )
     expect(csvContent).toContain('1,0.5,15,90,0.05,0.05,-3.05')
   })
 
   it('triggers file download without throwing', () => {
-    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock-url')
-    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+    const createObjectURLSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:mock-url')
+    const revokeObjectURLSpy = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => {})
 
     expect(() => {
       downloadFile('test.json', '{"test": true}', 'application/json')
@@ -257,5 +271,4 @@ describe('importExport module', () => {
     createObjectURLSpy.mockRestore()
     revokeObjectURLSpy.mockRestore()
   })
-
 })
