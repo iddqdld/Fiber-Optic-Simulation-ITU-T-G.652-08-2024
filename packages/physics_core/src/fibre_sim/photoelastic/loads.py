@@ -9,10 +9,13 @@ _PositiveStrictFiniteFloat = Annotated[
     float,
     Field(strict=True, gt=0, allow_inf_nan=False),
 ]
-_OptionalStrictFiniteFloat = Annotated[
-    float,
-    Field(strict=True, allow_inf_nan=False),
-] | None
+_OptionalStrictFiniteFloat = (
+    Annotated[
+        float,
+        Field(strict=True, allow_inf_nan=False),
+    ]
+    | None
+)
 
 
 class ThermalState(BaseModel):

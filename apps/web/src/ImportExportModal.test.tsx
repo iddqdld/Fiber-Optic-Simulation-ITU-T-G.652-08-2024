@@ -29,7 +29,6 @@ const sampleFormValues: FormValues = {
 }
 
 describe('ImportExportModal component', () => {
-
   it('renders import and export buttons', () => {
     const handleImportConfig = vi.fn()
     render(
@@ -81,11 +80,14 @@ describe('ImportExportModal component', () => {
     fireEvent.click(screen.getByText('Export Results'))
     expect(screen.getByText('Export Simulation Results')).toBeInTheDocument()
     expect(
-      screen.getByText('No simulation results available yet. Run a simulation preview first.'),
+      screen.getByText(
+        'No simulation results available yet. Run a simulation preview first.',
+      ),
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Close'))
-    expect(screen.queryByText('Export Simulation Results')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Export Simulation Results'),
+    ).not.toBeInTheDocument()
   })
-
 })

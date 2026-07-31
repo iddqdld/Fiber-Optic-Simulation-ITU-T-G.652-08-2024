@@ -894,6 +894,17 @@ function App() {
     setFormValues((current) => ({ ...current, cable_application: value }))
   }
 
+  const handleImportConfig = (
+    importedValues: FormValues,
+    filename?: string,
+  ) => {
+    clearVisualizationData()
+    setServiceError(null)
+    setPreviewStatus('Preview scheduled…')
+    setFormValues(importedValues)
+    setImportedFileName(filename ?? null)
+  }
+
   const captureComparisonBaseline = () => {
     if (matchingResult !== null) {
       setComparisonBaseline(matchingResult)
@@ -1045,6 +1056,8 @@ function App() {
         onPresetChange={updatePreset}
         onCableApplicationChange={updateCableApplication}
         onSettingsChange={setVisualizationSettings}
+        activeConfigFileName={importedFileName}
+        onDropImportConfig={handleImportConfig}
       />
     )
 

@@ -786,7 +786,10 @@ export function Level1Form({
     >
       <h2 id="level1-configuration-title">Level 1 configuration</h2>
       {activeConfigFileName !== undefined && activeConfigFileName !== null && (
-        <p className="level1-inspector-source" title={`Imported from ${activeConfigFileName}`}>
+        <p
+          className="level1-inspector-source"
+          title={`Imported from ${activeConfigFileName}`}
+        >
           Imported from {activeConfigFileName}
         </p>
       )}

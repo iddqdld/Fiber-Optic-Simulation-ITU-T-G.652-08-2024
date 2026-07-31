@@ -26,13 +26,11 @@ type PreviewResult =
  * Props interface for the Import/Export management component.
  */
 export interface ImportExportModalProps {
-
   formValues: FormValues
   onImportConfig: (importedValues: FormValues, filename?: string) => void
   previewResult: PreviewResult | null
   powerDistanceData?: PowerDistanceData | null
   pulseData?: PulseComparisonData | null
-
 }
 
 /**
@@ -48,8 +46,12 @@ export function ImportExportModal({
 }: ImportExportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [importStatusMessage, setImportStatusMessage] = useState<string | null>(null)
-  const [importStatusTone, setImportStatusTone] = useState<'success' | 'error' | null>(null)
+  const [importStatusMessage, setImportStatusMessage] = useState<string | null>(
+    null,
+  )
+  const [importStatusTone, setImportStatusTone] = useState<
+    'success' | 'error' | null
+  >(null)
 
   useEffect(() => {
     if (importStatusMessage !== null) {
@@ -190,9 +192,7 @@ export function ImportExportModal({
   const handleExportMacrobendCsv = () => {
     const rawResult = previewResult as Record<string, unknown> | null
     const macrobendLoss = rawResult?.macrobend_loss as
-      | components['schemas']['MacrobendLossResult']
-      | null
-      | undefined
+      components['schemas']['MacrobendLossResult'] | null | undefined
 
     if (macrobendLoss === undefined || macrobendLoss === null) {
       return
@@ -258,7 +258,9 @@ export function ImportExportModal({
           <span className="import-export-toast-badge" aria-hidden="true">
             {importStatusTone === 'success' ? '✓' : '⚠️'}
           </span>
-          <span className="import-export-toast-text">{importStatusMessage}</span>
+          <span className="import-export-toast-text">
+            {importStatusMessage}
+          </span>
           <button
             type="button"
             className="import-export-toast-dismiss"
@@ -293,13 +295,17 @@ export function ImportExportModal({
             <div className="import-export-modal-body">
               {previewResult === null ? (
                 <p className="import-export-modal-empty">
-                  No simulation results available yet. Run a simulation preview first.
+                  No simulation results available yet. Run a simulation preview
+                  first.
                 </p>
               ) : (
                 <div className="import-export-options-grid">
                   <div className="import-export-option-card">
                     <h4>Metrics & Summary</h4>
-                    <p>Calculated parameters, V-number, loss, and standards compliance.</p>
+                    <p>
+                      Calculated parameters, V-number, loss, and standards
+                      compliance.
+                    </p>
                     <div className="import-export-card-actions">
                       <button
                         type="button"
@@ -324,7 +330,10 @@ export function ImportExportModal({
                     <button
                       type="button"
                       onClick={handleExportPowerDistanceCsv}
-                      disabled={powerDistanceData === undefined || powerDistanceData === null}
+                      disabled={
+                        powerDistanceData === undefined ||
+                        powerDistanceData === null
+                      }
                       className="editor-shell-tab"
                     >
                       Download CSV
@@ -333,7 +342,9 @@ export function ImportExportModal({
 
                   <div className="import-export-option-card">
                     <h4>Mode Field Intensity</h4>
-                    <p>Transverse radial electric field and intensity profiles.</p>
+                    <p>
+                      Transverse radial electric field and intensity profiles.
+                    </p>
                     <button
                       type="button"
                       onClick={handleExportRadialIntensityCsv}
@@ -357,22 +368,25 @@ export function ImportExportModal({
                     </button>
                   </div>
 
-                  {(previewResult as Record<string, unknown> | null)?.macrobend_loss !==
-                    undefined &&
-                    (previewResult as Record<string, unknown> | null)?.macrobend_loss !==
-                      null && (
+                  {(previewResult as Record<string, unknown> | null)
+                    ?.macrobend_loss !== undefined &&
+                    (previewResult as Record<string, unknown> | null)
+                      ?.macrobend_loss !== null && (
                       <div className="import-export-option-card">
-                      <h4>Macrobend Loss</h4>
-                      <p>Configured bend parameters and calculated bending attenuation.</p>
-                      <button
-                        type="button"
-                        onClick={handleExportMacrobendCsv}
-                        className="editor-shell-tab"
-                      >
-                        Download CSV
-                      </button>
-                    </div>
-                  )}
+                        <h4>Macrobend Loss</h4>
+                        <p>
+                          Configured bend parameters and calculated bending
+                          attenuation.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleExportMacrobendCsv}
+                          className="editor-shell-tab"
+                        >
+                          Download CSV
+                        </button>
+                      </div>
+                    )}
                 </div>
               )}
             </div>

@@ -21,12 +21,10 @@ type MacrobendLossResult = components['schemas']['MacrobendLossResult']
  * to ensure robust validation and future schema migration capability.
  */
 export interface ExportedConfiguration {
-
   version: '1.0'
   type: 'g652-simulation-config'
   exportedAt: string
   formValues: FormValues
-
 }
 
 /**
@@ -86,7 +84,9 @@ const requiredFormFields: readonly (keyof FormValues)[] = [
  */
 export function parseAndValidateConfiguration(
   fileContent: string,
-): { success: true; formValues: FormValues } | { success: false; error: string } {
+):
+  | { success: true; formValues: FormValues }
+  | { success: false; error: string } {
   let parsedJson: unknown
 
   try {
@@ -160,7 +160,9 @@ export function parseAndValidateConfiguration(
 /**
  * Serializes complete simulation results to JSON format.
  */
-export function exportSimulationResultJson(previewResult: PreviewResult): string {
+export function exportSimulationResultJson(
+  previewResult: PreviewResult,
+): string {
   const exportPayload = {
     version: '1.0',
     type: 'g652-simulation-result',
@@ -187,16 +189,40 @@ export function exportMetricsCsv(
     rows.push(
       ['Input', 'Preset', formValues.preset, '', 'Fibre preset selection'],
       ['Input', 'Core Refractive Index (n_core)', formValues.n_core, '', ''],
-      ['Input', 'Cladding Refractive Index (n_cladding)', formValues.n_cladding, '', ''],
+      [
+        'Input',
+        'Cladding Refractive Index (n_cladding)',
+        formValues.n_cladding,
+        '',
+        '',
+      ],
       ['Input', 'Core Radius', formValues.core_radius_um, 'µm', ''],
-      ['Input', 'Mode Field Radius (MFD/2)', formValues.mode_field_radius_um, 'µm', ''],
+      [
+        'Input',
+        'Mode Field Radius (MFD/2)',
+        formValues.mode_field_radius_um,
+        'µm',
+        '',
+      ],
       ['Input', 'Attenuation', formValues.attenuation_db_per_km, 'dB/km', ''],
-      ['Input', 'Dispersion', formValues.dispersion_ps_per_nm_km, 'ps/(nm·km)', ''],
+      [
+        'Input',
+        'Dispersion',
+        formValues.dispersion_ps_per_nm_km,
+        'ps/(nm·km)',
+        '',
+      ],
       ['Input', 'Group Index', formValues.group_index_dimensionless, '', ''],
       ['Input', 'Cable Application', formValues.cable_application, '', ''],
       ['Input', 'Wavelength', formValues.wavelength_nm, 'nm', ''],
       ['Input', 'Input Power', formValues.input_power_dbm, 'dBm', ''],
-      ['Input', 'Spectral Width FWHM', formValues.spectral_width_fwhm_nm, 'nm', ''],
+      [
+        'Input',
+        'Spectral Width FWHM',
+        formValues.spectral_width_fwhm_nm,
+        'nm',
+        '',
+      ],
       ['Input', 'Input Pulse FWHM', formValues.input_pulse_fwhm_ps, 'ps', ''],
       ['Input', 'Fiber Length', formValues.length_km, 'km', ''],
     )
@@ -211,7 +237,9 @@ export function exportMetricsCsv(
       'V Parameter',
       String(vParameter),
       '',
-      vParameter < 2.405 ? 'Single-mode operation (V < 2.405)' : 'Multimode operation',
+      vParameter < 2.405
+        ? 'Single-mode operation (V < 2.405)'
+        : 'Multimode operation',
     ])
     rows.push([
       'Calculated Metric',
@@ -314,9 +342,7 @@ export function exportMetricsCsv(
 export function exportPowerDistanceCsv(
   powerDistanceData: PowerDistanceData,
 ): string {
-  const rows: string[][] = [
-    ['Distance (km)', 'Power (dBm)', 'Power (mW)'],
-  ]
+  const rows: string[][] = [['Distance (km)', 'Power (dBm)', 'Power (mW)']]
 
   const distanceSamples = powerDistanceData.distanceSamplesKm
   const powerSamples = powerDistanceData.powerSamplesDbm
@@ -392,11 +418,7 @@ export function exportPulseComparisonCsv(
   pulseData: PulseComparisonData | PulseComparisonPlotData,
 ): string {
   const rows: string[][] = [
-    [
-      'Time (ps)',
-      'Input Pulse Intensity',
-      'Output Pulse Intensity',
-    ],
+    ['Time (ps)', 'Input Pulse Intensity', 'Output Pulse Intensity'],
   ]
 
   const plotData = getPulseComparisonPlotData(pulseData)
@@ -412,15 +434,12 @@ export function exportPulseComparisonCsv(
   for (let index = 0; index < inputSamples.length; index += 1) {
     const timePs = inputSamples[index].timePs
     const inputValue = inputSamples[index].normalizedValue
-    const outputValue = outputSamples[index] !== undefined
-      ? outputSamples[index].normalizedValue
-      : 0
+    const outputValue =
+      outputSamples[index] !== undefined
+        ? outputSamples[index].normalizedValue
+        : 0
 
-    rows.push([
-      String(timePs),
-      String(inputValue),
-      String(outputValue),
-    ])
+    rows.push([String(timePs), String(inputValue), String(outputValue)])
   }
 
   return rows
