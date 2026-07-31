@@ -24,6 +24,8 @@ type SimulationInspectorProps = {
   onPresetChange: (preset: Preset) => void
   onCableApplicationChange: (application: CableApplication) => void
   onSettingsChange: (settings: VisualizationSettings) => void
+  activeConfigFileName?: string | null
+  onDropImportConfig?: (importedValues: FormValues, filename: string) => void
 }
 
 export function SimulationInspector({
@@ -37,6 +39,8 @@ export function SimulationInspector({
   onPresetChange,
   onCableApplicationChange,
   onSettingsChange,
+  activeConfigFileName,
+  onDropImportConfig,
 }: SimulationInspectorProps) {
   const [visualizationExpanded, setVisualizationExpanded] = useState(true)
 
@@ -50,6 +54,8 @@ export function SimulationInspector({
         onNumericFieldChange={onNumericFieldChange}
         onPresetChange={onPresetChange}
         onCableApplicationChange={onCableApplicationChange}
+        activeConfigFileName={activeConfigFileName}
+        onDropImportConfig={onDropImportConfig}
       />
       <section
         className="level1-inspector-section visualization-section"

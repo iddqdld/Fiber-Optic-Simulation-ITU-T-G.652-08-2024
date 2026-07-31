@@ -39,6 +39,7 @@ export type EditorShellProps = {
   inspector?: ReactNode
   workspace?: ReactNode
   resultDrawer?: ReactNode
+  importExportControls?: ReactNode
 }
 
 function warningLabel(count: number) {
@@ -59,6 +60,7 @@ export function EditorShell({
   inspector,
   workspace,
   resultDrawer,
+  importExportControls,
 }: EditorShellProps) {
   const shellId = `editor-shell-${useId().replaceAll(':', '')}`
   const inspectorId = `${shellId}-inspector`
@@ -211,6 +213,13 @@ export function EditorShell({
             <span aria-hidden="true"> · </span>
             <span data-healthy={backendHealthy}>{backendLabel}</span>
           </p>
+
+          {importExportControls !== undefined && importExportControls !== null && (
+            <div className="editor-shell-import-export">
+              {importExportControls}
+            </div>
+          )}
+
           <button
             ref={mobileInspectorTriggerRef}
             className="editor-shell-inspector-toggle"

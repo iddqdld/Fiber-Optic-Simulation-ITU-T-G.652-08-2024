@@ -3,9 +3,9 @@ import {
   graphDefinitions,
   type GraphWorkspaceId,
 } from './graphWorkspaceCatalog'
-import { PowerDistancePlot } from './PowerDistancePlot'
-import { PulseComparisonPlot } from './PulseComparisonPlot'
-import { RadialIntensityPlot } from './RadialIntensityPlot'
+import { PowerDistancePlot } from './PowerDistancePlot.tsx'
+import { PulseComparisonPlot } from './PulseComparisonPlot.tsx'
+import { RadialIntensityPlot } from './RadialIntensityPlot.tsx'
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseComparisonData } from './pulseComparisonPlot'
 import type { KeyboardEvent } from 'react'
