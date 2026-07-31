@@ -8,7 +8,7 @@ import {
 import { afterEach, describe, expect, test } from 'vitest'
 
 import type { ModeProfileData } from './FibreGeometryView'
-import { RadialIntensityPlot } from './RadialIntensityPlot'
+import { RadialIntensityPlot } from './RadialIntensityPlot.tsx'
 import {
   extractPositiveRadialSamples,
   getRadialIntensityPlotData,

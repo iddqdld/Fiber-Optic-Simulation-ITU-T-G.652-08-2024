@@ -5,15 +5,15 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { GraphWorkspace } from './GraphWorkspace'
 import type { GraphWorkspaceId } from './graphWorkspaceCatalog'
 
-vi.mock('./RadialIntensityPlot', () => ({
+vi.mock('./RadialIntensityPlot.tsx', () => ({
   RadialIntensityPlot: () => <p>Radial plot mounted</p>,
 }))
 
-vi.mock('./PowerDistancePlot', () => ({
+vi.mock('./PowerDistancePlot.tsx', () => ({
   PowerDistancePlot: () => <p>Power plot mounted</p>,
 }))
 
-vi.mock('./PulseComparisonPlot', () => ({
+vi.mock('./PulseComparisonPlot.tsx', () => ({
   PulseComparisonPlot: () => <p>Pulse plot mounted</p>,
 }))
 

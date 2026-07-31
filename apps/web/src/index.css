@@ -1431,8 +1431,17 @@ summary:focus-visible,
   align-items: center;
   justify-content: flex-end;
   gap: 0.55rem;
-  min-width: 0;
+  min-width: max-content;
   padding: 0 0.65rem;
+  flex-shrink: 0;
+}
+
+.editor-shell-import-export {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  margin-left: 2rem;
+  flex-shrink: 0;
 }
 
 .editor-shell-live-status {
@@ -1469,7 +1478,11 @@ summary:focus-visible,
 .editor-shell-results-toggle,
 .editor-shell-inspector-toggle,
 .editor-shell-inspector-close,
-.editor-shell-result-drawer-close {
+.editor-shell-result-drawer-close,
+.editor-shell-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 2rem;
   padding: 0.25rem 0.65rem;
   color: var(--editor-text);
@@ -1479,12 +1492,14 @@ summary:focus-visible,
   border: 1px solid var(--editor-border-strong);
   border-radius: 3px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .editor-shell-results-toggle:hover,
 .editor-shell-inspector-toggle:hover,
 .editor-shell-inspector-close:hover,
-.editor-shell-result-drawer-close:hover {
+.editor-shell-result-drawer-close:hover,
+.editor-shell-action-btn:hover {
   background: #303946;
   border-color: #657286;
 }
@@ -3605,4 +3620,240 @@ summary:focus-visible,
   .sweep-result-facts {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   Import & Export Tooling Styles
+   ========================================================================== */
+
+.import-export-toolbar {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.import-export-action-group {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+/* Floating Toast Notification */
+.import-export-toast {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  color: #f0f4f8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #19212c;
+  border: 1px solid #334e68;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  animation: toastSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.import-export-toast[data-tone='success'] {
+  background: #0d281e;
+  border-color: #1070ca;
+  color: #73e6be;
+}
+
+.import-export-toast[data-tone='error'] {
+  background: #2d1215;
+  border-color: #d64545;
+  color: #ff9999;
+}
+
+.import-export-toast-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.import-export-toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.2rem;
+  margin-left: 0.25rem;
+  color: currentColor;
+  font-size: 0.85rem;
+  background: transparent;
+  border: none;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.import-export-toast-dismiss:hover {
+  opacity: 1;
+}
+
+/* Modal Dialog */
+.import-export-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(10, 14, 20, 0.75);
+  backdrop-filter: blur(8px);
+  animation: backdropFadeIn 0.2s ease-out;
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.import-export-modal-content {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 44rem;
+  max-height: 85vh;
+  background: #18202a;
+  border: 1px solid #334e68;
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+
+.import-export-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: #131a22;
+  border-bottom: 1px solid #243242;
+}
+
+.import-export-modal-header h3 {
+  margin: 0;
+  color: #f0f4f8;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.import-export-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  color: #9fb3c8;
+  font-size: 1.1rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.import-export-modal-close:hover {
+  color: #ffffff;
+  background: #243242;
+  border-color: #486581;
+}
+
+.import-export-modal-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.import-export-modal-empty {
+  margin: 1.5rem 0;
+  color: #9fb3c8;
+  text-align: center;
+}
+
+.import-export-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1rem;
+}
+
+.import-export-option-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1rem;
+  background: #101720;
+  border: 1px solid #243242;
+  border-radius: 8px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.import-export-option-card:hover {
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+}
+
+.import-export-option-card h4 {
+  margin: 0 0 0.35rem 0;
+  color: #f0f4f8;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.import-export-option-card p {
+  margin: 0 0 0.85rem 0;
+  color: #829ab1;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.import-export-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Drag & Drop Highlight on Inspector */
+.level1-inspector--dragover {
+  outline: 2px dashed var(--editor-accent, #38bdf8) !important;
+  outline-offset: -4px;
+  background: rgba(56, 189, 248, 0.04) !important;
+}
+
+/* Subtitle for imported configuration file */
+.level1-inspector-source {
+  margin: -0.25rem 0 0 0;
+  padding: 0 0.75rem 0.55rem 0.75rem;
+  color: var(--editor-text-muted, #9fb3c8);
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type ReactNode, type DragEvent } from 'react'
 
 import type { operations } from '../../../packages/shared_schemas/generated/api'
 import type { FieldIssue, FieldIssues } from './fieldIssues'
+import { parseAndValidateConfiguration } from './importExport'
 import {
   getBoundaryKindLabel,
   getNumericFieldLabel,
@@ -49,6 +50,8 @@ export type Level1FormProps = {
   onNumericFieldChange: (field: NumericFormField, value: string) => void
   onPresetChange: (preset: Preset) => void
   onCableApplicationChange: (application: CableApplication) => void
+  activeConfigFileName?: string | null
+  onDropImportConfig?: (importedValues: FormValues, filename: string) => void
 }
 
 type NumericInputProps = {
@@ -710,10 +713,13 @@ export function Level1Form({
   onNumericFieldChange,
   onPresetChange,
   onCableApplicationChange,
+  activeConfigFileName,
+  onDropImportConfig,
 }: Level1FormProps) {
   const [expandedSections, setExpandedSections] = useState<
     Set<InspectorSectionId>
   >(() => new Set(['preset', 'fibre-geometry']))
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const toggleSection = (section: InspectorSectionId) => {
     setExpandedSections((current) => {
@@ -729,6 +735,39 @@ export function Level1Form({
     })
   }
 
+  const handleDragOver = (event: DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (event: DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (event: DragEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+
+    const file = event.dataTransfer.files?.[0]
+    if (file !== undefined && onDropImportConfig !== undefined) {
+      const reader = new FileReader()
+      reader.onload = (fileEvent) => {
+        const rawText = fileEvent.target?.result as string
+        if (rawText) {
+          const validationResult = parseAndValidateConfiguration(rawText)
+          if (validationResult.success) {
+            onDropImportConfig(validationResult.formValues, file.name)
+          }
+        }
+      }
+      reader.readAsText(file)
+    }
+  }
+
   const sectionProps = {
     values,
     fieldIssues,
@@ -738,11 +777,19 @@ export function Level1Form({
 
   return (
     <section
-      className="level1-inspector calculator-card"
+      className={`level1-inspector calculator-card ${isDragOver ? 'level1-inspector--dragover' : ''}`}
       aria-labelledby="level1-configuration-title"
       aria-label="Level 1 configuration"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <h2 id="level1-configuration-title">Level 1 configuration</h2>
+      {activeConfigFileName !== undefined && activeConfigFileName !== null && (
+        <p className="level1-inspector-source" title={`Imported from ${activeConfigFileName}`}>
+          Imported from {activeConfigFileName}
+        </p>
+      )}
       <form
         className="level1-inspector-form"
         onSubmit={(event) => event.preventDefault()}
