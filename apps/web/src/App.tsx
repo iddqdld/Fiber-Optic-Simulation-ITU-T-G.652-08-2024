@@ -8,6 +8,7 @@ import {
   type CableApplication,
   type FieldBoundaries,
   type FormValues,
+  type MacrobendInput,
   type NumericFormField,
   type Preset,
 } from './Level1Form'
@@ -225,7 +226,10 @@ function getGeometryValues(values: FormValues): {
   }
 }
 
-function parseFormValues(values: FormValues): {
+function parseFormValues(
+  values: FormValues,
+  macrobends: readonly MacrobendInput[] = [],
+): {
   request: PreviewRequest | null
   error: string | null
 } {
@@ -305,7 +309,7 @@ function parseFormValues(values: FormValues): {
     },
     section: {
       length_km: length,
-      bends: [],
+      bends: macrobends as MacrobendInput[],
     },
     sampling: {
       grid_half_width_um: gridHalfWidth,
@@ -605,6 +609,22 @@ function defaultResultDrawerOpen(): boolean {
     : window.matchMedia('(min-width: 1400px)').matches
 }
 
+function phaseToTone(phase: string): PreviewStateTone {
+  switch (phase) {
+    case 'ready':
+      return 'success'
+    case 'loading':
+      return 'info'
+    case 'validation':
+      return 'warning'
+    case 'error':
+      return 'error'
+    default:
+      return 'neutral'
+  }
+}
+
+
 function resultMatchesRequest(
   request: PreviewRequest | null,
   result: PreviewResult | null,
@@ -670,6 +690,7 @@ function App() {
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
   const [importedFileName, setImportedFileName] = useState<string | null>(null)
+  const [macrobends, setMacrobends] = useState<MacrobendInput[]>([])
   const [result, setResult] = useState<PreviewResult | null>(null)
   const [comparisonBaseline, setComparisonBaseline] =
     useState<PreviewResult | null>(null)
@@ -700,7 +721,7 @@ function App() {
   )
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
-  const formValidation = parseFormValues(formValues)
+  const formValidation = parseFormValues(formValues, macrobends)
   const geometryValues = getGeometryValues(formValues)
   const error = formValidation.error ?? serviceError
   const matchingResult = resultMatchesRequest(formValidation.request, result)
@@ -760,7 +781,7 @@ function App() {
     const requestId = previewSequence.current + 1
     previewSequence.current = requestId
     const controller = new AbortController()
-    const parsed = parseFormValues(formValues)
+    const parsed = parseFormValues(formValues, macrobends)
 
     if (parsed.error !== null || parsed.request === null) {
       return () => controller.abort()
@@ -859,7 +880,7 @@ function App() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [formValues])
+  }, [formValues, macrobends])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
     clearVisualizationData()
@@ -921,25 +942,9 @@ function App() {
           ? 'Validation issue'
           : previewStatus
   const previewStateTone: PreviewStateTone = isPandaFieldWorkspaceActive
-    ? pandaField.phase === 'ready'
-      ? 'success'
-      : pandaField.phase === 'loading'
-        ? 'info'
-        : pandaField.phase === 'validation'
-          ? 'warning'
-          : pandaField.phase === 'error'
-            ? 'error'
-            : 'neutral'
+    ? phaseToTone(pandaField.phase)
     : isPandaMeshWorkspaceActive
-      ? thermalFem.phase === 'ready'
-        ? 'success'
-        : thermalFem.phase === 'loading'
-          ? 'info'
-          : thermalFem.phase === 'validation'
-            ? 'warning'
-            : thermalFem.phase === 'error'
-              ? 'error'
-              : 'neutral'
+      ? phaseToTone(thermalFem.phase)
       : isM1WorkspaceActive
         ? 'neutral'
         : formValidation.error !== null
@@ -999,6 +1004,7 @@ function App() {
           modeProfile={visualizationData?.modeProfile ?? null}
           pulseAnimation={visualizationData?.pulseAnimation ?? null}
           attenuation={visualizationData?.attenuation ?? null}
+          macrobends={macrobends}
           visualizationSettings={visualizationSettings}
           onVisualizationSettingsChange={setVisualizationSettings}
           showConfigurationControls={false}
@@ -1037,6 +1043,20 @@ function App() {
     )
   }
 
+  const handleAddMacrobend = (bend: MacrobendInput) => {
+    clearVisualizationData()
+    setMacrobends((current) =>
+      [...current, bend].sort(
+        (first, second) => first.position_fraction - second.position_fraction,
+      ),
+    )
+  }
+
+  const handleRemoveMacrobend = (index: number) => {
+    clearVisualizationData()
+    setMacrobends((current) => current.filter((_, itemIndex) => itemIndex !== index))
+  }
+
   const inspector =
     activeM1Workspace !== null ? (
       <M1Inspector
@@ -1058,6 +1078,10 @@ function App() {
         onSettingsChange={setVisualizationSettings}
         activeConfigFileName={importedFileName}
         onDropImportConfig={handleImportConfig}
+        macrobends={macrobends}
+        onAddMacrobend={handleAddMacrobend}
+        onRemoveMacrobend={handleRemoveMacrobend}
+        totalBendLossDb={result?.bend_loss?.total_bend_loss_db ?? null}
       />
     )
 
