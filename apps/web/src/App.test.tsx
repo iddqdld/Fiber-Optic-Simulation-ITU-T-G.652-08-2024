@@ -93,7 +93,7 @@ type RadialIntensityPlotProps = {
   modeProfile: ModeProfileData | null
 }
 
-vi.mock('./RadialIntensityPlot', () => ({
+vi.mock('./RadialIntensityPlot.tsx', () => ({
   RadialIntensityPlot: ({ modeProfile }: RadialIntensityPlotProps) => (
     <section
       role="region"
@@ -111,7 +111,7 @@ type PowerDistancePlotProps = {
   attenuation: PowerDistanceData | null
 }
 
-vi.mock('./PowerDistancePlot', () => ({
+vi.mock('./PowerDistancePlot.tsx', () => ({
   PowerDistancePlot: ({ attenuation }: PowerDistancePlotProps) => (
     <section
       role="region"
@@ -129,7 +129,7 @@ type PulseComparisonPlotProps = {
   pulse: PulseComparisonData | null
 }
 
-vi.mock('./PulseComparisonPlot', () => ({
+vi.mock('./PulseComparisonPlot.tsx', () => ({
   PulseComparisonPlot: ({ pulse }: PulseComparisonPlotProps) => (
     <section
       role="region"
