@@ -29,6 +29,7 @@ _QUALITY_TARGET_DEG = 20.0
 _TOUCHING_RELATIVE_TOLERANCE = 1.0e-12
 _TOUCHING_ABSOLUTE_TOLERANCE_M = 1.0e-15
 
+
 @lru_cache(maxsize=1)
 def _triangle_module() -> Any:
     return importlib.import_module("triangle")

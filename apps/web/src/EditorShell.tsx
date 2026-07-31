@@ -147,11 +147,12 @@ export function EditorShell({
             <span data-healthy={backendHealthy}>{backendLabel}</span>
           </p>
 
-          {importExportControls !== undefined && importExportControls !== null && (
-            <div className="editor-shell-import-export">
-              {importExportControls}
-            </div>
-          )}
+          {importExportControls !== undefined &&
+            importExportControls !== null && (
+              <div className="editor-shell-import-export">
+                {importExportControls}
+              </div>
+            )}
 
           <button
             ref={mobileInspectorTriggerRef}

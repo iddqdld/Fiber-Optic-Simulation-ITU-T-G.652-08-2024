@@ -11,10 +11,13 @@ _PositiveStrictFiniteFloat = Annotated[
     float,
     Field(strict=True, gt=0, allow_inf_nan=False),
 ]
-_OptionalStrictFiniteFloat = Annotated[
-    float,
-    Field(strict=True, allow_inf_nan=False),
-] | None
+_OptionalStrictFiniteFloat = (
+    Annotated[
+        float,
+        Field(strict=True, allow_inf_nan=False),
+    ]
+    | None
+)
 _StrictText = Annotated[str, Field(strict=True, min_length=1)]
 _OptionalStrictText = Annotated[str, Field(strict=True, min_length=1)] | None
 
@@ -59,9 +62,7 @@ class PandaMaterial(BaseModel):
         stress_optic_coefficients_present = (
             self.c1_per_pa is not None and self.c2_per_pa is not None
         )
-        stress_optic_coefficients_partial = (self.c1_per_pa is None) != (
-            self.c2_per_pa is None
-        )
+        stress_optic_coefficients_partial = (self.c1_per_pa is None) != (self.c2_per_pa is None)
 
         if strain_coefficients_partial or stress_optic_coefficients_partial:
             raise PydanticCustomError(
