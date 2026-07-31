@@ -9,6 +9,7 @@ import type {
 import {
   PANDA_THERMAL_FEM_REFINEMENT_LEVELS,
   type PandaThermalFemController,
+  type PandaThermalFemTorsionCapability,
 } from './pandaThermalFemModel'
 
 export type M1InspectorProps = {
@@ -246,6 +247,7 @@ function ThermalFemControlInput({
   unit,
   value,
   error,
+  boundary,
   onChange,
 }: {
   id: string
@@ -253,6 +255,7 @@ function ThermalFemControlInput({
   unit: string
   value: string
   error: string | undefined
+  boundary?: string
   onChange: (value: string) => void
 }) {
   const boundaryId = `${id}-boundary`
@@ -272,9 +275,10 @@ function ThermalFemControlInput({
         onChange={(event) => onChange(event.currentTarget.value)}
       />
       <p id={boundaryId} className="m1-boundary-note">
-        {unit === 'N'
-          ? 'Axial resultant target in newtons.'
-          : 'Input in microstrain; sent to the FEM service as dimensionless strain.'}
+        {boundary ??
+          (unit === 'N'
+            ? 'Axial resultant target in newtons.'
+            : 'Input in microstrain; sent to the FEM service as dimensionless strain.')}
       </p>
       {error && (
         <p id={errorId} className="m1-input-error">
@@ -368,7 +372,11 @@ function ThermalFemInspector({
                 />{' '}
                 Free axial resultant
               </span>
-              <small>Solves the coupled axial equation with Nᶻ = 0.</small>
+              <small>
+                Solves the coupled axial equation with Nᶻ = 0. This assumes the
+                fibre ends are not pressure-loaded; true hydrostatic end-face
+                pressure needs another axial loading condition.
+              </small>
             </label>
             <label className="m1-radio-label">
               <span>
@@ -426,6 +434,130 @@ function ThermalFemInspector({
               error={thermalFem.fieldErrors.prescribedStrainMicrostrain}
               onChange={thermalFem.onPrescribedStrainMicrostrainChange}
             />
+          )}
+        </fieldset>
+        <fieldset className="m1-presentation-fieldset">
+          <legend>Lateral pressure and scalar LP₀₁ mode</legend>
+          <p className="m1-group-note">
+            Positive compression acts laterally directly on the bare/uncoated
+            outer glass. Coating mechanics, support contact, and packaging load
+            transfer are outside the model.
+          </p>
+          <div className="m1-input-grid">
+            <ThermalFemControlInput
+              id="m1-panda-thermal-pressure"
+              label="Lateral pressure"
+              unit="MPa"
+              value={thermalFem.controls.lateralPressureMPa}
+              error={thermalFem.fieldErrors.lateralPressureMPa}
+              boundary="Non-negative; sent as lateral_pressure_pa in Pa."
+              onChange={thermalFem.onLateralPressureMPaChange}
+            />
+            <ThermalFemControlInput
+              id="m1-panda-thermal-wavelength"
+              label="Wavelength"
+              unit="nm"
+              value={thermalFem.controls.wavelengthNm}
+              error={thermalFem.fieldErrors.wavelengthNm}
+              boundary="Positive vacuum wavelength; sent as optical_mode.wavelength_m."
+              onChange={thermalFem.onWavelengthNmChange}
+            />
+            <ThermalFemControlInput
+              id="m1-panda-thermal-mode-radius"
+              label="Gaussian LP₀₁ 1/e field radius"
+              unit="µm"
+              value={thermalFem.controls.gaussianModeFieldRadiusUm}
+              error={thermalFem.fieldErrors.gaussianModeFieldRadiusUm}
+              boundary="Positive field radius; sent as gaussian_mode_field_radius_m."
+              onChange={thermalFem.onGaussianModeFieldRadiusUmChange}
+            />
+          </div>
+        </fieldset>
+        <fieldset className="m1-presentation-fieldset">
+          <legend>Analytical torsion reference</legend>
+          <label htmlFor="m1-panda-thermal-torsion-capability">
+            Torsion capability
+          </label>
+          <select
+            id="m1-panda-thermal-torsion-capability"
+            value={thermalFem.controls.torsionCapability}
+            aria-invalid={
+              thermalFem.fieldErrors.torsionCapability ? 'true' : 'false'
+            }
+            onChange={(event) =>
+              thermalFem.onTorsionCapabilityChange(
+                event.currentTarget.value as PandaThermalFemTorsionCapability,
+              )
+            }
+          >
+            <option value="none">None</option>
+            <option value="saint_venant_homogeneous_circular_reference">
+              Saint-Venant homogeneous circular reference
+            </option>
+          </select>
+          <p className="m1-boundary-note">
+            Analytical mechanics benchmark only. Not heterogeneous PANDA
+            torsion. No polarization coupling is inferred.
+          </p>
+          {thermalFem.controls.torsionCapability !== 'none' && (
+            <>
+              <div className="m1-presentation-options">
+                <label className="m1-radio-label">
+                  <span>
+                    <input
+                      type="radio"
+                      name="m1-panda-thermal-torsion-input-mode"
+                      value="twist_rate"
+                      checked={
+                        thermalFem.controls.torsionInputMode === 'twist_rate'
+                      }
+                      onChange={() =>
+                        thermalFem.onTorsionInputModeChange('twist_rate')
+                      }
+                    />{' '}
+                    Twist rate θ′ (1/m)
+                  </span>
+                </label>
+                <label className="m1-radio-label">
+                  <span>
+                    <input
+                      type="radio"
+                      name="m1-panda-thermal-torsion-input-mode"
+                      value="applied_torque"
+                      checked={
+                        thermalFem.controls.torsionInputMode ===
+                        'applied_torque'
+                      }
+                      onChange={() =>
+                        thermalFem.onTorsionInputModeChange('applied_torque')
+                      }
+                    />{' '}
+                    Applied torque T (N·m)
+                  </span>
+                </label>
+              </div>
+              {thermalFem.controls.torsionInputMode === 'twist_rate' ? (
+                <ThermalFemControlInput
+                  id="m1-panda-thermal-twist-rate"
+                  label="Twist rate"
+                  unit="1/m"
+                  value={thermalFem.controls.twistRatePerM}
+                  error={thermalFem.fieldErrors.twistRatePerM}
+                  boundary="Finite signed input; zero is valid."
+                  onChange={thermalFem.onTwistRatePerMChange}
+                />
+              ) : (
+                <ThermalFemControlInput
+                  id="m1-panda-thermal-torque"
+                  label="Applied torque"
+                  unit="N·m"
+                  value={thermalFem.controls.appliedTorqueNm}
+                  error={thermalFem.fieldErrors.appliedTorqueNm}
+                  boundary="Finite signed input; zero is valid."
+                  onChange={thermalFem.onAppliedTorqueNmChange}
+                />
+              )}
+            </>
           )}
         </fieldset>
         <fieldset className="m1-presentation-fieldset">

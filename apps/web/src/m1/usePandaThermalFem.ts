@@ -12,6 +12,8 @@ import {
   type PandaThermalFemRefinementLevel,
   type PandaThermalFemRequest,
   type PandaThermalFemResult,
+  type PandaThermalFemTorsionCapability,
+  type PandaThermalFemTorsionInputMode,
 } from './pandaThermalFemModel'
 import {
   initialPandaFieldValues,
@@ -100,6 +102,43 @@ export function usePandaThermalFem(
     },
     [],
   )
+
+  const onLateralPressureMPaChange = useCallback((value: string) => {
+    setControls((current) => ({ ...current, lateralPressureMPa: value }))
+  }, [])
+
+  const onWavelengthNmChange = useCallback((value: string) => {
+    setControls((current) => ({ ...current, wavelengthNm: value }))
+  }, [])
+
+  const onGaussianModeFieldRadiusUmChange = useCallback((value: string) => {
+    setControls((current) => ({
+      ...current,
+      gaussianModeFieldRadiusUm: value,
+    }))
+  }, [])
+
+  const onTorsionCapabilityChange = useCallback(
+    (capability: PandaThermalFemTorsionCapability) => {
+      setControls((current) => ({ ...current, torsionCapability: capability }))
+    },
+    [],
+  )
+
+  const onTorsionInputModeChange = useCallback(
+    (mode: PandaThermalFemTorsionInputMode) => {
+      setControls((current) => ({ ...current, torsionInputMode: mode }))
+    },
+    [],
+  )
+
+  const onTwistRatePerMChange = useCallback((value: string) => {
+    setControls((current) => ({ ...current, twistRatePerM: value }))
+  }, [])
+
+  const onAppliedTorqueNmChange = useCallback((value: string) => {
+    setControls((current) => ({ ...current, appliedTorqueNm: value }))
+  }, [])
 
   const onCalculate = useCallback(() => {
     if (!active || parsed.request === null) {
@@ -214,6 +253,13 @@ export function usePandaThermalFem(
     onPrescribedForceChange,
     onPrescribedStrainMicrostrainChange,
     onRefinementLevelChange,
+    onLateralPressureMPaChange,
+    onWavelengthNmChange,
+    onGaussianModeFieldRadiusUmChange,
+    onTorsionCapabilityChange,
+    onTorsionInputModeChange,
+    onTwistRatePerMChange,
+    onAppliedTorqueNmChange,
     onCalculate,
     onRetry,
   }

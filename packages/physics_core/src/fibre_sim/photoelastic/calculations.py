@@ -1,6 +1,7 @@
 import math
 from typing import Literal
 
+from .geometry import PandaGeometry
 from .request import PandaFieldMapRequest
 from .result import (
     PandaFieldMapManifest,
@@ -61,9 +62,26 @@ def _raw_point(
     x_m: float,
     y_m: float,
 ) -> _RawPoint:
+    raw_deviatoric_difference, raw_shear = qualitative_kernel_components_at(
+        request.geometry,
+        mismatch_strains,
+        x_m,
+        y_m,
+    )
+    s = 0.5 * raw_deviatoric_difference
+    t = raw_shear
+    return raw_deviatoric_difference, s, t
+
+
+def qualitative_kernel_components_at(
+    geometry: PandaGeometry,
+    mismatch_strains: tuple[float, float],
+    x_m: float,
+    y_m: float,
+) -> tuple[float, float]:
     raw_deviatoric_difference = 0.0
     raw_shear = 0.0
-    saps = (request.geometry.sap_1, request.geometry.sap_2)
+    saps = (geometry.sap_1, geometry.sap_2)
     for sap, relative_amplitude in zip(saps, mismatch_strains, strict=True):
         dx_m = x_m - sap.center_x_m
         dy_m = y_m - sap.center_y_m
@@ -74,10 +92,7 @@ def _raw_point(
         contribution = 2.0 * relative_amplitude * sap.radius_m * sap.radius_m / (r2_m2 * r2_m2)
         raw_deviatoric_difference += contribution * (dx_m * dx_m - dy_m * dy_m)
         raw_shear += contribution * dx_m * dy_m
-
-    s = 0.5 * raw_deviatoric_difference
-    t = raw_shear
-    return raw_deviatoric_difference, s, t
+    return raw_deviatoric_difference, raw_shear
 
 
 def _warnings(request: PandaFieldMapRequest) -> tuple[PandaFieldMapWarning, ...]:
@@ -186,4 +201,8 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
     )
 
 
-__all__ = ["PandaFieldMapCalculationError", "calculate_panda_field_map"]
+__all__ = [
+    "PandaFieldMapCalculationError",
+    "calculate_panda_field_map",
+    "qualitative_kernel_components_at",
+]
