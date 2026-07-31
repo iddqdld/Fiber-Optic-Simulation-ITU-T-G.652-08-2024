@@ -6,6 +6,8 @@ import {
   POWER_DISTANCE_VIEW_BOX,
 } from './powerDistancePlot'
 
+export * from './powerDistancePlot'
+
 const X_TICK_FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
 const Y_TICK_FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
 
@@ -226,9 +228,9 @@ export function PowerDistancePlot({
                       .join(' ')}
                   />
                 )}
-                {plotData.svg.points.map((point, index) => (
+                {plotData.svg.points.map((point, pointIndex) => (
                   <circle
-                    key={`${point.distanceKm}-${index}`}
+                    key={`${point.distanceKm}-${pointIndex}`}
                     className="power-distance-sample-point"
                     data-distance-km={point.distanceKm}
                     data-power-dbm={point.powerDbm}
@@ -282,11 +284,11 @@ export function PowerDistancePlot({
                   </tr>
                 </thead>
                 <tbody>
-                  {plotData.distanceSamplesKm.map((distanceKm, index) => {
-                    const powerDbm = plotData.powerSamplesDbm[index]
+                  {plotData.distanceSamplesKm.map((distanceKm, sampleIndex) => {
+                    const powerDbm = plotData.powerSamplesDbm[sampleIndex]
 
                     return (
-                      <tr key={`${distanceKm}-${index}`}>
+                      <tr key={`${distanceKm}-${sampleIndex}`}>
                         <td data-exact-value={distanceKm}>
                           {formatExactNumber(distanceKm)}
                         </td>
