@@ -179,6 +179,22 @@ export function usePandaFieldMap(active: boolean): PandaFieldController {
     setShowReferenceSpokes(show)
   }, [])
 
+  const onImportConfiguration = useCallback(
+    (
+      nextValues: PandaFieldFormValues,
+      nextMode: PandaFieldPresentationMode,
+      nextShowReferenceSpokes: boolean,
+    ) => {
+      setValues({ ...nextValues })
+      setPresentationMode(nextMode)
+      setShowReferenceSpokes(nextShowReferenceSpokes)
+      setResult(null)
+      setPhase('idle')
+      setErrorMessage(null)
+    },
+    [],
+  )
+
   const onRetry = useCallback(() => {
     setResult(null)
     setPhase('loading')
@@ -203,6 +219,7 @@ export function usePandaFieldMap(active: boolean): PandaFieldController {
     onValueChange,
     onPresentationModeChange,
     onShowReferenceSpokesChange,
+    onImportConfiguration,
     onRetry,
   }
 }

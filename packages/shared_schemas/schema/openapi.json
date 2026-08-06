@@ -3034,6 +3034,12 @@
             "title": "Quantity Type",
             "type": "string"
           },
+          "transfer_precision_decimal_places": {
+            "const": 4,
+            "default": 4,
+            "title": "Transfer Precision Decimal Places",
+            "type": "integer"
+          },
           "units": {
             "const": "1",
             "default": "1",

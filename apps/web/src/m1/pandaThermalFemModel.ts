@@ -79,6 +79,7 @@ export type PandaThermalFemController = {
   onTorsionInputModeChange: (mode: PandaThermalFemTorsionInputMode) => void
   onTwistRatePerMChange: (value: string) => void
   onAppliedTorqueNmChange: (value: string) => void
+  onImportControls: (controls: PandaThermalFemControls) => void
   onCalculate: () => void
   onRetry: () => void
 }

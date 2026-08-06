@@ -54,6 +54,7 @@ class PandaFieldMapManifest(BaseModel):
     )
     quantitative: Literal[False] = False
     units: Literal["1"] = "1"
+    transfer_precision_decimal_places: Literal[4] = 4
     equation_references: tuple[str, ...] = (
         "M1-3.3",
         "M1-5.3",

@@ -228,6 +228,27 @@ async def test_thermal_fem_response_contains_configuration_units_and_solved_fiel
     assert body["torsion"]["analytical_mechanics_benchmark_only"] is True
 
 
+async def test_thermal_fem_api_returns_the_positive_pressure_increment(
+    client: httpx2.AsyncClient,
+) -> None:
+    model_request = request().model_copy(update={"lateral_pressure_pa": 1.0e6})
+    response = await client.post(
+        "/api/v1/photoelastic/panda/thermal-fem",
+        json=payload(model_request),
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["configuration"]["lateral_pressure_pa"] == 1.0e6
+    assert body["model_manifest"]["pressure_sign_convention"] == "sigma_n_equals_minus_p_n"
+    assert body["pressure_increment_core_summary"]["average_stress_xx_pa"] < 0.0
+    assert body["pressure_increment_core_summary"]["average_stress_yy_pa"] < 0.0
+    assert (
+        body["optical_birefringence"]["pressure_induced"]
+        != body["optical_birefringence"]["zero_pressure_residual"]
+    )
+
+
 @pytest.mark.parametrize(
     (
         "condition",

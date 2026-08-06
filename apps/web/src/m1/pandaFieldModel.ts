@@ -58,6 +58,11 @@ export type PandaFieldController = {
   onValueChange: (name: PandaFieldInputName, value: string) => void
   onPresentationModeChange: (mode: PandaFieldPresentationMode) => void
   onShowReferenceSpokesChange: (show: boolean) => void
+  onImportConfiguration: (
+    values: PandaFieldFormValues,
+    mode: PandaFieldPresentationMode,
+    showReferenceSpokes: boolean,
+  ) => void
   onRetry: () => void
 }
 
@@ -638,6 +643,7 @@ export function isPandaFieldResult(value: unknown): value is PandaFieldResult {
     !Array.isArray(value.warnings) ||
     !value.warnings.every(isWarning) ||
     !isPandaManifest(manifest) ||
+    manifest.transfer_precision_decimal_places !== 4 ||
     !hasExactStrings(manifest.equation_references, equationReferences) ||
     !isStringArray(manifest.assumptions) ||
     !isStringArray(manifest.limitations) ||
