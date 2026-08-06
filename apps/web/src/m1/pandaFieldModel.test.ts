@@ -51,6 +51,7 @@ function validResult(): PandaFieldResult {
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
       model_version: '1.2.0',
+      transfer_precision_decimal_places: 4,
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
       normalization: 'max_valid_absolute_deviatoric_difference',

@@ -140,6 +140,20 @@ export function usePandaThermalFem(
     setControls((current) => ({ ...current, appliedTorqueNm: value }))
   }, [])
 
+  const onImportControls = useCallback(
+    (nextControls: PandaThermalFemControls) => {
+      activeController.current?.abort()
+      activeController.current = null
+      requestSequence.current += 1
+      setControls({ ...nextControls })
+      setResult(null)
+      setPhase('idle')
+      setErrorMessage(null)
+      setLastAttemptedRequest(null)
+    },
+    [],
+  )
+
   const onCalculate = useCallback(() => {
     if (!active || parsed.request === null) {
       setResult(null)
@@ -260,6 +274,7 @@ export function usePandaThermalFem(
     onTorsionInputModeChange,
     onTwistRatePerMChange,
     onAppliedTorqueNmChange,
+    onImportControls,
     onCalculate,
     onRetry,
   }
