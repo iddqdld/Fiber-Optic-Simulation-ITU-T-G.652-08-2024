@@ -85,6 +85,25 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
+async function fetchPandaMesh(
+  request: PandaMeshRequest,
+  signal: AbortSignal,
+): Promise<unknown> {
+  const response = await fetch(PANDA_MESH_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal,
+  })
+
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null)
+    throw new Error(getApiErrorMessage(body) ?? PANDA_MESH_ERROR_MESSAGE)
+  }
+
+  return response.json().catch(() => null)
+}
+
 export function usePandaMesh(
   active: boolean,
   values: PandaFieldFormValues,
@@ -147,26 +166,10 @@ export function usePandaMesh(
     const controller = new AbortController()
     activeController.current = controller
 
-    void fetch(PANDA_MESH_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        let body: unknown
-        try {
-          body = await response.json()
-        } catch {
-          body = null
-        }
-
+    void fetchPandaMesh(request, controller.signal)
+      .then((body) => {
         if (controller.signal.aborted || requestSequence.current !== sequence) {
           return
-        }
-
-        if (!response.ok) {
-          throw new Error(getApiErrorMessage(body) ?? PANDA_MESH_ERROR_MESSAGE)
         }
 
         if (
