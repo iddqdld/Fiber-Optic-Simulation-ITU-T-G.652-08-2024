@@ -6,6 +6,8 @@ import {
   RADIAL_INTENSITY_VIEW_BOX,
 } from './radialIntensityPlot'
 
+export * from './radialIntensityPlot'
+
 const X_TICK_FRACTIONS = [0, 0.25, 0.5, 0.75, 1]
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1]
 
@@ -329,8 +331,8 @@ export function RadialIntensityPlot({
                   </tr>
                 </thead>
                 <tbody>
-                  {plotData.radii.map((radiusUm, index) => {
-                    const intensity = plotData.intensities[index]
+                  {plotData.radii.map((radiusUm, sampleIndex) => {
+                    const intensity = plotData.intensities[sampleIndex]
 
                     return (
                       <tr key={radiusUm}>
