@@ -216,6 +216,8 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "PandaThermalFemConvergenceSummary.relative_change",
         "PandaThermalFemConvergenceSummary.local_material_birefringence_relative_change",
         "PandaThermalFemConvergenceSummary.core_average_local_material_birefringence",
+        "PandaThermalFemConvergenceSummary.pressure_induced_phase_birefringence",
+        "PandaThermalFemConvergenceSummary.pressure_induced_phase_birefringence_relative_change",
         "PandaThermalFemShapeComparison.sample_count",
         "PandaThermalFemShapeComparison.rmse",
         "PandaThermalFemShapeComparison.correlation",
@@ -224,6 +226,14 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "PandaThermalFemCoreSummary.local_material_birefringence",
         "PandaThermalFemResult.element_signed_local_material_birefringence",
         "PandaThermalFemResult.element_local_material_birefringence",
+        "PandaFieldMapManifest.transfer_precision_decimal_places",
+        "PandaThermalFemModalEstimate.state_1_index_shift",
+        "PandaThermalFemModalEstimate.state_2_index_shift",
+        "PandaThermalFemModalEstimate.common_index_shift",
+        "PandaThermalFemModalEstimate.signed_phase_birefringence",
+        "PandaThermalFemModalEstimate.phase_birefringence_magnitude",
+        "PandaThermalFemModalEstimate.perturbation_matrix",
+        "PandaThermalFemModalEstimate.eigenvalue_shifts",
     }
     thermal_fem_unit_fields = {
         "PandaThermalFemForceBalance.transverse_free_residual_l2_n_per_m",
@@ -231,6 +241,7 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "PandaThermalFemForceBalance.transverse_resultant_y_n_per_m",
         "PandaThermalFemCoreSummary.stress_optic_coefficient_per_pa",
         "PandaThermalFemResult.element_stress_optic_coefficient_per_pa",
+        "PandaThermalFemTorsionResult.polar_moment_m4",
     }
     violations: list[str] = []
 

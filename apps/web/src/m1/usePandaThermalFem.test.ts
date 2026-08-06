@@ -98,4 +98,37 @@ describe('usePandaThermalFem', () => {
     )
     rejectRequest?.()
   })
+
+  test('ignores a late response from an obsolete calculation', async () => {
+    let resolveRequest: ((response: Response) => void) | undefined
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveRequest = resolve
+        }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { result } = renderHook(() => usePandaThermalFem(true))
+
+    act(() => {
+      result.current.onCalculate()
+    })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    act(() => {
+      result.current.onLateralPressureMPaChange('2')
+    })
+    await act(async () => {
+      resolveRequest?.(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      await Promise.resolve()
+    })
+
+    expect(result.current.phase).toBe('idle')
+    expect(result.current.result).toBeNull()
+    expect(result.current.errorMessage).toBeNull()
+  })
 })

@@ -56,6 +56,43 @@ def geometry(
     )
 
 
+def rotated_geometry(model_geometry: PandaGeometry, angle_rad: float) -> PandaGeometry:
+    cosine = math.cos(angle_rad)
+    sine = math.sin(angle_rad)
+
+    def rotate(x_m: float, y_m: float) -> tuple[float, float]:
+        return cosine * x_m - sine * y_m, sine * x_m + cosine * y_m
+
+    core_x, core_y = rotate(
+        model_geometry.core_center_x_m,
+        model_geometry.core_center_y_m,
+    )
+    sap_1_x, sap_1_y = rotate(
+        model_geometry.sap_1.center_x_m,
+        model_geometry.sap_1.center_y_m,
+    )
+    sap_2_x, sap_2_y = rotate(
+        model_geometry.sap_2.center_x_m,
+        model_geometry.sap_2.center_y_m,
+    )
+    return PandaGeometry(
+        core_radius_m=model_geometry.core_radius_m,
+        cladding_radius_m=model_geometry.cladding_radius_m,
+        core_center_x_m=core_x,
+        core_center_y_m=core_y,
+        sap_1=CircularSAP(
+            radius_m=model_geometry.sap_1.radius_m,
+            center_x_m=sap_1_x,
+            center_y_m=sap_1_y,
+        ),
+        sap_2=CircularSAP(
+            radius_m=model_geometry.sap_2.radius_m,
+            center_x_m=sap_2_x,
+            center_y_m=sap_2_y,
+        ),
+    )
+
+
 def material(
     name: str, young_modulus_pa: float, poisson_ratio: float, cte_per_k: float
 ) -> PandaMaterial:
@@ -396,6 +433,19 @@ def test_modal_beat_length_and_group_result_are_limited_to_phase_estimate() -> N
     assert result.optical_birefringence.group_birefringence.value is None
 
 
+def test_doubled_wavelength_doubles_beat_length_for_a_fixed_modal_matrix() -> None:
+    matrix = np.array(((2.0e-6, 0.4e-6), (0.4e-6, -1.0e-6)))
+    first = scalar_lp01_modal_estimate_from_matrix(matrix, 1.31e-6)
+    second = scalar_lp01_modal_estimate_from_matrix(matrix, 2.62e-6)
+
+    assert second.phase_birefringence_magnitude == pytest.approx(
+        first.phase_birefringence_magnitude
+    )
+    assert first.beat_length_m is not None
+    assert second.beat_length_m == pytest.approx(2.0 * first.beat_length_m)
+    assert second.signed_delta_beta_per_m == pytest.approx(0.5 * first.signed_delta_beta_per_m)
+
+
 def test_torsion_reference_supports_twist_torque_and_zero_inputs() -> None:
     zero = calculate_panda_thermal_fem(request())
     assert max(abs(value) for value in zero.torsion.element_centroid_stress_xz_pa) == 0.0
@@ -562,6 +612,41 @@ def test_sap_permutation_preserves_core_summary() -> None:
         first_result.core_summary.principal_difference_pa,
         rel=1.0e-9,
     )
+    assert (
+        swapped_result.optical_birefringence.zero_pressure_residual.phase_birefringence_magnitude
+        == pytest.approx(
+            first_result.optical_birefringence.zero_pressure_residual.phase_birefringence_magnitude,
+            rel=1.0e-9,
+        )
+    )
+
+
+def test_global_fem_rotation_preserves_modal_magnitude_and_rotates_axis() -> None:
+    angle = math.pi / 2.0
+    original_request = request()
+    rotated_request = request(
+        model_geometry=rotated_geometry(original_request.geometry, angle),
+    )
+
+    original = calculate_panda_thermal_fem(original_request)
+    rotated = calculate_panda_thermal_fem(rotated_request)
+    first = original.optical_birefringence.zero_pressure_residual
+    second = rotated.optical_birefringence.zero_pressure_residual
+
+    assert second.phase_birefringence_magnitude == pytest.approx(
+        first.phase_birefringence_magnitude,
+        rel=0.03,
+    )
+    assert second.signed_phase_birefringence == pytest.approx(
+        -first.signed_phase_birefringence,
+        rel=0.03,
+    )
+    assert first.slow_axis_angle_rad is not None
+    assert second.slow_axis_angle_rad is not None
+    axis_error = (
+        second.slow_axis_angle_rad - first.slow_axis_angle_rad - angle + math.pi / 2.0
+    ) % math.pi - math.pi / 2.0
+    assert axis_error == pytest.approx(0.0, abs=0.03)
 
 
 def test_anchor_strategy_does_not_change_stress() -> None:

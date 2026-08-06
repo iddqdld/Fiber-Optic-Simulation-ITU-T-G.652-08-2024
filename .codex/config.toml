@@ -14,3 +14,12 @@ args = [
 ]
 env = { PLAYWRIGHT_BROWSERS_PATH = "/home/iddqdld/fiber-optics/.playwright-browsers" }
 startup_timeout_sec = 30
+
+[mcp_servers.playwright.tools.browser_click]
+approval_mode = "approve"
+
+[mcp_servers.playwright.tools.browser_close]
+approval_mode = "approve"
+
+[features]
+default_mode_request_user_input = true

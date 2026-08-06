@@ -1750,6 +1750,12 @@ export interface components {
              */
             quantity_type: "normalized_dimensionless_kernel";
             /**
+             * Transfer Precision Decimal Places
+             * @default 4
+             * @constant
+             */
+            transfer_precision_decimal_places: 4;
+            /**
              * Units
              * @default 1
              * @constant
