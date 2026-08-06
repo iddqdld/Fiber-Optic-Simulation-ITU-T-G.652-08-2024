@@ -1238,8 +1238,8 @@ describe('editor UI state', () => {
     expect(pandaFieldCalls(fetchMock)).toHaveLength(1)
   })
 
-  test('imports PANDA inputs and opens the saved 2D workspace', async () => {
-    mockFetch()
+  test('imports PANDA inputs and resets all values to their defaults', async () => {
+    const fetchMock = mockFetch()
     render(<App initialWorkspace="panda-field" />)
     const content = serializePandaConfiguration(
       'fem-mesh',
@@ -1277,6 +1277,31 @@ describe('editor UI state', () => {
       screen.getByRole('combobox', { name: 'Refinement level' }),
     ).toHaveValue('0')
     expect(screen.getByText('PANDA configuration imported.')).toBeVisible()
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Reset PANDA parameters' }),
+    )
+
+    expect(
+      screen.getByRole('spinbutton', { name: 'Core radius (µm)' }),
+    ).toHaveValue(4.1)
+    expect(
+      screen.getByRole('spinbutton', { name: 'Lateral pressure (MPa)' }),
+    ).toHaveValue(0)
+    expect(
+      screen.getByRole('combobox', { name: 'Refinement level' }),
+    ).toHaveValue('1')
+    expect(
+      screen.getByRole('radio', { name: /Free axial resultant/ }),
+    ).toBeChecked()
+    expect(thermalFemCalls(fetchMock)).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Field map' }))
+
+    expect(screen.getByRole('radio', { name: /Validity-aware/ })).toBeChecked()
+    expect(
+      screen.queryByRole('checkbox', { name: /Show radial spokes/ }),
+    ).not.toBeInTheDocument()
   })
 
   test('groups G.652 and PANDA views without requesting previews during navigation', async () => {

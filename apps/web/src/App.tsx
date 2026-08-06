@@ -41,7 +41,9 @@ import type { PandaPortableConfiguration } from './m1/pandaImportExport'
 import { M1Results } from './m1/M1Results'
 import { M1Workspace } from './m1/M1Workspace'
 import type { M1WorkspaceId } from './m1/M1WorkspaceCatalog'
+import { initialPandaFieldValues } from './m1/pandaFieldModel'
 import type { PandaMeshController } from './m1/pandaMeshModel'
+import { initialPandaThermalFemControls } from './m1/pandaThermalFemModel'
 import { usePandaFieldMap } from './m1/usePandaFieldMap'
 import { usePandaMesh } from './m1/usePandaMesh'
 import { usePandaThermalFem } from './m1/usePandaThermalFem'
@@ -957,6 +959,16 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
     setImportedFileName(filename)
   }
 
+  const handleResetPanda = () => {
+    pandaField.onImportConfiguration(
+      { ...initialPandaFieldValues },
+      'validity_aware',
+      false,
+    )
+    thermalFem.onImportControls({ ...initialPandaThermalFemControls })
+    setImportedFileName(null)
+  }
+
   const captureComparisonBaseline = () => {
     if (matchingResult !== null) {
       setComparisonBaseline(matchingResult)
@@ -1112,6 +1124,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
         workspace={activeM1Workspace}
         pandaField={pandaField}
         thermalFem={thermalFem}
+        onResetPanda={handleResetPanda}
       />
     ) : (
       <SimulationInspector

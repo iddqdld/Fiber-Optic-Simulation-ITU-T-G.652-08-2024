@@ -16,6 +16,7 @@ export type M1InspectorProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
   thermalFem?: PandaThermalFemController | null
+  onResetPanda?: () => void
 }
 
 type InputDefinition = {
@@ -292,9 +293,11 @@ function ThermalFemControlInput({
 function ThermalFemInspector({
   pandaField,
   thermalFem,
+  onResetPanda,
 }: {
   pandaField: PandaFieldController
   thermalFem: PandaThermalFemController
+  onResetPanda: (() => void) | null
 }) {
   const geometryGroup = inputGroups[0]
   const fieldController = {
@@ -583,16 +586,28 @@ function ThermalFemInspector({
             and is intended for comparison.
           </p>
         </fieldset>
-        <button
-          className="m1-retry-button"
-          type="button"
-          disabled={thermalFem.phase === 'loading'}
-          onClick={thermalFem.onCalculate}
-        >
-          {thermalFem.phase === 'loading'
-            ? 'Calculating FEM…'
-            : 'Calculate FEM'}
-        </button>
+        <div className="m1-form-actions">
+          {onResetPanda !== null && (
+            <button
+              className="m1-retry-button m1-reset-button"
+              type="button"
+              onClick={onResetPanda}
+              title="Restore all PANDA parameters to their initial values"
+            >
+              Reset PANDA parameters
+            </button>
+          )}
+          <button
+            className="m1-retry-button"
+            type="button"
+            disabled={thermalFem.phase === 'loading'}
+            onClick={thermalFem.onCalculate}
+          >
+            {thermalFem.phase === 'loading'
+              ? 'Calculating FEM…'
+              : 'Calculate FEM'}
+          </button>
+        </div>
       </form>
       {thermalFem.phase === 'error' && (
         <button
@@ -717,6 +732,7 @@ export function M1Inspector({
   workspace,
   pandaField = null,
   thermalFem = null,
+  onResetPanda = undefined,
 }: M1InspectorProps) {
   const isPandaField = workspace === 'panda-field'
   const isFemMesh = workspace === 'fem-mesh'
@@ -731,7 +747,11 @@ export function M1Inspector({
       {isPandaField && pandaField ? (
         <PandaInspector controller={pandaField} />
       ) : isFemMesh && pandaField && thermalFem ? (
-        <ThermalFemInspector pandaField={pandaField} thermalFem={thermalFem} />
+        <ThermalFemInspector
+          pandaField={pandaField}
+          thermalFem={thermalFem}
+          onResetPanda={onResetPanda ?? null}
+        />
       ) : (
         <>
           <M1FoundationCopy />

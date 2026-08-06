@@ -899,6 +899,30 @@ describe('M1 PANDA field workspace', () => {
     expect(screen.getByText(/does not report stress in pascals/)).toBeVisible()
   })
 
+  test('keeps the PANDA reset available during a FEM calculation', () => {
+    const onResetPanda = vi.fn()
+    render(
+      <M1Inspector
+        workspace="fem-mesh"
+        pandaField={controller()}
+        thermalFem={thermalFemController({ phase: 'loading' })}
+        onResetPanda={onResetPanda}
+      />,
+    )
+
+    const reset = screen.getByRole('button', {
+      name: 'Reset PANDA parameters',
+    })
+    expect(reset).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Calculating FEM…' }),
+    ).toBeDisabled()
+
+    fireEvent.click(reset)
+
+    expect(onResetPanda).toHaveBeenCalledOnce()
+  })
+
   test('reports quantitative FEM metadata, local optics, balance, convergence, and limits', () => {
     const result = thermalFemResult()
     const prescribedStrainResult = {

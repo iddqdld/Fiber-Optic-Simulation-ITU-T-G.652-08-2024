@@ -1992,6 +1992,18 @@ summary:focus-visible,
   cursor: pointer;
 }
 
+.m1-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.m1-reset-button {
+  color: var(--editor-text);
+  background: var(--editor-panel-raised);
+  border-color: var(--editor-border-strong);
+}
+
 .panda-field-figure {
   max-width: 58rem;
   margin: 1rem auto 0;
