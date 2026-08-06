@@ -10,6 +10,7 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { AdditiveBlending } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
+import type { MacrobendInput } from './Level1Form'
 import {
   buildFibreCurve,
   CAMERA_PRESETS,
@@ -17,10 +18,12 @@ import {
   FIBRE_ROUTE_OPTIONS,
   getCurveMidpoint,
   getScaleMarkers,
+  getSpatialBendMarkers,
   getSpatialPowerMarkers,
   getSpatialPulseMarkers,
   type CameraPresetId,
   type FibreRouteStyle,
+  type SpatialBendMarker,
 } from './fibreShowcase'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { PulseAnimationLayer } from './PulseAnimationLayer'
@@ -112,6 +115,7 @@ export type FibreGeometryViewProps = {
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
   attenuation?: PowerDistanceData | null
+  macrobends?: readonly MacrobendInput[] | null
   visualizationSettings?: VisualizationSettings
   onVisualizationSettingsChange?: (settings: VisualizationSettings) => void
   showConfigurationControls?: boolean
@@ -137,6 +141,7 @@ export type FibreGeometrySceneProps = {
   powerIndicatorsEnabled?: boolean
   pulseMarkersEnabled?: boolean
   attenuation?: PowerDistanceData | null
+  macrobends?: readonly MacrobendInput[] | null
 }
 
 type RayPoint = [number, number, number]
@@ -408,13 +413,16 @@ function ReflectedRay({
   coreRadius,
   visualLength,
   incidenceAngleDeg,
+  macrobends,
 }: {
   coreRadius: number
   visualLength: number
   incidenceAngleDeg: number
+  macrobends?: readonly MacrobendInput[] | null
 }) {
   const startX = -visualLength / 2 + 0.25
   const endX = visualLength / 2 - 0.25
+  const totalSpan = endX - startX
   const upperY = coreRadius * RAY_EDGE_FACTOR
   const lowerY = -upperY
   const slope = getRaySlope(incidenceAngleDeg)
@@ -424,13 +432,63 @@ function ReflectedRay({
   let targetY = upperY
   let segmentIndex = 0
 
+  const bendXs: number[] =
+    macrobends && totalSpan > 0
+      ? macrobends
+          .map(
+            (bend) =>
+              startX +
+              Math.max(0, Math.min(1, bend.position_fraction)) * totalSpan,
+          )
+          .sort((left, right) => left - right)
+      : []
+
   while (currentX < endX) {
-    const nextX = Math.min(
+    const nextBounceX = Math.min(
       endX,
       currentX + Math.abs(targetY - currentY) / slope,
     )
-    const nextY =
-      currentY + (targetY > currentY ? 1 : -1) * slope * (nextX - currentX)
+    const nextBounceY =
+      currentY + (targetY > currentY ? 1 : -1) * slope * (nextBounceX - currentX)
+
+    let nextX = nextBounceX
+    let nextY = nextBounceY
+    let isSplitAtBend = false
+
+    for (const bx of bendXs) {
+      if (bx > currentX + 0.001 && bx < nextBounceX - 0.001) {
+        nextX = bx
+        nextY =
+          currentY +
+          (targetY > currentY ? 1 : -1) * slope * (nextX - currentX)
+        isSplitAtBend = true
+        break
+      }
+    }
+
+    const midXFraction =
+      totalSpan === 0 ? 0 : ((currentX + nextX) / 2 - startX) / totalSpan
+
+    let accumulatedLossDb = 0
+    if (macrobends && macrobends.length > 0) {
+      for (const bend of macrobends) {
+        if (bend.position_fraction <= midXFraction + 0.0001) {
+          accumulatedLossDb += bend.supplied_loss_db
+        }
+      }
+    }
+
+    const dimFactor =
+      accumulatedLossDb > 0
+        ? Math.max(0.35, 0.65 * Math.pow(10, -accumulatedLossDb / 4.0))
+        : 1.0
+    const thickness = RAY_THICKNESS * dimFactor
+    const color =
+      accumulatedLossDb >= 1.0
+        ? '#d92600'
+        : accumulatedLossDb > 0
+          ? '#f25c05'
+          : '#ffe066'
 
     segments.push(
       <RaySegment
@@ -438,6 +496,8 @@ function ReflectedRay({
         name={`educational-ray-tir-segment-${segmentIndex}`}
         start={[currentX, currentY, 0]}
         end={[nextX, nextY, 0]}
+        color={color}
+        thickness={thickness}
       />,
     )
 
@@ -446,8 +506,10 @@ function ReflectedRay({
     }
 
     currentX = nextX
-    currentY = targetY
-    targetY = targetY === upperY ? lowerY : upperY
+    currentY = nextY
+    if (!isSplitAtBend) {
+      targetY = targetY === upperY ? lowerY : upperY
+    }
     segmentIndex += 1
   }
 
@@ -572,11 +634,13 @@ function EducationalRayLayer({
   visualLength,
   incidenceAngleDeg,
   guidance,
+  macrobends,
 }: {
   coreRadius: number
   visualLength: number
   incidenceAngleDeg: number
   guidance: RayGuidance | null | undefined
+  macrobends?: readonly MacrobendInput[] | null
 }) {
   const status = getRayStatus(incidenceAngleDeg, guidance)
 
@@ -586,6 +650,7 @@ function EducationalRayLayer({
         coreRadius={coreRadius}
         visualLength={visualLength}
         incidenceAngleDeg={incidenceAngleDeg}
+        macrobends={macrobends}
       />
     )
   }
@@ -1470,6 +1535,166 @@ function SpatialPulseMarkerLayer({
   )
 }
 
+function PhotonicLeakageCones({ lossDb }: { lossDb: number }) {
+  const intensity = Math.max(0.4, Math.min(3.0, lossDb / 0.5))
+  const coneHeight = 0.8 + intensity * 0.4
+  const coneRadius = 0.22 + intensity * 0.1
+  const opacity = Math.min(0.85, 0.45 + intensity * 0.15)
+  const color = lossDb >= 1.0 ? '#ff1a00' : '#ff5500'
+
+  return (
+    <group name="photonic-leakage-cones">
+      <group position={[0, coneHeight / 2 + 0.4, 0]} rotation={[0, 0, 0]}>
+        <mesh name="leakage-cone-top">
+          <coneGeometry args={[coneRadius, coneHeight, 16]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={opacity}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
+
+      <group
+        position={[0, -(coneHeight / 2 + 0.4), 0]}
+        rotation={[Math.PI, 0, 0]}
+      >
+        <mesh name="leakage-cone-bottom">
+          <coneGeometry args={[coneRadius, coneHeight, 16]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={opacity}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
+
+      <group
+        position={[0, 0, coneHeight / 2 + 0.4]}
+        rotation={[Math.PI / 2, 0, 0]}
+      >
+        <mesh name="leakage-cone-front">
+          <coneGeometry args={[coneRadius, coneHeight, 16]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={opacity * 0.75}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
+
+      <group
+        position={[0, 0, -(coneHeight / 2 + 0.4)]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <mesh name="leakage-cone-back">
+          <coneGeometry args={[coneRadius, coneHeight, 16]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={opacity * 0.75}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
+function SpatialBendMarkerLayer({
+  markers,
+}: {
+  markers: SpatialBendMarker[]
+}) {
+  return (
+    <group name="spatial-bend-marker-layer">
+      {markers.map((marker, index) => {
+        const lossScale = Math.max(0.4, Math.min(3.0, marker.lossDb / 0.5))
+        const clampRadius = 0.52 + lossScale * 0.08
+        const clampWidth = 0.18 + lossScale * 0.04
+        const glowColor = marker.lossDb >= 1.0 ? '#ff1a00' : '#ff5500'
+
+        return (
+          <group key={marker.id} position={marker.position}>
+            <mesh
+              name={`bend-clamp-metallic-${index}`}
+              rotation={[0, 0, Math.PI / 2]}
+            >
+              <cylinderGeometry
+                args={[clampRadius, clampRadius, clampWidth, 32]}
+              />
+              <meshStandardMaterial
+                color="#1a202c"
+                roughness={0.25}
+                metalness={0.85}
+                transparent
+                opacity={0.95}
+              />
+            </mesh>
+
+            <mesh
+              name={`bend-neon-core-${index}`}
+              rotation={[0, 0, Math.PI / 2]}
+            >
+              <torusGeometry
+                args={[clampRadius * 0.98, 0.05 + lossScale * 0.02, 16, 32]}
+              />
+              <meshBasicMaterial
+                color={glowColor}
+                transparent
+                opacity={0.95}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+
+            <mesh name={`bend-plasma-aura-${index}`}>
+              <sphereGeometry args={[0.55 + lossScale * 0.15, 20, 20]} />
+              <meshBasicMaterial
+                color={glowColor}
+                transparent
+                opacity={Math.min(0.55, 0.2 + lossScale * 0.1)}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+
+            <PhotonicLeakageCones lossDb={marker.lossDb} />
+
+            <RaySegment
+              name={`bend-beacon-laser-${index}`}
+              start={[0, 0, 0]}
+              end={[0, 1.4 + lossScale * 0.3, 0]}
+              color={glowColor}
+              thickness={0.025}
+            />
+            <mesh
+              name={`bend-beacon-sphere-${index}`}
+              position={[0, 1.4 + lossScale * 0.3, 0]}
+            >
+              <sphereGeometry args={[0.12, 16, 16]} />
+              <meshBasicMaterial
+                color={glowColor}
+                transparent
+                opacity={0.95}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
 export function FibreGeometryScene({
   coreRadiusUm,
   sectionLengthKm = null,
@@ -1490,6 +1715,7 @@ export function FibreGeometryScene({
   powerIndicatorsEnabled = false,
   pulseMarkersEnabled = false,
   attenuation = null,
+  macrobends = null,
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
@@ -1513,12 +1739,18 @@ export function FibreGeometryScene({
   const pulseMarkers = pulseMarkersEnabled
     ? getSpatialPulseMarkers(fibreRoute, visualLength, validPulseData)
     : []
+  const bendMarkers = getSpatialBendMarkers(
+    fibreRoute,
+    visualLength,
+    macrobends,
+  )
   const hasOverlay =
     rayViewEnabled ||
     modeFieldGeometry !== null ||
     pulseAnimationData !== null ||
     powerMarkers.length > 0 ||
-    pulseMarkers.length > 0
+    pulseMarkers.length > 0 ||
+    bendMarkers.length > 0
   const coreMaterialProps = hasOverlay
     ? { transparent: true, opacity: 0.42, depthWrite: false }
     : {}
@@ -1546,6 +1778,7 @@ export function FibreGeometryScene({
       {pulseMarkers.length > 0 && (
         <SpatialPulseMarkerLayer markers={pulseMarkers} />
       )}
+      {bendMarkers.length > 0 && <SpatialBendMarkerLayer markers={bendMarkers} />}
       <group name="schematic-overlay-frame" position={overlayOrigin}>
         {rayViewEnabled && (
           <EducationalRayLayer
@@ -1553,6 +1786,7 @@ export function FibreGeometryScene({
             visualLength={visualLength}
             incidenceAngleDeg={incidenceAngleDeg}
             guidance={rayGuidance}
+            macrobends={macrobends}
           />
         )}
         {modeFieldGeometry !== null &&
@@ -1756,6 +1990,7 @@ export function FibreGeometryView({
   modeProfile,
   pulseAnimation,
   attenuation = null,
+  macrobends = null,
   visualizationSettings,
   onVisualizationSettingsChange,
   showConfigurationControls = true,
@@ -1952,6 +2187,7 @@ export function FibreGeometryView({
           powerIndicatorsEnabled,
           pulseMarkersEnabled,
           attenuation,
+          macrobends,
         }}
       />
 

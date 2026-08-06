@@ -1,5 +1,6 @@
 import { CatmullRomCurve3, Vector3 } from 'three'
 
+import type { MacrobendInput } from './Level1Form'
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseAnimationData } from './pulseAnimation'
 
@@ -357,7 +358,7 @@ export function getScaleMarkers(
     Number.isFinite(sectionLengthKm) &&
     sectionLengthKm >= 0
 
-  return path.map((sample, index) => {
+  return path.map((sample, sampleIndex) => {
     const physicalLabel = hasPhysical
       ? `${((sectionLengthKm as number) * sample.t).toFixed(2)} km`
       : `${(sample.t * 100).toFixed(0)}%`
@@ -366,11 +367,45 @@ export function getScaleMarkers(
       t: sample.t,
       position: sample.position,
       label:
-        index === 0
+        sampleIndex === 0
           ? `0 (${physicalLabel})`
-          : index === path.length - 1
+          : sampleIndex === path.length - 1
             ? `L (${physicalLabel})`
             : physicalLabel,
+    }
+  })
+}
+
+export type SpatialBendMarker = {
+  id: string
+  positionFraction: number
+  position: [number, number, number]
+  lossDb: number
+}
+
+export function getSpatialBendMarkers(
+  route: FibreRouteStyle,
+  visualLength: number,
+  macrobends: readonly MacrobendInput[] | null | undefined,
+): SpatialBendMarker[] {
+  if (
+    !Number.isFinite(visualLength) ||
+    visualLength < 0 ||
+    !macrobends ||
+    macrobends.length === 0
+  ) {
+    return []
+  }
+
+  const curve = buildFibreCurve(route, visualLength)
+  return macrobends.map((bend, bendIndex) => {
+    const t = Math.max(0, Math.min(1, bend.position_fraction))
+    const point = curve.getPointAt(t)
+    return {
+      id: `bend-${bendIndex}-${bend.position_fraction}`,
+      positionFraction: t,
+      position: [point.x, point.y, point.z],
+      lossDb: bend.supplied_loss_db,
     }
   })
 }

@@ -10,6 +10,8 @@ import {
   PULSE_COMPARISON_VIEW_BOX,
 } from './pulseComparisonPlot'
 
+export * from './pulseComparisonPlot'
+
 const X_TICK_FRACTIONS = [-1, -0.5, 0, 0.5, 1]
 const Y_TICKS = [0, 0.25, 0.5, 0.75, 1]
 
@@ -31,12 +33,12 @@ function renderSampleRows(
   inputProfile: GaussianPulseSample[],
   outputProfile: GaussianPulseSample[],
 ) {
-  return inputProfile.map((inputSample, index) => {
-    const outputSample = outputProfile[index]
+  return inputProfile.map((inputSample, sampleIndex) => {
+    const outputSample = outputProfile[sampleIndex]
 
     return (
-      <tr key={index}>
-        <td>{index + 1}</td>
+      <tr key={sampleIndex}>
+        <td>{sampleIndex + 1}</td>
         <td data-exact-value={inputSample.timePs}>
           {formatNumber(inputSample.timePs)}
         </td>
@@ -329,9 +331,9 @@ export function PulseComparisonPlot({
                   points={pointsAttribute(plotData.svg.outputPoints)}
                 />
                 <g aria-hidden="true">
-                  {plotData.svg.inputPoints.map((point, index) => (
+                  {plotData.svg.inputPoints.map((point, sampleIndex) => (
                     <circle
-                      key={`input-${index}`}
+                      key={`input-${sampleIndex}`}
                       className="pulse-comparison-sample-point pulse-comparison-input-point"
                       data-normalized-value={point.normalizedValue}
                       data-time-ps={point.timePs}
@@ -340,9 +342,9 @@ export function PulseComparisonPlot({
                       r={3}
                     />
                   ))}
-                  {plotData.svg.outputPoints.map((point, index) => (
+                  {plotData.svg.outputPoints.map((point, sampleIndex) => (
                     <circle
-                      key={`output-${index}`}
+                      key={`output-${sampleIndex}`}
                       className="pulse-comparison-sample-point pulse-comparison-output-point"
                       data-normalized-value={point.normalizedValue}
                       data-time-ps={point.timePs}
