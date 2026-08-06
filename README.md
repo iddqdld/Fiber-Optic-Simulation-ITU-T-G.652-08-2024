@@ -21,12 +21,11 @@ pls test before push bla bla bla
 - ~~**Configuration comparison** — baseline and variant inputs with result differences, overlaid plots, and visual comparison.~~ 
 - ~~**Parameter sweeps** — explore one changing parameter across a safe range and graph its effect on selected outputs.~~ 
 - **Multi-section links** — assemble ordered cable sections, splices, and connectors with per-component result breakdowns.
-- **Level 2 models** — wavelength-dependent loss and dispersion, splice coupling, PMD/DGD estimates, and statistical studies.
+- **Level 2 models** — ~~PANDA 2D field contours, conforming FEM mesh, generalized-plane-strain thermal stress, local photoelastic birefringence, pressure-induced LP₀₁ phase estimate, torsion benchmark, validation, and parameter reset.~~ Wavelength-dependent loss and dispersion, splice coupling, PMD/DGD estimates, and statistical studies remain.
 - ~~**Import and export** — exchange portable simulation configurations and results as JSON or CSV without accounts or server-side projects.~~ : feature/import-export
 # Step 1 fixes
 - **3D mode-regime visibility** — show the calculated single-mode or multimode state, current V-number, and ideal `V = 2.405` boundary clearly beside the 3D viewport.
 - **Single-mode electromagnetic field view** — improve the 3D field representation and clearly distinguish the current scalar LP01 intensity approximation from a complete electromagnetic field solution.
 - **Multimode field visualization** — calculate and display supported higher-order mode fields when the parameters enter the multimode regime, while keeping supported modes separate from modes actually excited by a source.
 - **Bend physics and 3D integration** — complete geometry-based bend calculations and make the educational ray, scaled pulse animation, field layers, and leakage indicators follow the curved fibre route correctly.
-
 
