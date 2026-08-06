@@ -11,6 +11,8 @@ from .result import (
     PandaFieldMapWarningCode,
 )
 
+_TRANSFER_DECIMAL_PLACES = 4
+
 _NormalizationUnavailable = Literal["normalization_unavailable"]
 _RawPoint = tuple[float, float, float]
 _ANGLE_ZERO_TOLERANCE = 1.0e-12
@@ -172,7 +174,10 @@ def calculate_panda_field_map(request: PandaFieldMapRequest) -> PandaFieldMapRes
     for raw_row in raw_deviatoric_rows:
         for column_index, raw_value in enumerate(raw_row):
             if raw_value is not None:
-                raw_row[column_index] = raw_value / kernel_scale
+                raw_row[column_index] = round(
+                    raw_value / kernel_scale,
+                    _TRANSFER_DECIMAL_PLACES,
+                )
 
     core_axis_angle = None
     if (

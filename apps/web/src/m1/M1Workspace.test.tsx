@@ -6,6 +6,8 @@ import { M1Results } from './M1Results'
 import { M1Workspace } from './M1Workspace'
 import * as pandaFieldContours from './pandaFieldContours'
 import { ISOLINE_THRESHOLDS } from './pandaFieldContours'
+import * as pandaMeshDrawing from './pandaMeshDrawing'
+import { buildPandaMeshDrawingGeometry } from './pandaMeshDrawing'
 import * as pandaThermalFemDrawing from './pandaThermalFemDrawing'
 import { buildPandaThermalFemDrawingGeometry } from './pandaThermalFemDrawing'
 import {
@@ -13,6 +15,7 @@ import {
   type PandaFieldController,
   type PandaFieldResult,
 } from './pandaFieldModel'
+import type { PandaMeshController, PandaMeshResult } from './pandaMeshModel'
 import type {
   PandaThermalFemController,
   PandaThermalFemResult,
@@ -135,6 +138,7 @@ function readyResult(): PandaFieldResult {
     model_manifest: {
       model_id: 'panda_qualitative_far_field_kernel',
       model_version: '1.2.0',
+      transfer_precision_decimal_places: 4,
       method: 'qualitative_far_field_kernel',
       quantity_type: 'normalized_dimensionless_kernel',
       normalization: 'max_valid_absolute_deviatoric_difference',
@@ -181,6 +185,7 @@ function controller(
     onValueChange: vi.fn(),
     onPresentationModeChange: vi.fn(),
     onShowReferenceSpokesChange: vi.fn(),
+    onImportConfiguration: vi.fn(),
     onRetry: vi.fn(),
     ...overrides,
   }
@@ -560,7 +565,28 @@ function thermalFemController(
     onTorsionInputModeChange: vi.fn(),
     onTwistRatePerMChange: vi.fn(),
     onAppliedTorqueNmChange: vi.fn(),
+    onImportControls: vi.fn(),
     onCalculate: vi.fn(),
+    onRetry: vi.fn(),
+    ...overrides,
+  }
+}
+
+function meshResult(): PandaMeshResult {
+  return thermalFemResult().mesh as PandaMeshResult
+}
+
+function meshController(
+  overrides: Partial<PandaMeshController> = {},
+): PandaMeshController {
+  return {
+    refinementLevel: 1,
+    result: null,
+    phase: 'idle',
+    statusLabel: 'Mesh idle',
+    errorMessage: null,
+    fieldErrors: {},
+    onRefinementLevelChange: vi.fn(),
     onRetry: vi.fn(),
     ...overrides,
   }
@@ -981,7 +1007,7 @@ describe('M1 PANDA field workspace', () => {
   })
 
   test.each([
-    ['idle', 'Calculate the PANDA thermoelastic FEM result'],
+    ['idle', 'Configure the PANDA geometry'],
     [
       'loading',
       'Calculating the generalized-plane-strain thermoelastic FEM result',
@@ -1007,9 +1033,97 @@ describe('M1 PANDA field workspace', () => {
         screen.getByRole(phase === 'error' ? 'alert' : 'status'),
       ).toHaveTextContent(message)
       expect(screen.queryByRole('img')).not.toBeInTheDocument()
-      expect(screen.getByText(/No stale quantitative FEM field/)).toBeVisible()
+      expect(
+        screen.getByText(/No stale mesh or quantitative FEM field/),
+      ).toBeVisible()
     },
   )
+
+  test('renders the low-cost mesh preview before a FEM calculation', () => {
+    const result = meshResult()
+    const geometry = buildPandaMeshDrawingGeometry(result)
+    expect(geometry.nodeCount).toBe(result.node_count)
+    expect(geometry.elementCount).toBe(result.element_count)
+    expect(geometry.edgeCount).toBeLessThan(result.element_count * 3)
+    expect(geometry.interfaceEdgeCount).toBeGreaterThan(0)
+
+    render(
+      <>
+        <M1Workspace
+          workspace="fem-mesh"
+          pandaMesh={meshController({ phase: 'ready', result })}
+          thermalFem={thermalFemController()}
+        />
+        <M1Results
+          workspace="fem-mesh"
+          pandaMesh={meshController({ phase: 'ready', result })}
+          thermalFem={thermalFemController()}
+        />
+      </>,
+    )
+
+    expect(
+      screen.getByRole('img', {
+        name: 'Figure 9.1 PANDA triangular mesh preview',
+      }),
+    ).toBeVisible()
+    expect(screen.getByText('Cladding')).toBeVisible()
+    expect(screen.getByText('Core')).toBeVisible()
+    expect(screen.getByText('SAP 1')).toBeVisible()
+    expect(screen.getByText('SAP 2')).toBeVisible()
+    expect(screen.getAllByText(/no FEM fields solved/i)).not.toHaveLength(0)
+    expect(screen.getByText('30.000°')).toBeVisible()
+    expect(canvasContext.fill).toHaveBeenCalled()
+    expect(canvasContext.stroke).toHaveBeenCalled()
+  })
+
+  test('keeps mesh preview geometry while local view controls change', () => {
+    const buildGeometry = vi.spyOn(
+      pandaMeshDrawing,
+      'buildPandaMeshDrawingGeometry',
+    )
+    render(
+      <M1Workspace
+        workspace="fem-mesh"
+        pandaMesh={meshController({ phase: 'ready', result: meshResult() })}
+        thermalFem={thermalFemController()}
+      />,
+    )
+
+    const canvas = screen.getByRole('img', {
+      name: 'Figure 9.1 PANDA triangular mesh preview',
+    })
+    const zoom = screen.getByLabelText('Mesh zoom')
+    expect(zoom).toHaveAttribute('min', '0.5')
+    expect(zoom).toHaveAttribute('max', '4')
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in mesh' }))
+    fireEvent.keyDown(canvas, { key: 'ArrowRight' })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset mesh view' }))
+
+    expect(buildGeometry).toHaveBeenCalledOnce()
+  })
+
+  test('replaces the mesh preview with a ready FEM field', () => {
+    render(
+      <M1Workspace
+        workspace="fem-mesh"
+        pandaMesh={meshController({ phase: 'ready', result: meshResult() })}
+        thermalFem={thermalFemController({
+          phase: 'ready',
+          result: thermalFemResult(),
+        })}
+      />,
+    )
+
+    expect(
+      screen.getByRole('img', { name: /Step 2.8 FEM field/ }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('img', {
+        name: 'Figure 9.1 PANDA triangular mesh preview',
+      }),
+    ).not.toBeInTheDocument()
+  })
 
   test('renders ready quantitative FEM output with local-material optics text', () => {
     const result = thermalFemResult()
@@ -1127,9 +1241,7 @@ describe('M1 PANDA field workspace', () => {
       }),
     ).toBeVisible()
     expect(screen.getByText('M1 · 2D only · Figure 9.1')).toBeVisible()
-    expect(
-      screen.getByText(/Calculate the PANDA thermoelastic FEM result/),
-    ).toBeVisible()
+    expect(screen.getByText(/Configure the PANDA geometry/)).toBeVisible()
     expect(container.querySelector('canvas')).not.toBeInTheDocument()
     expect(container.querySelector('input')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Displayed field')).not.toBeInTheDocument()

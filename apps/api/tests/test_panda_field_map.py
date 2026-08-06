@@ -1,3 +1,4 @@
+import gzip
 import json
 from collections.abc import AsyncIterator
 from typing import Any, NoReturn
@@ -112,6 +113,7 @@ async def test_panda_field_map_returns_qualitative_metadata_and_masks(
     assert response.status_code == 200, response.text
     assert response.headers["content-encoding"] == "gzip"
     assert response.headers["vary"] == "Accept-Encoding"
+    assert len(gzip.compress(response.content)) < 250 * 1024
     body = response.json()
     expected = calculate_panda_field_map(request)
     assert body == json.loads(expected.model_dump_json())
@@ -121,6 +123,7 @@ async def test_panda_field_map_returns_qualitative_metadata_and_masks(
     assert manifest["quantity_type"] == "normalized_dimensionless_kernel"
     assert manifest["normalization"] == "max_valid_absolute_deviatoric_difference"
     assert manifest["model_version"] == "1.2.0"
+    assert manifest["transfer_precision_decimal_places"] == 4
     assert "auxiliary_normalization" not in manifest
     assert manifest["quantitative"] is False
     assert manifest["units"] == "1"

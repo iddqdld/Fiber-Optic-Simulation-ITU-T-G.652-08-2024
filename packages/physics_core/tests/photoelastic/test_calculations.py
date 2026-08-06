@@ -23,6 +23,7 @@ from fibre_sim.photoelastic import (
     ThermalState,
     calculate_panda_field_map,
 )
+from fibre_sim.photoelastic.calculations import qualitative_kernel_components_at
 
 
 def source() -> MaterialSource:
@@ -231,6 +232,19 @@ def test_aligned_saps_have_centerline_symmetry_and_zero_center_axis() -> None:
                 )
 
 
+def test_aligned_saps_have_zero_center_shear_kernel() -> None:
+    model_request = request()
+    difference, shear = qualitative_kernel_components_at(
+        model_request.geometry,
+        (1.0, 1.0),
+        0.0,
+        0.0,
+    )
+
+    assert difference > 0.0
+    assert shear == pytest.approx(0.0, abs=1.0e-15)
+
+
 def test_aligned_saps_have_x_and_y_reflection_symmetry() -> None:
     result = calculate_panda_field_map(request())
     size = len(result.x_coordinates_m)
@@ -291,6 +305,7 @@ def test_primary_deviatoric_normalization_is_signed_and_has_unit_peak() -> None:
     assert max(values) > 0.0
     assert max(abs(value) for value in values) == pytest.approx(1.0, abs=1.0e-14)
     assert all(-1.0 <= value <= 1.0 for value in values)
+    assert all(value == round(value, 4) for value in values)
 
 
 def test_validity_mask_excludes_sap_buffers_and_outside_cladding() -> None:

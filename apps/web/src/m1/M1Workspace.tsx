@@ -2,12 +2,15 @@ import { M1FoundationCopy, PandaQualitativeNotice } from './M1Foundation'
 import type { M1WorkspaceId } from './M1WorkspaceCatalog'
 import { PandaFieldCanvas } from './PandaFieldCanvas'
 import type { PandaFieldController } from './pandaFieldModel'
+import { PandaMeshCanvas } from './PandaMeshCanvas'
+import type { PandaMeshController } from './pandaMeshModel'
 import { PandaThermalFemCanvas } from './PandaThermalFemCanvas'
 import type { PandaThermalFemController } from './pandaThermalFemModel'
 
 export type M1WorkspaceProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
+  pandaMesh?: PandaMeshController | null
   thermalFem?: PandaThermalFemController | null
 }
 
@@ -80,18 +83,37 @@ function PandaFieldWorkspace({
 
 function PandaThermalFemStatus({
   controller,
+  mesh,
 }: {
   controller: PandaThermalFemController | null
+  mesh: PandaMeshController | null
 }) {
   if (controller?.phase === 'ready' && controller.result) {
     return <PandaThermalFemCanvas result={controller.result} />
   }
 
+  if (
+    controller?.phase !== 'loading' &&
+    mesh?.phase === 'ready' &&
+    mesh.result
+  ) {
+    return <PandaMeshCanvas result={mesh.result} />
+  }
+
   let message =
-    'Calculate the PANDA thermoelastic FEM result to view Figure 9.1.'
+    'Configure the PANDA geometry to generate the Figure 9.1 mesh preview.'
   if (controller?.phase === 'loading') {
     message =
       'Calculating the generalized-plane-strain thermoelastic FEM result…'
+  } else if (mesh?.phase === 'loading') {
+    message = 'Generating the constrained triangular PANDA mesh…'
+  } else if (mesh?.phase === 'validation') {
+    message =
+      'The PANDA mesh is unavailable until the highlighted geometry inputs are valid.'
+  } else if (mesh?.phase === 'error') {
+    message =
+      mesh.errorMessage ??
+      'The PANDA mesh service could not complete this calculation.'
   } else if (controller?.phase === 'validation') {
     message =
       'The thermoelastic FEM result is unavailable until the highlighted inputs are valid.'
@@ -110,15 +132,26 @@ function PandaThermalFemStatus({
       aria-live="polite"
     >
       <p>{message}</p>
-      <p>No stale quantitative FEM field is displayed in this state.</p>
+      <p>No stale mesh or quantitative FEM field is displayed in this state.</p>
+      {mesh?.phase === 'error' && (
+        <button
+          className="m1-retry-button"
+          type="button"
+          onClick={mesh.onRetry}
+        >
+          Retry mesh generation
+        </button>
+      )}
     </div>
   )
 }
 
 function FemWorkspace({
   controller,
+  mesh,
 }: {
   controller: PandaThermalFemController | null
+  mesh: PandaMeshController | null
 }) {
   return (
     <section
@@ -143,7 +176,7 @@ function FemWorkspace({
         <span className="m1-workspace-badge">Quantitative FEM</span>
       </header>
       <M1FoundationCopy />
-      <PandaThermalFemStatus controller={controller} />
+      <PandaThermalFemStatus controller={controller} mesh={mesh} />
       <p className="m1-fem-notice">
         Figure 9.1 shows the thermoelastic FEM fields, pressure increment, and
         local material birefringence. The optical result also reports a
@@ -159,11 +192,12 @@ function FemWorkspace({
 export function M1Workspace({
   workspace,
   pandaField = null,
+  pandaMesh = null,
   thermalFem = null,
 }: M1WorkspaceProps) {
   return workspace === 'panda-field' ? (
     <PandaFieldWorkspace controller={pandaField} />
   ) : (
-    <FemWorkspace controller={thermalFem} />
+    <FemWorkspace controller={thermalFem} mesh={pandaMesh} />
   )
 }

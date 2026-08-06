@@ -9,10 +9,12 @@ import type {
   PandaThermalFemController,
   PandaThermalFemResult,
 } from './pandaThermalFemModel'
+import type { PandaMeshController, PandaMeshResult } from './pandaMeshModel'
 
 export type M1ResultsProps = {
   workspace: M1WorkspaceId
   pandaField?: PandaFieldController | null
+  pandaMesh?: PandaMeshController | null
   thermalFem?: PandaThermalFemController | null
 }
 
@@ -152,15 +154,21 @@ function PandaReadyResults({
 function UnavailableResults({
   workspace,
   controller,
+  pandaMesh,
   thermalFem,
 }: {
   workspace: M1WorkspaceId
   controller: PandaFieldController | null
+  pandaMesh: PandaMeshController | null
   thermalFem: PandaThermalFemController | null
 }) {
   const isPandaField = workspace === 'panda-field'
   const calculation =
-    (isPandaField ? controller?.phase : thermalFem?.phase) === 'loading'
+    (isPandaField
+      ? controller?.phase
+      : thermalFem?.phase === 'idle'
+        ? pandaMesh?.phase
+        : thermalFem?.phase) === 'loading'
       ? 'In progress'
       : 'Not run'
   let note = 'Quantitative thermoelastic FEM results are not available yet.'
@@ -173,10 +181,14 @@ function UnavailableResults({
   }
   if (!isPandaField) {
     note =
-      thermalFem?.phase === 'validation'
-        ? 'Correct the highlighted inputs before calculating the thermoelastic FEM result.'
-        : (thermalFem?.errorMessage ??
-          'A validated quantitative thermoelastic FEM result is not available in the current state.')
+      pandaMesh?.phase === 'validation'
+        ? 'Correct the highlighted geometry inputs before generating the mesh preview.'
+        : pandaMesh?.phase === 'error'
+          ? (pandaMesh.errorMessage ?? 'The mesh preview is unavailable.')
+          : thermalFem?.phase === 'validation'
+            ? 'Correct the highlighted inputs before calculating the thermoelastic FEM result.'
+            : (thermalFem?.errorMessage ??
+              'A validated quantitative thermoelastic FEM result is not available in the current state.')
   }
 
   return (
@@ -197,6 +209,46 @@ function UnavailableResults({
         </div>
       </dl>
       <p className="m1-results-note">{note}</p>
+    </>
+  )
+}
+
+function MeshPreviewResults({ result }: { result: PandaMeshResult }) {
+  return (
+    <>
+      <p className="m1-inspector-status">
+        Mesh preview ready · no FEM fields solved
+      </p>
+      <dl className="m1-results-list">
+        <div>
+          <dt>Refinement</dt>
+          <dd>Level {result.configuration.refinement_level}</dd>
+        </div>
+        <div>
+          <dt>Nodes</dt>
+          <dd>{result.node_count.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Elements</dt>
+          <dd>{result.element_count.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Minimum angle</dt>
+          <dd>{result.quality.minimum_angle_deg.toFixed(3)}°</dd>
+        </div>
+        <div>
+          <dt>Minimum quality</dt>
+          <dd>{result.quality.minimum_normalized_quality.toFixed(6)}</dd>
+        </div>
+        <div>
+          <dt>Mean quality</dt>
+          <dd>{result.quality.mean_normalized_quality.toFixed(6)}</dd>
+        </div>
+      </dl>
+      <p className="m1-results-note">
+        Select Calculate FEM to attach mechanical and optical values to this
+        mesh.
+      </p>
     </>
   )
 }
@@ -747,6 +799,7 @@ function ThermalFemReadyResults({ result }: { result: PandaThermalFemResult }) {
 export function M1Results({
   workspace,
   pandaField = null,
+  pandaMesh = null,
   thermalFem = null,
 }: M1ResultsProps) {
   const readyResult =
@@ -756,6 +809,10 @@ export function M1Results({
   const thermalFemResult =
     workspace === 'fem-mesh' && thermalFem?.phase === 'ready'
       ? thermalFem.result
+      : null
+  const meshResult =
+    workspace === 'fem-mesh' && pandaMesh?.phase === 'ready'
+      ? pandaMesh.result
       : null
 
   return (
@@ -776,10 +833,13 @@ export function M1Results({
         />
       ) : thermalFemResult ? (
         <ThermalFemReadyResults result={thermalFemResult} />
+      ) : meshResult ? (
+        <MeshPreviewResults result={meshResult} />
       ) : (
         <UnavailableResults
           workspace={workspace}
           controller={pandaField}
+          pandaMesh={pandaMesh}
           thermalFem={thermalFem}
         />
       )}

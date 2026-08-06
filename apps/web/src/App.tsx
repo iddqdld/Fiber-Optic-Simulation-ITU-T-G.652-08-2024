@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 
 import type {
   components,
@@ -12,11 +19,10 @@ import {
   type Preset,
 } from './Level1Form'
 import { ComparisonWorkspace } from './ComparisonWorkspace'
-import {
-  FibreGeometryView,
-  type ModeProfileData,
-  type PulseAnimationData,
-  type RayGuidance,
+import type {
+  ModeProfileData,
+  PulseAnimationData,
+  RayGuidance,
 } from './FibreGeometryView'
 import {
   EditorShell,
@@ -30,10 +36,14 @@ import { ImportExportModal } from './ImportExportModal'
 import { Level1Preview } from './Level1Preview'
 import { isMacrobendLossResult, macrobendInputsMatch } from './macrobend'
 import { M1Inspector } from './m1/M1Inspector'
+import { PandaImportExportControls } from './m1/PandaImportExportControls'
+import type { PandaPortableConfiguration } from './m1/pandaImportExport'
 import { M1Results } from './m1/M1Results'
 import { M1Workspace } from './m1/M1Workspace'
 import type { M1WorkspaceId } from './m1/M1WorkspaceCatalog'
+import type { PandaMeshController } from './m1/pandaMeshModel'
 import { usePandaFieldMap } from './m1/usePandaFieldMap'
+import { usePandaMesh } from './m1/usePandaMesh'
 import { usePandaThermalFem } from './m1/usePandaThermalFem'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
@@ -44,6 +54,11 @@ import {
   type PowerDistanceData,
 } from './powerDistancePlot'
 import type { PulseComparisonData } from './pulseComparisonPlot'
+
+const FibreGeometryView = lazy(async () => {
+  const module = await import('./FibreGeometryView')
+  return { default: module.FibreGeometryView }
+})
 
 type PreviewRequest =
   operations['preview_level1_simulation']['requestBody']['content']['application/json']
@@ -665,7 +680,11 @@ function resultMatchesRequest(
   )
 }
 
-function App() {
+type AppProps = {
+  initialWorkspace?: WorkspaceId
+}
+
+function App({ initialWorkspace = 'scene' }: AppProps) {
   const [backendStatus, setBackendStatus] = useState('Checking backend…')
   const [previewStatus, setPreviewStatus] = useState('Waiting for preview…')
   const [formValues, setFormValues] = useState(initialFormValues)
@@ -676,7 +695,8 @@ function App() {
   const [visualizationData, setVisualizationData] =
     useState<VisualizationData | null>(null)
   const [serviceError, setServiceError] = useState<string | null>(null)
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>('scene')
+  const [activeWorkspace, setActiveWorkspace] =
+    useState<WorkspaceId>(initialWorkspace)
   const [activeGraph, setActiveGraph] = useState<GraphWorkspaceId>(
     'lp01-radial-intensity',
   )
@@ -698,6 +718,15 @@ function App() {
     isPandaMeshWorkspaceActive,
     pandaField.values,
   )
+  const pandaMeshState = usePandaMesh(
+    isPandaMeshWorkspaceActive,
+    pandaField.values,
+    thermalFem.controls.refinementLevel,
+  )
+  const pandaMesh: PandaMeshController = {
+    ...pandaMeshState,
+    onRefinementLevelChange: thermalFem.onRefinementLevelChange,
+  }
   const previewSequence = useRef(0)
   const resultRef = useRef<PreviewResult | null>(null)
   const formValidation = parseFormValues(formValues)
@@ -762,11 +791,20 @@ function App() {
     const controller = new AbortController()
     const parsed = parseFormValues(formValues)
 
+    if (isM1WorkspaceActive) {
+      return () => controller.abort()
+    }
+
     if (parsed.error !== null || parsed.request === null) {
       return () => controller.abort()
     }
 
     const request = parsed.request
+    if (resultMatchesRequest(request, resultRef.current)) {
+      setPreviewStatus('Preview ready')
+      setServiceError(null)
+      return () => controller.abort()
+    }
     const timer = window.setTimeout(() => {
       const fetchPreview = async () => {
         setVisualizationData(null)
@@ -859,7 +897,7 @@ function App() {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [formValues])
+  }, [formValues, isM1WorkspaceActive])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
     clearVisualizationData()
@@ -905,6 +943,20 @@ function App() {
     setImportedFileName(filename ?? null)
   }
 
+  const handleImportPandaConfig = (
+    configuration: PandaPortableConfiguration,
+    filename: string,
+  ) => {
+    pandaField.onImportConfiguration(
+      configuration.fieldValues,
+      configuration.presentationMode,
+      configuration.showReferenceSpokes,
+    )
+    thermalFem.onImportControls(configuration.thermalFemControls)
+    setActiveWorkspace(configuration.workspace)
+    setImportedFileName(filename)
+  }
+
   const captureComparisonBaseline = () => {
     if (matchingResult !== null) {
       setComparisonBaseline(matchingResult)
@@ -914,7 +966,9 @@ function App() {
   const displayPreviewStatus = isPandaFieldWorkspaceActive
     ? pandaField.statusLabel
     : isPandaMeshWorkspaceActive
-      ? thermalFem.statusLabel
+      ? thermalFem.phase === 'idle'
+        ? pandaMesh.statusLabel
+        : thermalFem.statusLabel
       : isM1WorkspaceActive
         ? 'M1 2D foundation · not calculated'
         : formValidation.error !== null
@@ -931,13 +985,19 @@ function App() {
             ? 'error'
             : 'neutral'
     : isPandaMeshWorkspaceActive
-      ? thermalFem.phase === 'ready'
+      ? (thermalFem.phase === 'idle' ? pandaMesh.phase : thermalFem.phase) ===
+        'ready'
         ? 'success'
-        : thermalFem.phase === 'loading'
+        : (thermalFem.phase === 'idle' ? pandaMesh.phase : thermalFem.phase) ===
+            'loading'
           ? 'info'
-          : thermalFem.phase === 'validation'
+          : (thermalFem.phase === 'idle'
+                ? pandaMesh.phase
+                : thermalFem.phase) === 'validation'
             ? 'warning'
-            : thermalFem.phase === 'error'
+            : (thermalFem.phase === 'idle'
+                  ? pandaMesh.phase
+                  : thermalFem.phase) === 'error'
               ? 'error'
               : 'neutral'
       : isM1WorkspaceActive
@@ -957,7 +1017,9 @@ function App() {
   const warningCount = isPandaFieldWorkspaceActive
     ? (pandaField.result?.warnings.length ?? 0)
     : isPandaMeshWorkspaceActive
-      ? (thermalFem.result?.warnings.length ?? 0)
+      ? (thermalFem.result?.warnings.length ??
+        pandaMesh.result?.warnings.length ??
+        0)
       : isM1WorkspaceActive
         ? 0
         : (result?.warnings.length ?? 0)
@@ -968,7 +1030,11 @@ function App() {
     : isPandaMeshWorkspaceActive
       ? thermalFem.result
         ? `${thermalFem.result.model_manifest.model_id} · ${thermalFem.result.model_manifest.model_version}`
-        : `PANDA thermal FEM · ${thermalFem.phase}`
+        : pandaMesh.result
+          ? `${pandaMesh.result.model_manifest.model_id} · ${pandaMesh.result.model_manifest.model_version}`
+          : thermalFem.phase === 'idle'
+            ? `PANDA mesh · ${pandaMesh.phase}`
+            : `PANDA thermal FEM · ${thermalFem.phase}`
       : isM1WorkspaceActive
         ? 'M1 2D foundation · no calculation'
         : result
@@ -986,23 +1052,26 @@ function App() {
       <M1Workspace
         workspace={activeM1Workspace}
         pandaField={pandaField}
+        pandaMesh={pandaMesh}
         thermalFem={thermalFem}
       />
     )
   } else if (activeWorkspace === 'scene') {
     workspace = (
       <div className="scene-workspace">
-        <FibreGeometryView
-          coreRadiusUm={geometryValues.coreRadiusUm}
-          sectionLengthKm={geometryValues.sectionLengthKm}
-          rayGuidance={visualizationData?.rayGuidance ?? null}
-          modeProfile={visualizationData?.modeProfile ?? null}
-          pulseAnimation={visualizationData?.pulseAnimation ?? null}
-          attenuation={visualizationData?.attenuation ?? null}
-          visualizationSettings={visualizationSettings}
-          onVisualizationSettingsChange={setVisualizationSettings}
-          showConfigurationControls={false}
-        />
+        <Suspense fallback={<p role="status">Loading the G.652 3D view…</p>}>
+          <FibreGeometryView
+            coreRadiusUm={geometryValues.coreRadiusUm}
+            sectionLengthKm={geometryValues.sectionLengthKm}
+            rayGuidance={visualizationData?.rayGuidance ?? null}
+            modeProfile={visualizationData?.modeProfile ?? null}
+            pulseAnimation={visualizationData?.pulseAnimation ?? null}
+            attenuation={visualizationData?.attenuation ?? null}
+            visualizationSettings={visualizationSettings}
+            onVisualizationSettingsChange={setVisualizationSettings}
+            showConfigurationControls={false}
+          />
+        </Suspense>
       </div>
     )
   } else if (activeWorkspace === 'graphs') {
@@ -1066,6 +1135,7 @@ function App() {
       <M1Results
         workspace={activeM1Workspace}
         pandaField={pandaField}
+        pandaMesh={pandaMesh}
         thermalFem={thermalFem}
       />
     ) : result ? (
@@ -1076,15 +1146,23 @@ function App() {
       </p>
     )
 
-  const importExportControls = (
-    <ImportExportModal
-      formValues={formValues}
-      onImportConfig={handleImportConfig}
-      previewResult={result}
-      powerDistanceData={visualizationData?.attenuation ?? null}
-      pulseData={visualizationData?.pulseComparison ?? null}
-    />
-  )
+  const importExportControls =
+    activeM1Workspace === null ? (
+      <ImportExportModal
+        formValues={formValues}
+        onImportConfig={handleImportConfig}
+        previewResult={result}
+        powerDistanceData={visualizationData?.attenuation ?? null}
+        pulseData={visualizationData?.pulseComparison ?? null}
+      />
+    ) : (
+      <PandaImportExportControls
+        workspace={activeM1Workspace}
+        pandaField={pandaField}
+        thermalFem={thermalFem}
+        onImport={handleImportPandaConfig}
+      />
+    )
 
   return (
     <EditorShell
