@@ -153,6 +153,11 @@ export interface components {
             /** Radius Um */
             radius_um: number;
         };
+        /**
+         * BendDirection
+         * @enum {string}
+         */
+        BendDirection: "left" | "right";
         /** CableSection */
         CableSection: {
             /** Bends */
@@ -1480,6 +1485,11 @@ export interface components {
              */
             angle_deg: number;
             /**
+             * @description Planar turn direction viewed from above the transverse y axis.
+             * @default left
+             */
+            direction: components["schemas"]["BendDirection"];
+            /**
              * Position Fraction
              * @description Macrobend position as a dimensionless fraction of propagation distance.
              */
@@ -1515,7 +1525,7 @@ export interface components {
             /**
              * Limitations
              * @default [
-             *       "geometry and metadata do not affect or alter supplied loss; radius, angle, and position do not derive loss",
+             *       "geometry and metadata do not affect or alter supplied loss; radius, angle, direction, and position do not derive loss",
              *       "no wavelength/MFD/index/radiation model is included",
              *       "this is not the G.652 qualification test or conformance"
              *     ]
@@ -1535,10 +1545,10 @@ export interface components {
             model_id: "user_supplied_macrobend_loss";
             /**
              * Model Version
-             * @default 1.0.0
+             * @default 1.1.0
              * @constant
              */
-            model_version: "1.0.0";
+            model_version: "1.1.0";
         };
         /** MacrobendLossPoint */
         MacrobendLossPoint: {
@@ -1552,6 +1562,11 @@ export interface components {
              * @description Cumulative macrobend loss through this point in decibels (dB).
              */
             cumulative_bend_loss_db: number;
+            /**
+             * @description Planar turn direction viewed from above the transverse y axis.
+             * @default left
+             */
+            direction: components["schemas"]["BendDirection"];
             /**
              * Output Power Dbm
              * @description Output optical power level at this point in decibels referenced to one milliwatt (dBm).

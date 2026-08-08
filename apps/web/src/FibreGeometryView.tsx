@@ -7,12 +7,12 @@ import {
   type ReactNode,
 } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { AdditiveBlending } from 'three'
+import { AdditiveBlending, Curve, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 import type { MacrobendInput } from './Level1Form'
 import {
-  buildFibreCurve,
+  buildFibrePath,
   CAMERA_PRESETS,
   CAMERA_PRESET_OPTIONS,
   FIBRE_ROUTE_OPTIONS,
@@ -449,7 +449,8 @@ function ReflectedRay({
       currentX + Math.abs(targetY - currentY) / slope,
     )
     const nextBounceY =
-      currentY + (targetY > currentY ? 1 : -1) * slope * (nextBounceX - currentX)
+      currentY +
+      (targetY > currentY ? 1 : -1) * slope * (nextBounceX - currentX)
 
     let nextX = nextBounceX
     let nextY = nextBounceY
@@ -459,8 +460,7 @@ function ReflectedRay({
       if (bx > currentX + 0.001 && bx < nextBounceX - 0.001) {
         nextX = bx
         nextY =
-          currentY +
-          (targetY > currentY ? 1 : -1) * slope * (nextX - currentX)
+          currentY + (targetY > currentY ? 1 : -1) * slope * (nextX - currentX)
         isSplitAtBend = true
         break
       }
@@ -1380,14 +1380,12 @@ function StraightFibreBody({
 
 function CurvedFibreBody({
   coreRadius,
-  visualLength,
-  fibreRoute,
+  curve,
   claddingVisible,
   coreMaterialProps,
 }: {
   coreRadius: number
-  visualLength: number
-  fibreRoute: FibreRouteStyle
+  curve: Curve<Vector3>
   claddingVisible: boolean
   coreMaterialProps: {
     transparent?: boolean
@@ -1395,8 +1393,6 @@ function CurvedFibreBody({
     depthWrite?: boolean
   }
 }) {
-  const curve = buildFibreCurve(fibreRoute, visualLength)
-
   return (
     <group name="curved-fibre-body">
       <mesh name="solid-fibre-core">
@@ -1608,11 +1604,7 @@ function PhotonicLeakageCones({ lossDb }: { lossDb: number }) {
   )
 }
 
-function SpatialBendMarkerLayer({
-  markers,
-}: {
-  markers: SpatialBendMarker[]
-}) {
+function SpatialBendMarkerLayer({ markers }: { markers: SpatialBendMarker[] }) {
   return (
     <group name="spatial-bend-marker-layer">
       {markers.map((marker, index) => {
@@ -1620,9 +1612,12 @@ function SpatialBendMarkerLayer({
         const clampRadius = 0.52 + lossScale * 0.08
         const clampWidth = 0.18 + lossScale * 0.04
         const glowColor = marker.lossDb >= 1.0 ? '#ff1a00' : '#ff5500'
-
         return (
-          <group key={marker.id} position={marker.position}>
+          <group
+            key={marker.id}
+            position={marker.position}
+            quaternion={marker.quaternion}
+          >
             <mesh
               name={`bend-clamp-metallic-${index}`}
               rotation={[0, 0, Math.PI / 2]}
@@ -1719,6 +1714,7 @@ export function FibreGeometryScene({
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
+  const fibrePath = buildFibrePath(fibreRoute, visualLength, macrobends)
   const modeFieldGeometry = modeViewEnabled
     ? getModeFieldGeometry(modeProfile, coreRadiusUm)
     : null
@@ -1726,23 +1722,32 @@ export function FibreGeometryScene({
     ? pulseAnimation
     : null
   const pulseAnimationData = pulseAnimationEnabled ? validPulseData : null
-  const overlayOrigin =
-    fibreRoute === 'straight'
-      ? ([0, 0, 0] as [number, number, number])
-      : getCurveMidpoint(fibreRoute, visualLength)
+  const overlayOrigin = getCurveMidpoint(fibreRoute, visualLength, fibrePath)
   const scaleMarkers = scaleMarkersEnabled
-    ? getScaleMarkers(fibreRoute, visualLength, sectionLengthKm)
+    ? getScaleMarkers(fibreRoute, visualLength, sectionLengthKm, 5, fibrePath)
     : []
   const powerMarkers = powerIndicatorsEnabled
-    ? getSpatialPowerMarkers(fibreRoute, visualLength, attenuation)
+    ? getSpatialPowerMarkers(
+        fibreRoute,
+        visualLength,
+        attenuation,
+        6,
+        fibrePath,
+      )
     : []
   const pulseMarkers = pulseMarkersEnabled
-    ? getSpatialPulseMarkers(fibreRoute, visualLength, validPulseData)
+    ? getSpatialPulseMarkers(
+        fibreRoute,
+        visualLength,
+        validPulseData,
+        fibrePath,
+      )
     : []
   const bendMarkers = getSpatialBendMarkers(
     fibreRoute,
     visualLength,
     macrobends,
+    fibrePath,
   )
   const hasOverlay =
     rayViewEnabled ||
@@ -1757,7 +1762,7 @@ export function FibreGeometryScene({
 
   return (
     <group name="fibre-geometry-scene">
-      {fibreRoute === 'straight' ? (
+      {fibrePath.source === 'preset' && fibreRoute === 'straight' ? (
         <StraightFibreBody
           coreRadius={coreRadius}
           visualLength={visualLength}
@@ -1767,8 +1772,7 @@ export function FibreGeometryScene({
       ) : (
         <CurvedFibreBody
           coreRadius={coreRadius}
-          visualLength={visualLength}
-          fibreRoute={fibreRoute}
+          curve={fibrePath.curve}
           claddingVisible={claddingVisible}
           coreMaterialProps={coreMaterialProps}
         />
@@ -1778,7 +1782,9 @@ export function FibreGeometryScene({
       {pulseMarkers.length > 0 && (
         <SpatialPulseMarkerLayer markers={pulseMarkers} />
       )}
-      {bendMarkers.length > 0 && <SpatialBendMarkerLayer markers={bendMarkers} />}
+      {bendMarkers.length > 0 && (
+        <SpatialBendMarkerLayer markers={bendMarkers} />
+      )}
       <group name="schematic-overlay-frame" position={overlayOrigin}>
         {rayViewEnabled && (
           <EducationalRayLayer
@@ -1870,6 +1876,7 @@ type FibreShowcaseLegendProps = {
   pulseMarkersEnabled: boolean
   attenuation: PowerDistanceData | null
   pulseAnimation: PulseAnimationData | null
+  macrobends: readonly MacrobendInput[] | null
 }
 
 function FibreShowcaseLegend({
@@ -1882,22 +1889,27 @@ function FibreShowcaseLegend({
   pulseMarkersEnabled,
   attenuation,
   pulseAnimation,
+  macrobends,
 }: FibreShowcaseLegendProps) {
+  const fibrePath = buildFibrePath(route, visualLength, macrobends)
   const routeLabel =
-    FIBRE_ROUTE_OPTIONS.find((option) => option.id === route)?.label ?? route
+    fibrePath.source === 'physical_bends'
+      ? 'Configured planar bends'
+      : (FIBRE_ROUTE_OPTIONS.find((option) => option.id === route)?.label ??
+        route)
   const cameraLabel =
     cameraPreset === null
       ? 'Custom'
       : (CAMERA_PRESET_OPTIONS.find((option) => option.id === cameraPreset)
           ?.label ?? cameraPreset)
   const scaleMarkers = scaleMarkersEnabled
-    ? getScaleMarkers(route, visualLength, sectionLengthKm)
+    ? getScaleMarkers(route, visualLength, sectionLengthKm, 5, fibrePath)
     : []
   const powerMarkers = powerIndicatorsEnabled
-    ? getSpatialPowerMarkers(route, visualLength, attenuation)
+    ? getSpatialPowerMarkers(route, visualLength, attenuation, 6, fibrePath)
     : []
   const pulseMarkers = pulseMarkersEnabled
-    ? getSpatialPulseMarkers(route, visualLength, pulseAnimation)
+    ? getSpatialPulseMarkers(route, visualLength, pulseAnimation, fibrePath)
     : []
 
   return (
@@ -1910,7 +1922,14 @@ function FibreShowcaseLegend({
         Route: <strong>{routeLabel}</strong> · Camera:{' '}
         <strong>{cameraLabel}</strong>
       </p>
+      {fibrePath.error !== null && <p role="alert">{fibrePath.error}</p>}
       <ul>
+        {fibrePath.source === 'physical_bends' && (
+          <li>
+            Bend angles and directions define the planar path. Radius uses a
+            normalized display scale.
+          </li>
+        )}
         {scaleMarkersEnabled && (
           <li>
             Scale positions:
@@ -2201,6 +2220,7 @@ export function FibreGeometryView({
         pulseMarkersEnabled={pulseMarkersEnabled}
         attenuation={attenuation}
         pulseAnimation={pulseAnimationForScene}
+        macrobends={macrobends}
       />
 
       {showConfigurationControls && (

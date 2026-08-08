@@ -641,7 +641,6 @@ function phaseToTone(phase: string): PreviewStateTone {
   }
 }
 
-
 function resultMatchesRequest(
   request: PreviewRequest | null,
   result: PreviewResult | null,
@@ -920,7 +919,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [formValues, isM1WorkspaceActive])
+  }, [formValues, isM1WorkspaceActive, macrobends])
 
   const updateNumericField = (field: NumericFormField, value: string) => {
     clearVisualizationData()
@@ -1092,6 +1091,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
             modeProfile={visualizationData?.modeProfile ?? null}
             pulseAnimation={visualizationData?.pulseAnimation ?? null}
             attenuation={visualizationData?.attenuation ?? null}
+            macrobends={macrobends}
             visualizationSettings={visualizationSettings}
             onVisualizationSettingsChange={setVisualizationSettings}
             showConfigurationControls={false}
@@ -1142,7 +1142,9 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
 
   const handleRemoveMacrobend = (index: number) => {
     clearVisualizationData()
-    setMacrobends((current) => current.filter((_, itemIndex) => itemIndex !== index))
+    setMacrobends((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index),
+    )
   }
 
   const inspector =

@@ -13,6 +13,7 @@ type MacrobendLossResult = components['schemas']['MacrobendLossResult']
 function bend(positionFraction: number, suppliedLossDb = 0.4): MacrobendInput {
   return {
     angle_deg: 90,
+    direction: 'left',
     position_fraction: positionFraction,
     radius_mm: 12,
     supplied_loss_db: suppliedLossDb,
@@ -25,7 +26,7 @@ const manifest = {
   limitations: [],
   loss_source: 'user_supplied',
   model_id: 'user_supplied_macrobend_loss',
-  model_version: '1.0.0',
+  model_version: '1.1.0',
 } satisfies components['schemas']['MacrobendLossManifest']
 
 function result(): MacrobendLossResult {
@@ -53,11 +54,15 @@ describe('macrobend contract validation', () => {
   test('accepts empty and strictly ordered input sequences', () => {
     expect(isMacrobendSequence([])).toBe(true)
     expect(isMacrobendSequence([bend(0.2), bend(0.7)])).toBe(true)
+    const legacy = { ...bend(0.4) } as Record<string, unknown>
+    delete legacy.direction
+    expect(isMacrobendSequence([legacy])).toBe(true)
   })
 
   test('rejects duplicate positions, invalid fields, extras, and more than 32 bends', () => {
     expect(isMacrobendSequence([bend(0.2), bend(0.2)])).toBe(false)
     expect(isMacrobendSequence([{ ...bend(0.2), radius_mm: 0 }])).toBe(false)
+    expect(isMacrobendSequence([{ ...bend(0.2), direction: 'up' }])).toBe(false)
     expect(isMacrobendSequence([{ ...bend(0.2), extra: true }])).toBe(false)
     expect(
       isMacrobendSequence(
@@ -74,6 +79,12 @@ describe('macrobend contract validation', () => {
     expect(macrobendInputsMatch(inputs, [bend(0.2), bend(0.7, 0.7)])).toBe(
       false,
     )
+    expect(
+      macrobendInputsMatch(inputs, [
+        bend(0.2),
+        { ...bend(0.7, 0.6), direction: 'right' },
+      ]),
+    ).toBe(false)
   })
 
   test('accepts empty and accumulated passive-loss results', () => {

@@ -41,6 +41,7 @@ type GeometryProps = {
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
   attenuation: PowerDistanceData | null
+  macrobends: readonly components['schemas']['MacrobendInput'][]
 }
 
 vi.mock('./FibreGeometryView', () => ({
@@ -51,6 +52,7 @@ vi.mock('./FibreGeometryView', () => ({
     modeProfile,
     pulseAnimation,
     attenuation,
+    macrobends,
   }: GeometryProps) => (
     <section role="region" aria-label="3D fibre geometry">
       <p>
@@ -95,6 +97,12 @@ vi.mock('./FibreGeometryView', () => ({
         {attenuation === null
           ? 'null'
           : `Distances: ${attenuation.distanceSamplesKm.join(',')} · Powers: ${attenuation.powerSamplesDbm.join(',')}`}
+      </p>
+      <p aria-label="Geometry bends" data-testid="geometry-bends">
+        {macrobends.map(
+          (bend) =>
+            `${bend.position_fraction}:${bend.radius_mm}:${bend.angle_deg}:${bend.direction}`,
+        )}
       </p>
     </section>
   ),
@@ -549,7 +557,7 @@ const attenuationManifest = {
 
 const macrobendManifest = {
   model_id: 'user_supplied_macrobend_loss',
-  model_version: '1.0.0',
+  model_version: '1.1.0',
   loss_source: 'user_supplied',
   aggregation: 'additive_db',
   assumptions: [
@@ -1916,6 +1924,36 @@ describe('Level 1 form', () => {
     expect(new Headers(requestInit?.headers).get('Content-Type')).toBe(
       'application/json',
     )
+  })
+
+  test('passes configured bend geometry to the active scene and preview request', async () => {
+    vi.useFakeTimers()
+    const fetchMock = mockFetch()
+
+    render(<App />)
+    await settleDebounce()
+    const toggle = screen.getByRole('button', {
+      name: 'Macrobends & Bend Loss',
+    })
+    fireEvent.click(toggle)
+    fireEvent.change(screen.getByLabelText('Turn direction'), {
+      target: { value: 'right' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Bend Hotspot' }))
+
+    expect(screen.getByTestId('geometry-bends')).toHaveTextContent(
+      '0.3:15:360:right',
+    )
+    await settleDebounce()
+    expect(previewPayload(fetchMock).section.bends).toEqual([
+      {
+        position_fraction: 0.3,
+        radius_mm: 15,
+        angle_deg: 360,
+        direction: 'right',
+        supplied_loss_db: 0.15,
+      },
+    ])
   })
 
   test('G.652.D changes only its three requested defaults', async () => {

@@ -2,12 +2,17 @@ import { describe, expect, test } from 'vitest'
 
 import {
   buildFibreCurve,
+  buildFibrePath,
+  getFibrePathFrame,
   getCurveMidpoint,
   getScaleMarkers,
   getSpatialPowerMarkers,
   getSpatialPulseMarkers,
+  getSpatialBendMarkers,
   sampleFibrePath,
+  sampleFibrePathFrames,
 } from './fibreShowcase'
+import type { MacrobendInput } from './Level1Form'
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseAnimationData } from './pulseAnimation'
 
@@ -45,6 +50,20 @@ function makeAttenuation(
   }
 }
 
+function bend(
+  direction: 'left' | 'right' = 'left',
+  overrides: Partial<MacrobendInput> = {},
+): MacrobendInput {
+  return {
+    position_fraction: 0.5,
+    radius_mm: 15,
+    angle_deg: 90,
+    direction,
+    supplied_loss_db: 0.2,
+    ...overrides,
+  }
+}
+
 describe('fibreShowcase helpers', () => {
   test('builds curved paths with entrance and exit on the fibre axis', () => {
     const straight = sampleFibrePath('straight', 8, 5)
@@ -75,6 +94,108 @@ describe('fibreShowcase helpers', () => {
     expect(midpoint[0]).toBeCloseTo(expectedMidpoint.x)
     expect(midpoint[1]).toBeCloseTo(expectedMidpoint.y)
     expect(midpoint[2]).toBeCloseTo(expectedMidpoint.z)
+  })
+
+  test('uses configured bends instead of route presets', () => {
+    const bends = [bend()]
+    const straightPath = buildFibrePath('straight', 8, bends)
+    const presetPath = buildFibrePath('s_bend', 8, bends)
+
+    expect(straightPath.source).toBe('physical_bends')
+    expect(presetPath.source).toBe('physical_bends')
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      expect(straightPath.curve.getPointAt(t).toArray()).toEqual(
+        presetPath.curve.getPointAt(t).toArray(),
+      )
+    }
+  })
+
+  test('mirrors left and right planar bends across the path axis', () => {
+    const left = buildFibrePath('straight', 8, [bend('left')])
+    const right = buildFibrePath('straight', 8, [bend('right')])
+
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+      const leftPoint = left.curve.getPointAt(t)
+      const rightPoint = right.curve.getPointAt(t)
+      expect(leftPoint.x).toBeCloseTo(rightPoint.x)
+      expect(leftPoint.y).toBe(0)
+      expect(rightPoint.y).toBe(0)
+      expect(leftPoint.z).toBeCloseTo(-rightPoint.z)
+    }
+  })
+
+  test('changes the path predictably with radius and angle', () => {
+    const small = buildFibrePath('straight', 8, [
+      bend('left', { radius_mm: 2, angle_deg: 45 }),
+    ])
+    const large = buildFibrePath('straight', 8, [
+      bend('left', { radius_mm: 30, angle_deg: 90 }),
+    ])
+
+    expect(small.bends[0].displayRadius).toBeLessThan(
+      large.bends[0].displayRadius,
+    )
+    expect(getFibrePathFrame(small, 1).tangent[2]).toBeCloseTo(Math.SQRT1_2)
+    const largeExitTangent = getFibrePathFrame(large, 1).tangent
+    expect(largeExitTangent[0]).toBeCloseTo(0)
+    expect(largeExitTangent[1]).toBe(0)
+    expect(largeExitTangent[2]).toBeCloseTo(1)
+  })
+
+  test('keeps path stations and endpoint bends finite', () => {
+    const bends = [
+      bend('left', { position_fraction: 0, angle_deg: 180 }),
+      bend('right', { position_fraction: 1, radius_mm: 30, angle_deg: 360 }),
+    ]
+    const path = buildFibrePath('straight', 8, bends)
+    const markers = getSpatialBendMarkers('straight', 8, bends, path)
+
+    expect(markers.map((marker) => marker.positionFraction)).toEqual([0, 1])
+    expect(
+      markers.every((marker) =>
+        marker.quaternion.every((value) => Number.isFinite(value)),
+      ),
+    ).toBe(true)
+    expect(
+      sampleFibrePath('straight', 8, 33, path).every((sample) =>
+        sample.position.every(Number.isFinite),
+      ),
+    ).toBe(true)
+  })
+
+  test('returns continuous orthonormal planar path frames', () => {
+    const path = buildFibrePath('straight', 8, [
+      bend('left', { position_fraction: 0.3, angle_deg: 75 }),
+      bend('right', { position_fraction: 0.7, angle_deg: 110 }),
+    ])
+    const frames = sampleFibrePathFrames(path, 129)
+
+    expect(frames).toHaveLength(129)
+    for (const frame of frames) {
+      const tangentLength = Math.hypot(...frame.tangent)
+      const normalLength = Math.hypot(...frame.normal)
+      const binormalLength = Math.hypot(...frame.binormal)
+      const tangentNormal = frame.tangent.reduce(
+        (sum, value, index) => sum + value * frame.normal[index],
+        0,
+      )
+      expect(tangentLength).toBeCloseTo(1)
+      expect(normalLength).toBeCloseTo(1)
+      expect(binormalLength).toBeCloseTo(1)
+      expect(tangentNormal).toBeCloseTo(0)
+      expect(frame.position.every(Number.isFinite)).toBe(true)
+    }
+
+    const midpoint = getFibrePathFrame(path, 0.5)
+    expect(midpoint.normal).toEqual([0, 1, 0])
+  })
+
+  test('reports invalid physical bend data without using a preset', () => {
+    const invalid = bend('left', { radius_mm: 0 })
+    const path = buildFibrePath('s_bend', 8, [invalid])
+
+    expect(path.source).toBe('invalid_bends')
+    expect(path.error).toContain('invalid physical path data')
   })
 
   test('maps backend power samples onto the displayed path', () => {

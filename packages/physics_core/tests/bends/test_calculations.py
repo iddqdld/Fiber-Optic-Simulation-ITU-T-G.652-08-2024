@@ -6,6 +6,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from fibre_sim.bends import (
+    BendDirection,
     MAX_MACROBENDS,
     MacrobendInput,
     MacrobendLossCalculationError,
@@ -93,6 +94,7 @@ def test_reference_vector_is_exact_and_preserves_all_geometry_metadata() -> None
                 position_fraction=0.5,
                 radius_mm=12.5,
                 angle_deg=180.0,
+                direction="right",
                 supplied_loss_db=0.5,
             ),
             make_bend(
@@ -121,6 +123,7 @@ def test_reference_vector_is_exact_and_preserves_all_geometry_metadata() -> None
             position_fraction=0.5,
             radius_mm=12.5,
             angle_deg=180.0,
+            direction=BendDirection.RIGHT,
             supplied_loss_db=0.5,
             cumulative_bend_loss_db=1.75,
             output_power_dbm=-5.25,
@@ -157,6 +160,9 @@ def test_result_bends_echo_request_in_order_and_obey_sequence_invariants() -> No
     )
     assert tuple(point.angle_deg for point in result.bends) == tuple(
         bend.angle_deg for bend in request.bends
+    )
+    assert tuple(point.direction for point in result.bends) == tuple(
+        bend.direction for bend in request.bends
     )
     assert tuple(point.supplied_loss_db for point in result.bends) == tuple(
         bend.supplied_loss_db for bend in request.bends

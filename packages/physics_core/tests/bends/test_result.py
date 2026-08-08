@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from fibre_sim.bends import (
     MAX_MACROBENDS,
+    BendDirection,
     MacrobendInput,
     MacrobendLossManifest,
     MacrobendLossPoint,
@@ -16,7 +17,7 @@ from fibre_sim.bends import (
 )
 
 ASSUMPTION_TERMS = ("supplied", "loss", "additive", "dB")
-LIMITATION_TERMS = ("radius", "angle", "position")
+LIMITATION_TERMS = ("radius", "angle", "direction", "position")
 
 
 def make_bend(**overrides: object) -> MacrobendInput:
@@ -76,7 +77,7 @@ def test_manifest_has_exact_fields_and_literal_values() -> None:
         "limitations",
     ]
     assert manifest.model_id == "user_supplied_macrobend_loss"
-    assert manifest.model_version == "1.0.0"
+    assert manifest.model_version == "1.1.0"
     assert manifest.loss_source == "user_supplied"
     assert manifest.aggregation == "additive_db"
 
@@ -130,6 +131,7 @@ def test_point_has_exact_fields_and_echoes_bend_metadata() -> None:
         "position_fraction",
         "radius_mm",
         "angle_deg",
+        "direction",
         "supplied_loss_db",
         "cumulative_bend_loss_db",
         "output_power_dbm",
@@ -137,6 +139,7 @@ def test_point_has_exact_fields_and_echoes_bend_metadata() -> None:
     assert point.position_fraction == 0.25
     assert point.radius_mm == 10.0
     assert point.angle_deg == 90.0
+    assert point.direction is BendDirection.LEFT
     assert point.supplied_loss_db == 1.5
     assert point.cumulative_bend_loss_db == 1.5
     assert point.output_power_dbm == -4.5

@@ -166,7 +166,7 @@ def test_result_rejects_bend_power_handoff_and_configuration_mismatches() -> Non
     assert isinstance(configured_bend_loss, dict)
     result_bends = configured_bend_loss["bends"]
     assert isinstance(result_bends, tuple)
-    result_bends[0]["radius_mm"] = 13.0
+    result_bends[0]["direction"] = "right"
 
     with pytest.raises(ValidationError) as configuration_error:
         Level1SimulationResult.model_validate(configured_result_values)

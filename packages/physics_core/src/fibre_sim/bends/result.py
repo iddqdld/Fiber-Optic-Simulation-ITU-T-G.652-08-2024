@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
 from .constants import MAX_MACROBENDS
+from .request import BendDirection
 
 _PositionFraction = Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
 _PositiveFiniteFloat = Annotated[float, Field(strict=True, gt=0, allow_inf_nan=False)]
@@ -25,6 +26,10 @@ class MacrobendLossPoint(BaseModel):
         float,
         Field(strict=True, gt=0, le=360, allow_inf_nan=False),
     ] = Field(description="Macrobend angle in degrees (deg).")
+    direction: BendDirection = Field(
+        default=BendDirection.LEFT,
+        description="Planar turn direction viewed from above the transverse y axis.",
+    )
     supplied_loss_db: _NonNegativeFiniteFloat = Field(
         description="User-supplied macrobend loss in decibels (dB)."
     )
@@ -43,7 +48,7 @@ class MacrobendLossManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["user_supplied_macrobend_loss"] = "user_supplied_macrobend_loss"
-    model_version: Literal["1.0.0"] = "1.0.0"
+    model_version: Literal["1.1.0"] = "1.1.0"
     loss_source: Literal["user_supplied"] = "user_supplied"
     aggregation: Literal["additive_db"] = "additive_db"
     assumptions: tuple[str, ...] = (
@@ -52,8 +57,8 @@ class MacrobendLossManifest(BaseModel):
         "losses are additive in dB",
     )
     limitations: tuple[str, ...] = (
-        "geometry and metadata do not affect or alter supplied loss; radius, angle, and "
-        "position do not derive loss",
+        "geometry and metadata do not affect or alter supplied loss; radius, angle, "
+        "direction, and position do not derive loss",
         "no wavelength/MFD/index/radiation model is included",
         "this is not the G.652 qualification test or conformance",
     )
