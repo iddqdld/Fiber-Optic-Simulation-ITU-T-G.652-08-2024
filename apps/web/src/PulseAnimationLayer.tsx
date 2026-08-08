@@ -3,6 +3,11 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { AdditiveBlending } from 'three'
 
 import {
+  getFibrePathFrame,
+  getTangentQuaternion,
+  type FibrePath,
+} from './fibreShowcase'
+import {
   advancePulseAnimationTime,
   getPulseAnimationProgress,
   getPulseAnimationVisualTransform,
@@ -14,6 +19,7 @@ import {
 export type PulseAnimationLayerProps = {
   data: PulseAnimationData
   visualLength: number
+  path: FibrePath
   isPlaying: boolean
   onComplete: () => void
 }
@@ -21,6 +27,7 @@ export type PulseAnimationLayerProps = {
 export function PulseAnimationRuntime({
   data,
   visualLength,
+  path,
   isPlaying,
   onComplete,
 }: PulseAnimationLayerProps) {
@@ -28,6 +35,7 @@ export function PulseAnimationRuntime({
   const isPlayingRef = useRef(isPlaying)
   const dataRef = useRef(data)
   const visualLengthRef = useRef(visualLength)
+  const pathRef = useRef(path)
   const onCompleteRef = useRef(onComplete)
   const completionNotifiedRef = useRef(false)
   const { invalidate, scene } = useThree()
@@ -43,6 +51,7 @@ export function PulseAnimationRuntime({
   useEffect(() => {
     dataRef.current = data
     visualLengthRef.current = visualLength
+    pathRef.current = path
     elapsedRef.current = 0
     completionNotifiedRef.current = false
 
@@ -50,7 +59,10 @@ export function PulseAnimationRuntime({
 
     if (pulseMesh && isValidPulseAnimationData(data)) {
       const transform = getPulseAnimationVisualTransform(data, visualLength, 0)
-      pulseMesh.position.set(transform.positionX, 0, 0)
+      const frame = getFibrePathFrame(path, 0)
+      const quaternion = getTangentQuaternion(frame.tangent)
+      pulseMesh.position.set(...frame.position)
+      pulseMesh.quaternion.set(...quaternion)
       pulseMesh.scale.set(
         transform.longitudinalScale,
         transform.transverseScale,
@@ -61,7 +73,7 @@ export function PulseAnimationRuntime({
     if (isPlayingRef.current) {
       invalidate()
     }
-  }, [data, invalidate, scene, visualLength])
+  }, [data, invalidate, path, scene, visualLength])
 
   useEffect(() => {
     onCompleteRef.current = onComplete
@@ -83,7 +95,10 @@ export function PulseAnimationRuntime({
     const pulseMesh = scene?.getObjectByName('pulse-envelope')
 
     if (pulseMesh) {
-      pulseMesh.position.set(transform.positionX, 0, 0)
+      const frame = getFibrePathFrame(pathRef.current, transform.progress)
+      const quaternion = getTangentQuaternion(frame.tangent)
+      pulseMesh.position.set(...frame.position)
+      pulseMesh.quaternion.set(...quaternion)
       pulseMesh.scale.set(
         transform.longitudinalScale,
         transform.transverseScale,
@@ -114,6 +129,7 @@ export function PulseAnimationRuntime({
 export function PulseAnimationLayer({
   data,
   visualLength,
+  path,
   isPlaying,
   onComplete,
 }: PulseAnimationLayerProps) {
@@ -126,12 +142,15 @@ export function PulseAnimationLayer({
     visualLength,
     0,
   )
+  const initialFrame = getFibrePathFrame(path, 0)
+  const initialQuaternion = getTangentQuaternion(initialFrame.tangent)
 
   return (
     <group name="pulse-animation-layer">
       <mesh
         name="pulse-envelope"
-        position={[initialTransform.positionX, 0, 0]}
+        position={initialFrame.position}
+        quaternion={initialQuaternion}
         scale={[
           initialTransform.longitudinalScale,
           initialTransform.transverseScale,
@@ -153,6 +172,7 @@ export function PulseAnimationLayer({
       <PulseAnimationRuntime
         data={data}
         visualLength={visualLength}
+        path={path}
         isPlaying={isPlaying}
         onComplete={onComplete}
       />

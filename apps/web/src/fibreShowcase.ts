@@ -1,6 +1,7 @@
-import { CatmullRomCurve3, Curve, Vector3 } from 'three'
+import { CatmullRomCurve3, Curve, Quaternion, Vector3 } from 'three'
 
 import type { MacrobendInput } from './Level1Form'
+import type { MacrobendLossResult } from './macrobend'
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseAnimationData } from './pulseAnimation'
 
@@ -80,6 +81,40 @@ export type FibrePathFrame = {
   tangent: [number, number, number]
   normal: [number, number, number]
   binormal: [number, number, number]
+}
+
+export type LongitudinalSegmentTransform = {
+  length: number
+  position: [number, number, number]
+  quaternion: [number, number, number, number]
+}
+
+export function getLongitudinalSegmentTransform(
+  start: [number, number, number],
+  end: [number, number, number],
+): LongitudinalSegmentTransform {
+  const delta = new Vector3(
+    end[0] - start[0],
+    end[1] - start[1],
+    end[2] - start[2],
+  )
+  const length = delta.length()
+  const quaternion =
+    length > 0
+      ? new Quaternion()
+          .setFromUnitVectors(new Vector3(1, 0, 0), delta.normalize())
+          .toArray()
+      : ([0, 0, 0, 1] as [number, number, number, number])
+
+  return {
+    length,
+    position: [
+      (start[0] + end[0]) / 2,
+      (start[1] + end[1]) / 2,
+      (start[2] + end[2]) / 2,
+    ],
+    quaternion,
+  }
 }
 
 class PhysicalFibreCurve extends Curve<Vector3> {
@@ -796,11 +831,14 @@ export type SpatialBendMarker = {
   tangent: [number, number, number]
   quaternion: [number, number, number, number]
   lossDb: number
+  cumulativeLossDb: number
+  outputPowerDbm: number | null
+  remainingPowerFraction: number
   direction: BendDirection
   displayRadius: number
 }
 
-function tangentQuaternion(
+export function getTangentQuaternion(
   tangent: [number, number, number],
 ): [number, number, number, number] {
   const y = -tangent[2]
@@ -810,7 +848,8 @@ function tangentQuaternion(
   }
 
   const length = Math.hypot(y, w)
-  return [0, y / length, 0, w / length]
+  const normalizedY = y / length
+  return [0, Math.abs(normalizedY) < 1e-15 ? 0 : normalizedY, 0, w / length]
 }
 
 export function getSpatialBendMarkers(
@@ -818,6 +857,7 @@ export function getSpatialBendMarkers(
   visualLength: number,
   macrobends: readonly MacrobendInput[] | null | undefined,
   path = buildFibrePath(route, visualLength, macrobends),
+  bendLoss: MacrobendLossResult | null | undefined = null,
 ): SpatialBendMarker[] {
   if (
     !Number.isFinite(visualLength) ||
@@ -832,13 +872,27 @@ export function getSpatialBendMarkers(
     const t = Math.max(0, Math.min(1, bend.position_fraction))
     const frame = getFibrePathFrame(path, t)
     const pathBend = path.bends.find((item) => item.inputIndex === bendIndex)
+    const lossPoint = bendLoss?.bends[bendIndex]
+    const cumulativeLossDb =
+      lossPoint?.position_fraction === bend.position_fraction
+        ? lossPoint.cumulative_bend_loss_db
+        : macrobends
+            .slice(0, bendIndex + 1)
+            .reduce((total, item) => total + item.supplied_loss_db, 0)
+    const outputPowerDbm =
+      lossPoint?.position_fraction === bend.position_fraction
+        ? lossPoint.output_power_dbm
+        : null
     return {
       id: `bend-${bendIndex}-${bend.position_fraction}`,
       positionFraction: t,
       position: frame.position,
       tangent: frame.tangent,
-      quaternion: tangentQuaternion(frame.tangent),
+      quaternion: getTangentQuaternion(frame.tangent),
       lossDb: bend.supplied_loss_db,
+      cumulativeLossDb,
+      outputPowerDbm,
+      remainingPowerFraction: Math.pow(10, -cumulativeLossDb / 10),
       direction: pathBend?.direction ?? getDirection(bend) ?? 'left',
       displayRadius: pathBend?.displayRadius ?? 0,
     }

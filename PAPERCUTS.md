@@ -15,3 +15,13 @@ I used the configured Playwright browser to verify the 3D bend flow, but its Fir
 I reran React Doctor for changed files, but `npx` queried the npm registry again after it had already installed version 0.9.8. DNS failed with `EAI_AGAIN`, so the repeat needs the cached version in offline mode.
 
 I tried the documented npm offline mode for React Doctor 0.9.8, but `npx` did not retain a usable registry cache entry. The project-local Doctor binary remains the reliable no-network fallback.
+
+I ran Prettier through `npm --prefix apps/web exec`, but its file paths still resolved from the repository root. The command needs repository-relative paths or the `apps/web` working directory.
+
+I tried to record this issue with `yarn papercut`, but the repository still has no root package manifest or `papercut` command. I added the entry directly so the friction record remains complete.
+
+I waited for a guessed pulse-completion phrase in Playwright, but the interface uses different status text. Read the live status before an exact text wait.
+
+I changed into `apps/web` for a scoped lint run but kept an `apps/web` prefix on one search path. Use `src` paths after changing into the frontend directory.
+
+React Doctor succeeded through the package script, but its changed-scope `npx` rerun queried npm again and failed with `EAI_AGAIN`. Use the project-local binary for repeat checks.

@@ -14,6 +14,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { useFrame, useThree } from '@react-three/fiber'
+import type { Curve, Vector3 } from 'three'
 
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({
@@ -55,8 +56,14 @@ import {
   shouldInvalidatePulseAnimationFrame,
 } from './pulseAnimation'
 import { PulseAnimationRuntime } from './PulseAnimationLayer'
+import {
+  buildFibrePath,
+  getFibrePathFrame,
+  getTangentQuaternion,
+} from './fibreShowcase'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { defaultVisualizationSettings } from './visualizationSettings'
+import type { MacrobendInput } from './Level1Form'
 
 type SceneElementProps = {
   args?: unknown[]
@@ -78,6 +85,7 @@ type SceneElementProps = {
   size?: number
   sizeAttenuation?: boolean
   vertexColors?: boolean
+  quaternion?: unknown
 }
 
 function findSceneElement(
@@ -123,6 +131,8 @@ function sceneElements(
     pulseAnimation?: PulseAnimationData | null
     pulseAnimationEnabled?: boolean
     pulseAnimationPlaying?: boolean
+    fibreRoute?: 'straight' | 'gentle_arc' | 's_bend'
+    macrobends?: readonly MacrobendInput[] | null
   } = {},
 ) {
   const scene = FibreGeometryScene({
@@ -453,6 +463,48 @@ describe('FibreGeometryScene', () => {
     expect(findSceneElement(scene, 'spatial-bend-marker-layer')).toBeTruthy()
   })
 
+  test('moves the ray and pulse through the same configured bend path', () => {
+    const bends: MacrobendInput[] = [
+      {
+        position_fraction: 0.5,
+        radius_mm: 15,
+        angle_deg: 90,
+        direction: 'left',
+        supplied_loss_db: 0.2,
+      },
+    ]
+    const path = buildFibrePath('straight', 8, bends)
+    const scene = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      fibreRoute: 'straight',
+      macrobends: bends,
+      fibrePath: path,
+      rayGuidance: {
+        criticalAngleDeg: 80,
+        modelId: 'model',
+        modelVersion: '1.0.0',
+      },
+      incidenceAngleDeg: 86,
+      rayViewEnabled: true,
+      pulseAnimation,
+    })
+    const rayGeometry = findSceneElement(
+      scene,
+      'educational-ray-tir-segment-0-geometry',
+    )
+    const rayCurve = rayGeometry.props.args?.[0] as Curve<Vector3>
+    const rayPoints = Array.from({ length: 17 }, (_, index) =>
+      rayCurve.getPoint(index / 16),
+    )
+    const envelope = findSceneElement(scene, 'pulse-envelope')
+    const entrance = path.curve.getPointAt(0)
+
+    expect(rayPoints.some((point) => Math.abs(point.z) > 0.2)).toBe(true)
+    expect(envelope.props.position).toEqual(entrance.toArray())
+    expect(envelope.props.quaternion).toEqual([0, 0, 0, 1])
+  })
+
   test('keeps standalone power and pulse markers visible through the core', () => {
     const powerScene = FibreGeometryScene({
       coreRadiusUm: 4,
@@ -636,13 +688,16 @@ describe('pulse animation runtime', () => {
     let frameCallback: Parameters<typeof useFrame>[0] | null = null
     const invalidate = vi.fn()
     const positionSet = vi.fn()
+    const quaternionSet = vi.fn()
     const scaleSet = vi.fn()
     const onComplete = vi.fn()
+    const path = buildFibrePath('straight', 8)
     const threeState = {
       invalidate,
       scene: {
         getObjectByName: () => ({
           position: { set: positionSet },
+          quaternion: { set: quaternionSet },
           scale: { set: scaleSet },
         }),
       },
@@ -658,6 +713,7 @@ describe('pulse animation runtime', () => {
       <PulseAnimationRuntime
         data={pulseAnimation}
         visualLength={8}
+        path={path}
         isPlaying={false}
         onComplete={onComplete}
       />,
@@ -666,11 +722,13 @@ describe('pulse animation runtime', () => {
     expect(frameCallback).not.toBeNull()
     expect(invalidate).not.toHaveBeenCalled()
     expect(positionSet).toHaveBeenLastCalledWith(-4, 0, 0)
+    expect(quaternionSet).toHaveBeenLastCalledWith(0, 0, 0, 1)
 
     rerender(
       <PulseAnimationRuntime
         data={pulseAnimation}
         visualLength={8}
+        path={path}
         isPlaying
         onComplete={onComplete}
       />,
@@ -696,6 +754,7 @@ describe('pulse animation runtime', () => {
       <PulseAnimationRuntime
         data={pulseAnimation}
         visualLength={8}
+        path={path}
         isPlaying={false}
         onComplete={onComplete}
       />,
@@ -710,6 +769,7 @@ describe('pulse animation runtime', () => {
       <PulseAnimationRuntime
         data={pulseAnimation}
         visualLength={8}
+        path={path}
         isPlaying
         onComplete={onComplete}
       />,
@@ -728,6 +788,58 @@ describe('pulse animation runtime', () => {
     })
     expect(onComplete).toHaveBeenCalledTimes(1)
     expect(invalidate).toHaveBeenCalledTimes(3)
+  })
+
+  test('uses the configured path position and tangent during playback', () => {
+    let frameCallback: Parameters<typeof useFrame>[0] | null = null
+    const positionSet = vi.fn()
+    const quaternionSet = vi.fn()
+    const path = buildFibrePath('straight', 8, [
+      {
+        position_fraction: 0.5,
+        radius_mm: 15,
+        angle_deg: 90,
+        direction: 'left',
+        supplied_loss_db: 0.2,
+      },
+    ])
+
+    vi.mocked(useFrame).mockImplementation((callback) => {
+      frameCallback = callback
+      return null
+    })
+    vi.mocked(useThree).mockImplementation(
+      () =>
+        ({
+          invalidate: vi.fn(),
+          scene: {
+            getObjectByName: () => ({
+              position: { set: positionSet },
+              quaternion: { set: quaternionSet },
+              scale: { set: vi.fn() },
+            }),
+          },
+        }) as never,
+    )
+
+    render(
+      <PulseAnimationRuntime
+        data={pulseAnimation}
+        visualLength={8}
+        path={path}
+        isPlaying
+        onComplete={vi.fn()}
+      />,
+    )
+    act(() => {
+      frameCallback?.({} as never, 2)
+    })
+
+    const frame = getFibrePathFrame(path, 0.5)
+    expect(positionSet).toHaveBeenLastCalledWith(...frame.position)
+    expect(quaternionSet).toHaveBeenLastCalledWith(
+      ...getTangentQuaternion(frame.tangent),
+    )
   })
 })
 

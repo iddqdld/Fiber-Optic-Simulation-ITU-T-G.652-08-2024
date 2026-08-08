@@ -42,6 +42,7 @@ type GeometryProps = {
   pulseAnimation: PulseAnimationData | null
   attenuation: PowerDistanceData | null
   macrobends: readonly components['schemas']['MacrobendInput'][]
+  bendLoss: components['schemas']['MacrobendLossResult'] | null
 }
 
 vi.mock('./FibreGeometryView', () => ({
@@ -53,6 +54,7 @@ vi.mock('./FibreGeometryView', () => ({
     pulseAnimation,
     attenuation,
     macrobends,
+    bendLoss,
   }: GeometryProps) => (
     <section role="region" aria-label="3D fibre geometry">
       <p>
@@ -103,6 +105,11 @@ vi.mock('./FibreGeometryView', () => ({
           (bend) =>
             `${bend.position_fraction}:${bend.radius_mm}:${bend.angle_deg}:${bend.direction}`,
         )}
+      </p>
+      <p aria-label="Geometry bend result" data-testid="geometry-bend-result">
+        {bendLoss === null
+          ? 'null'
+          : `${bendLoss.total_bend_loss_db}:${bendLoss.output_power_dbm}`}
       </p>
     </section>
   ),
@@ -1928,7 +1935,38 @@ describe('Level 1 form', () => {
 
   test('passes configured bend geometry to the active scene and preview request', async () => {
     vi.useFakeTimers()
-    const fetchMock = mockFetch()
+    const configuredBend = {
+      position_fraction: 0.3,
+      radius_mm: 15,
+      angle_deg: 360,
+      direction: 'right' as const,
+      supplied_loss_db: 0.15,
+    }
+    const bentResult = {
+      ...customResult,
+      configuration: {
+        ...customResult.configuration,
+        section: {
+          ...customResult.configuration.section,
+          bends: [configuredBend],
+        },
+      },
+      bend_loss: {
+        ...customResult.bend_loss,
+        total_bend_loss_db: 0.15,
+        output_power_dbm: -5.65,
+        bends: [
+          {
+            ...configuredBend,
+            cumulative_bend_loss_db: 0.15,
+            output_power_dbm: -5.65,
+          },
+        ],
+      },
+    } satisfies Level1Result
+    const fetchMock = mockFetch({
+      preview: [jsonResponse(customResult), jsonResponse(bentResult)],
+    })
 
     render(<App />)
     await settleDebounce()
@@ -1945,15 +1983,10 @@ describe('Level 1 form', () => {
       '0.3:15:360:right',
     )
     await settleDebounce()
-    expect(previewPayload(fetchMock).section.bends).toEqual([
-      {
-        position_fraction: 0.3,
-        radius_mm: 15,
-        angle_deg: 360,
-        direction: 'right',
-        supplied_loss_db: 0.15,
-      },
-    ])
+    expect(previewPayload(fetchMock).section.bends).toEqual([configuredBend])
+    expect(screen.getByTestId('geometry-bend-result')).toHaveTextContent(
+      '0.15:-5.65',
+    )
   })
 
   test('G.652.D changes only its three requested defaults', async () => {
