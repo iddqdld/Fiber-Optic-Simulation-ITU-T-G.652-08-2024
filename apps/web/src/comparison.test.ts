@@ -76,18 +76,33 @@ const attenuation = {
 } satisfies AttenuationResult
 
 const bendLoss = {
+  beta_per_m: 5_950_000,
+  beta_source: 'scalar_step_index_lp01',
   bends: [],
+  cladding_radius_m: null,
+  core_radius_m: 4.1e-6,
   input_power_dbm: -5,
+  max_local_loss_db_per_m: 0,
+  minimum_bend_radius_m: null,
   model_manifest: {
-    aggregation: 'additive_db',
     assumptions: [],
     limitations: [],
-    loss_source: 'user_supplied',
-    model_id: 'user_supplied_macrobend_loss',
-    model_version: '1.1.0',
+    loss_source: 'calculated',
+    model_id: 'marcuse_lp01_step_index_macrobend',
+    model_version: '1.0.0',
+    path_model: 'piecewise_constant_curvature',
+    references: [],
+    scientific_label: 'Estimated LP01 macrobend radiation loss — Marcuse model',
   },
+  n_cladding: 1.465,
+  n_core: 1.47,
+  numerical_underflow: false,
   output_power_dbm: -5,
   total_bend_loss_db: 0,
+  total_bent_length_m: 0,
+  validity: 'valid',
+  warnings: [],
+  wavelength_m: 1.55e-6,
 } satisfies MacrobendLossResult
 
 const groupDelay = {
@@ -168,7 +183,7 @@ const baseResult = {
   mode_profile: baseModeProfile,
   model_manifest: {
     model_id: 'level1_single_section_simulation',
-    model_version: '1.1.0',
+    model_version: '1.2.0',
     component_model_ids: [],
     assumptions: [],
     limitations: [],

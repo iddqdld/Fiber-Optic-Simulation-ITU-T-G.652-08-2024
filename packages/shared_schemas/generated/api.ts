@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/bends/marcuse/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Marcuse Bend Loss */
+        post: operations["calculate_marcuse_lp01_bend_loss"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/guidance/calculate": {
         parameters: {
             query?: never;
@@ -1266,7 +1283,7 @@ export interface components {
              *       "one uniform fibre section",
              *       "all calculations share one operating wavelength",
              *       "fibre composition is uniform over the section",
-             *       "user-supplied bend losses are applied after straight-fibre attenuation"
+             *       "Marcuse LP01 radiation loss is applied after straight-fibre attenuation"
              *     ]
              */
             assumptions: string[];
@@ -1275,7 +1292,7 @@ export interface components {
             /**
              * Limitations
              * @default [
-             *       "bend geometry does not derive bend loss",
+             *       "bend transitions and coating effects do not derive bend loss",
              *       "excludes splices and connectors",
              *       "excludes polarization-mode dispersion",
              *       "excludes optical nonlinearity",
@@ -1292,10 +1309,10 @@ export interface components {
             model_id: "level1_single_section_simulation";
             /**
              * Model Version
-             * @default 1.1.0
+             * @default 1.2.0
              * @constant
              */
-            model_version: "1.1.0";
+            model_version: "1.2.0";
         };
         /** Level1SimulationRequest */
         Level1SimulationRequest: {
@@ -1481,7 +1498,7 @@ export interface components {
         MacrobendInput: {
             /**
              * Angle Deg
-             * @description Macrobend angle in degrees (deg).
+             * @description Constant-curvature macrobend angle in degrees (deg).
              */
             angle_deg: number;
             /**
@@ -1496,124 +1513,241 @@ export interface components {
             position_fraction: number;
             /**
              * Radius Mm
-             * @description Macrobend bend radius in millimetres (mm).
+             * @description Physical macrobend radius in millimetres (mm).
              */
             radius_mm: number;
-            /**
-             * Supplied Loss Db
-             * @description User-supplied macrobend loss in decibels (dB).
-             */
-            supplied_loss_db: number;
         };
         /** MacrobendLossManifest */
         MacrobendLossManifest: {
             /**
-             * Aggregation
-             * @default additive_db
-             * @constant
-             */
-            aggregation: "additive_db";
-            /**
              * Assumptions
              * @default [
-             *       "each bend loss is user supplied and passive",
-             *       "bends are ordered in the provided propagation order",
-             *       "losses are additive in dB"
+             *       "weakly guiding equivalent step-index fibre",
+             *       "scalar LP01 mode and circular transverse index model",
+             *       "idealized infinite or absorbing cladding treatment",
+             *       "constant curvature within each configured bend"
              *     ]
              */
             assumptions: string[];
             /**
              * Limitations
              * @default [
-             *       "geometry and metadata do not affect or alter supplied loss; radius, angle, direction, and position do not derive loss",
-             *       "no wavelength/MFD/index/radiation model is included",
-             *       "this is not the G.652 qualification test or conformance"
+             *       "analytical engineering estimate, not measured manufacturer bend-loss data",
+             *       "no coating, cable jacket, microbend, or cladding-coating recoupling model",
+             *       "no full-vector bent mode, polarization coupling, or bend stress-optic model",
+             *       "no abrupt bend-transition mode-mismatch loss",
+             *       "fixed-index wavelength sweeps are approximate unless wavelength-dependent indices are supplied",
+             *       "not a G.652 compliance certificate"
              *     ]
              */
             limitations: string[];
             /**
              * Loss Source
-             * @default user_supplied
+             * @default calculated
              * @constant
              */
-            loss_source: "user_supplied";
+            loss_source: "calculated";
             /**
              * Model Id
-             * @default user_supplied_macrobend_loss
+             * @default marcuse_lp01_step_index_macrobend
              * @constant
              */
-            model_id: "user_supplied_macrobend_loss";
+            model_id: "marcuse_lp01_step_index_macrobend";
             /**
              * Model Version
-             * @default 1.1.0
+             * @default 1.0.0
              * @constant
              */
-            model_version: "1.1.0";
+            model_version: "1.0.0";
+            /**
+             * Path Model
+             * @default piecewise_constant_curvature
+             * @constant
+             */
+            path_model: "piecewise_constant_curvature";
+            /**
+             * References
+             * @default [
+             *       "D. Marcuse, JOSA 66(3), 216-220 (1976), DOI 10.1364/JOSA.66.000216",
+             *       "D. Marcuse, JOSA 66(4), 311-320 (1976), DOI 10.1364/JOSA.66.000311"
+             *     ]
+             */
+            references: string[];
+            /**
+             * Scientific Label
+             * @default Estimated LP01 macrobend radiation loss — Marcuse model
+             * @constant
+             */
+            scientific_label: "Estimated LP01 macrobend radiation loss — Marcuse model";
         };
         /** MacrobendLossPoint */
         MacrobendLossPoint: {
-            /**
-             * Angle Deg
-             * @description Macrobend angle in degrees (deg).
-             */
+            /** Alpha Power Per M */
+            alpha_power_per_m: number;
+            /** Angle Deg */
             angle_deg: number;
-            /**
-             * Cumulative Bend Loss Db
-             * @description Cumulative macrobend loss through this point in decibels (dB).
-             */
+            /** Bend Length M */
+            bend_length_m: number;
+            /** Cumulative Bend Loss Db */
             cumulative_bend_loss_db: number;
-            /**
-             * @description Planar turn direction viewed from above the transverse y axis.
-             * @default left
-             */
             direction: components["schemas"]["BendDirection"];
-            /**
-             * Output Power Dbm
-             * @description Output optical power level at this point in decibels referenced to one milliwatt (dBm).
-             */
+            /** Estimated Radiation Loss Db */
+            estimated_radiation_loss_db: number;
+            /** Local Loss Db Per M */
+            local_loss_db_per_m: number;
+            /** Numerical Underflow */
+            numerical_underflow: boolean;
+            /** Output Power Dbm */
             output_power_dbm: number;
-            /**
-             * Position Fraction
-             * @description Macrobend position as a dimensionless fraction of propagation distance.
-             */
+            /** Position Fraction */
             position_fraction: number;
-            /**
-             * Radius Mm
-             * @description Macrobend bend radius in millimetres (mm).
-             */
+            /** Radius Mm */
             radius_mm: number;
+            validity: components["schemas"]["MarcuseModelValidity"];
             /**
-             * Supplied Loss Db
-             * @description User-supplied macrobend loss in decibels (dB).
+             * Warnings
+             * @default []
              */
-            supplied_loss_db: number;
+            warnings: string[];
         };
         /** MacrobendLossRequest */
         MacrobendLossRequest: {
             /**
              * Bends
-             * @description Macrobends in propagation order, with at most 32 entries.
+             * @description Constant-curvature macrobends in propagation order.
              * @default []
              */
             bends: components["schemas"]["MacrobendInput"][];
             /**
-             * Input Power Dbm
-             * @description Input optical power level in decibels referenced to one milliwatt (dBm).
+             * Beta Per M
+             * @default null
              */
+            beta_per_m: number | null;
+            /**
+             * Cladding Radius M
+             * @default null
+             */
+            cladding_radius_m: number | null;
+            /** Core Radius M */
+            core_radius_m: number;
+            /** Input Power Dbm */
             input_power_dbm: number;
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Wavelength M */
+            wavelength_m: number;
         };
         /** MacrobendLossResult */
         MacrobendLossResult: {
             /** Bends */
             bends: components["schemas"]["MacrobendLossPoint"][];
+            /** Beta Per M */
+            beta_per_m: number | null;
+            beta_source: components["schemas"]["PropagationConstantSource"] | null;
+            /** Cladding Radius M */
+            cladding_radius_m: number | null;
+            /** Core Radius M */
+            core_radius_m: number;
             /** Input Power Dbm */
             input_power_dbm: number;
+            /** Max Local Loss Db Per M */
+            max_local_loss_db_per_m: number;
+            /** Minimum Bend Radius M */
+            minimum_bend_radius_m: number | null;
             model_manifest: components["schemas"]["MacrobendLossManifest"];
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Numerical Underflow */
+            numerical_underflow: boolean;
             /** Output Power Dbm */
             output_power_dbm: number;
             /** Total Bend Loss Db */
             total_bend_loss_db: number;
+            /** Total Bent Length M */
+            total_bent_length_m: number;
+            validity: components["schemas"]["MarcuseModelValidity"];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Wavelength M */
+            wavelength_m: number;
         };
+        /** MarcuseBendLossInput */
+        MarcuseBendLossInput: {
+            /** Bend Radius M */
+            bend_radius_m: number;
+            /** Beta Per M */
+            beta_per_m: number;
+            /**
+             * Cladding Radius M
+             * @default null
+             */
+            cladding_radius_m: number | null;
+            /** Core Radius M */
+            core_radius_m: number;
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /** MarcuseBendLossResult */
+        MarcuseBendLossResult: {
+            /** Alpha Power Per M */
+            alpha_power_per_m: number;
+            /** Bend Radius M */
+            bend_radius_m: number;
+            /** Beta Per M */
+            beta_per_m: number;
+            /** Gamma Per M */
+            gamma_per_m: number;
+            /** Kappa Per M */
+            kappa_per_m: number;
+            /** Log Alpha Power Per M */
+            log_alpha_power_per_m: number;
+            /** Loss Db Per M */
+            loss_db_per_m: number;
+            /**
+             * Model
+             * @default marcuse-lp01-step-index
+             * @constant
+             */
+            model: "marcuse-lp01-step-index";
+            /** Numerical Underflow */
+            numerical_underflow: boolean;
+            /**
+             * Scientific Label
+             * @default Estimated LP01 macrobend radiation loss — Marcuse model
+             * @constant
+             */
+            scientific_label: "Estimated LP01 macrobend radiation loss — Marcuse model";
+            /** U Dimensionless */
+            u_dimensionless: number;
+            /** V Number Dimensionless */
+            v_number_dimensionless: number;
+            validity: components["schemas"]["MarcuseModelValidity"];
+            /** W Dimensionless */
+            w_dimensionless: number;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /**
+         * MarcuseModelValidity
+         * @enum {string}
+         */
+        MarcuseModelValidity: "valid" | "warning" | "outside_model_validity";
         /**
          * MaterialConfidence
          * @enum {string}
@@ -2811,6 +2945,11 @@ export interface components {
          * @enum {string}
          */
         PhotoelasticConvention: "p11_p12_strain" | "c1_c2_stress_optic";
+        /**
+         * PropagationConstantSource
+         * @enum {string}
+         */
+        PropagationConstantSource: "existing_effective_index" | "scalar_step_index_lp01";
         /** PulseSeries */
         PulseSeries: {
             /** Power Dbm */
@@ -3107,6 +3246,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    calculate_marcuse_lp01_bend_loss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarcuseBendLossInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarcuseBendLossResult"];
+                };
+            };
+            /** @description Request validation or Marcuse calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     calculate_guidance: {
         parameters: {
             query?: never;

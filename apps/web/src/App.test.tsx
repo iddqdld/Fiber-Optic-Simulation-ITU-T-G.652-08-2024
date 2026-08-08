@@ -520,12 +520,12 @@ const customParameterBoundaries = [
 
 const simulationManifest = {
   model_id: 'level1_single_section_simulation',
-  model_version: '1.1.0',
+  model_version: '1.2.0',
   component_model_ids: [
     'ideal_circular_step_index_guidance',
     'gaussian_lp01_mode_profile',
     'constant_fibre_attenuation',
-    'user_supplied_macrobend_loss',
+    'marcuse_lp01_step_index_macrobend',
     'constant_group_index_delay',
     'first_order_chromatic_pulse_broadening',
   ],
@@ -533,10 +533,10 @@ const simulationManifest = {
     'one uniform fibre section',
     'all calculations share one operating wavelength',
     'fibre composition is uniform over the section',
-    'user-supplied bend losses are applied after straight-fibre attenuation',
+    'Marcuse LP01 radiation loss is applied after straight-fibre attenuation',
   ],
   limitations: [
-    'bend geometry does not derive bend loss',
+    'bend transitions and coating effects do not derive bend loss',
     'excludes splices and connectors',
     'excludes polarization-mode dispersion',
     'excludes optical nonlinearity',
@@ -562,20 +562,28 @@ const attenuationManifest = {
 } satisfies components['schemas']['ConstantAttenuationManifest']
 
 const macrobendManifest = {
-  model_id: 'user_supplied_macrobend_loss',
-  model_version: '1.1.0',
-  loss_source: 'user_supplied',
-  aggregation: 'additive_db',
+  model_id: 'marcuse_lp01_step_index_macrobend',
+  model_version: '1.0.0',
+  loss_source: 'calculated',
+  path_model: 'piecewise_constant_curvature',
   assumptions: [
-    'each bend loss is user supplied and passive',
-    'bends are ordered in the provided propagation order',
-    'losses are additive in dB',
+    'weakly guiding equivalent step-index fibre',
+    'scalar LP01 mode and circular transverse index model',
+    'idealized infinite or absorbing cladding treatment',
+    'constant curvature within each configured bend',
   ],
   limitations: [
-    'geometry and metadata do not affect or alter supplied loss; radius, angle, and position do not derive loss',
-    'no wavelength/MFD/index/radiation model is included',
-    'this is not the G.652 qualification test or conformance',
+    'analytical engineering estimate, not measured manufacturer bend-loss data',
+    'no coating, cable jacket, microbend, or cladding-coating recoupling model',
+    'no full-vector bent mode, polarization coupling, or bend stress-optic model',
+    'no abrupt bend-transition mode-mismatch loss',
+    'not a G.652 compliance certificate',
   ],
+  references: [
+    'D. Marcuse, JOSA 66(3), 216-220 (1976), DOI 10.1364/JOSA.66.000216',
+    'D. Marcuse, JOSA 66(4), 311-320 (1976), DOI 10.1364/JOSA.66.000311',
+  ],
+  scientific_label: 'Estimated LP01 macrobend radiation loss — Marcuse model',
 } satisfies components['schemas']['MacrobendLossManifest']
 
 const groupDelayManifest = {
@@ -673,11 +681,24 @@ const customResult = {
     model_manifest: attenuationManifest,
   },
   bend_loss: {
+    beta_per_m: 5_950_000,
+    beta_source: 'scalar_step_index_lp01',
+    cladding_radius_m: null,
+    core_radius_m: 4.1e-6,
     input_power_dbm: -5.5,
+    max_local_loss_db_per_m: 0,
+    minimum_bend_radius_m: null,
+    n_cladding: 1.465,
+    n_core: 1.47,
+    numerical_underflow: false,
     total_bend_loss_db: 0,
     output_power_dbm: -5.5,
+    total_bent_length_m: 0,
     bends: [],
     model_manifest: macrobendManifest,
+    validity: 'valid',
+    warnings: [],
+    wavelength_m: 1.55e-6,
   },
   group_delay: {
     group_delay_ps: 61209011.468860894,
@@ -1942,7 +1963,6 @@ describe('Level 1 form', () => {
       radius_mm: 15,
       angle_deg: 360,
       direction: 'right' as const,
-      supplied_loss_db: 0.15,
     }
     const bentResult = {
       ...customResult,
@@ -1957,11 +1977,21 @@ describe('Level 1 form', () => {
         ...customResult.bend_loss,
         total_bend_loss_db: 0.15,
         output_power_dbm: -5.65,
+        max_local_loss_db_per_m: 1.5915494309189535,
+        minimum_bend_radius_m: 0.015,
+        total_bent_length_m: 0.09424777960769379,
         bends: [
           {
             ...configuredBend,
+            alpha_power_per_m: 0.36646779943971397,
+            bend_length_m: 0.09424777960769379,
+            local_loss_db_per_m: 1.5915494309189535,
+            estimated_radiation_loss_db: 0.15,
             cumulative_bend_loss_db: 0.15,
+            numerical_underflow: false,
             output_power_dbm: -5.65,
+            validity: 'valid',
+            warnings: [],
           },
         ],
       },
@@ -1973,13 +2003,13 @@ describe('Level 1 form', () => {
     render(<App />)
     await settleDebounce()
     const toggle = screen.getByRole('button', {
-      name: 'Macrobends & Bend Loss',
+      name: 'Macrobends and bend loss',
     })
     fireEvent.click(toggle)
     fireEvent.change(screen.getByLabelText('Turn direction'), {
       target: { value: 'right' },
     })
-    fireEvent.click(screen.getByRole('button', { name: '+ Add Bend Hotspot' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add bend' }))
 
     expect(screen.getByTestId('geometry-bends')).toHaveTextContent(
       '0.3:15:360:right',
@@ -3473,10 +3503,12 @@ describe('Level 1 preview state and results', () => {
     expect(preview).toHaveTextContent('25 ps')
     expect(preview).toHaveTextContent('49.30770730829005 ps')
     expect(preview).toHaveTextContent('level1_single_section_simulation')
-    expect(preview).toHaveTextContent('1.1.0')
+    expect(preview).toHaveTextContent('1.2.0')
     expect(preview).toHaveTextContent('Approximate')
     expect(preview).toHaveTextContent('one uniform fibre section')
-    expect(preview).toHaveTextContent('bend geometry does not derive bend loss')
+    expect(preview).toHaveTextContent(
+      'bend transitions and coating effects do not derive bend loss',
+    )
     expect(preview).toHaveTextContent('excludes splices and connectors')
     const warningsHeading = within(preview).getByRole('heading', {
       name: 'Warnings',

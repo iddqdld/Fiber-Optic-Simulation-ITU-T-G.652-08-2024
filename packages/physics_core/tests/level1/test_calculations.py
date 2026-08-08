@@ -88,13 +88,18 @@ def test_custom_path_reuses_existing_subcalculations_and_manifest_order() -> Non
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
         "constant_fibre_attenuation",
-        "user_supplied_macrobend_loss",
+        "marcuse_lp01_step_index_macrobend",
         "constant_group_index_delay",
         "first_order_chromatic_pulse_broadening",
     )
-    assert result.model_manifest.model_version == "1.1.0"
+    assert result.model_manifest.model_version == "1.2.0"
     assert result.bend_loss == calculate_macrobend_loss(
         MacrobendLossRequest(
+            wavelength_m=request.source.wavelength_nm * 1e-9,
+            core_radius_m=request.fibre.core_radius_um * 1e-6,
+            cladding_radius_m=None,
+            n_core=request.fibre.n_core,
+            n_cladding=request.fibre.n_cladding,
             input_power_dbm=result.attenuation.output_power_dbm,
         )
     )
@@ -109,10 +114,9 @@ def test_multiple_bends_start_after_straight_attenuation_and_conserve_power() ->
                 "position_fraction": position,
                 "radius_mm": 12.0,
                 "angle_deg": 90.0,
-                "supplied_loss_db": loss,
             }
         )
-        for position, loss in ((0.2, 0.4), (0.7, 0.6))
+        for position in (0.2, 0.7)
     )
     request = make_request(bends=bends)
     result = calculate_level1_simulation(request)
@@ -125,6 +129,11 @@ def test_multiple_bends_start_after_straight_attenuation_and_conserve_power() ->
     )
     expected_bend_loss = calculate_macrobend_loss(
         MacrobendLossRequest(
+            wavelength_m=request.source.wavelength_nm * 1e-9,
+            core_radius_m=request.fibre.core_radius_um * 1e-6,
+            cladding_radius_m=None,
+            n_core=request.fibre.n_core,
+            n_cladding=request.fibre.n_cladding,
             input_power_dbm=expected_attenuation.output_power_dbm,
             bends=bends,
         )
@@ -135,9 +144,9 @@ def test_multiple_bends_start_after_straight_attenuation_and_conserve_power() ->
     assert result.attenuation.section_loss_db == 2.5
     assert result.attenuation.output_power_dbm == -5.5
     assert result.bend_loss.input_power_dbm == -5.5
-    assert result.bend_loss.total_bend_loss_db == 1.0
-    assert result.bend_loss.output_power_dbm == -6.5
-    assert result.model_manifest.component_model_ids[3] == "user_supplied_macrobend_loss"
+    assert result.bend_loss.total_bend_loss_db == expected_bend_loss.total_bend_loss_db
+    assert result.bend_loss.output_power_dbm == expected_bend_loss.output_power_dbm
+    assert result.model_manifest.component_model_ids[3] == "marcuse_lp01_step_index_macrobend"
 
 
 def test_result_rejects_bend_power_handoff_and_configuration_mismatches() -> None:
@@ -158,7 +167,6 @@ def test_result_rejects_bend_power_handoff_and_configuration_mismatches() -> Non
             "position_fraction": 0.5,
             "radius_mm": 12.0,
             "angle_deg": 90.0,
-            "supplied_loss_db": 0.4,
         }
     )
     configured_result_values = calculate_level1_simulation(make_request(bends=(bend,))).model_dump()
@@ -190,7 +198,7 @@ def test_g652d_path_runs_standards_and_records_component_order() -> None:
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
         "constant_fibre_attenuation",
-        "user_supplied_macrobend_loss",
+        "marcuse_lp01_step_index_macrobend",
         "constant_group_index_delay",
         "first_order_chromatic_pulse_broadening",
     )
@@ -200,7 +208,7 @@ def test_g652d_path_runs_standards_and_records_component_order() -> None:
         checks.dispersion.model_manifest.model_id,
         checks.attenuation.model_manifest.model_id,
     )
-    assert result.model_manifest.model_version == "1.1.0"
+    assert result.model_manifest.model_version == "1.2.0"
 
 
 def test_g652d_attenuation_not_applicable_warning_follows_guidance_warnings() -> None:

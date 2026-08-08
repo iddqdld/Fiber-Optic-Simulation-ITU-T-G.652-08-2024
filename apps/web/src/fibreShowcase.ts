@@ -831,11 +831,13 @@ export type SpatialBendMarker = {
   tangent: [number, number, number]
   quaternion: [number, number, number, number]
   lossDb: number
+  localLossDbPerM: number
   cumulativeLossDb: number
-  outputPowerDbm: number | null
+  outputPowerDbm: number
   remainingPowerFraction: number
   direction: BendDirection
   displayRadius: number
+  validity: 'valid' | 'warning' | 'outside_model_validity'
 }
 
 export function getTangentQuaternion(
@@ -863,38 +865,40 @@ export function getSpatialBendMarkers(
     !Number.isFinite(visualLength) ||
     visualLength < 0 ||
     !macrobends ||
-    macrobends.length === 0
+    macrobends.length === 0 ||
+    !bendLoss ||
+    bendLoss.bends.length !== macrobends.length
   ) {
     return []
   }
 
-  return macrobends.map((bend, bendIndex) => {
-    const t = Math.max(0, Math.min(1, bend.position_fraction))
-    const frame = getFibrePathFrame(path, t)
-    const pathBend = path.bends.find((item) => item.inputIndex === bendIndex)
-    const lossPoint = bendLoss?.bends[bendIndex]
-    const cumulativeLossDb =
-      lossPoint?.position_fraction === bend.position_fraction
-        ? lossPoint.cumulative_bend_loss_db
-        : macrobends
-            .slice(0, bendIndex + 1)
-            .reduce((total, item) => total + item.supplied_loss_db, 0)
-    const outputPowerDbm =
-      lossPoint?.position_fraction === bend.position_fraction
-        ? lossPoint.output_power_dbm
-        : null
-    return {
-      id: `bend-${bendIndex}-${bend.position_fraction}`,
-      positionFraction: t,
-      position: frame.position,
-      tangent: frame.tangent,
-      quaternion: getTangentQuaternion(frame.tangent),
-      lossDb: bend.supplied_loss_db,
-      cumulativeLossDb,
-      outputPowerDbm,
-      remainingPowerFraction: Math.pow(10, -cumulativeLossDb / 10),
-      direction: pathBend?.direction ?? getDirection(bend) ?? 'left',
-      displayRadius: pathBend?.displayRadius ?? 0,
-    }
-  })
+  return macrobends
+    .map((bend, bendIndex) => {
+      const t = Math.max(0, Math.min(1, bend.position_fraction))
+      const frame = getFibrePathFrame(path, t)
+      const pathBend = path.bends.find((item) => item.inputIndex === bendIndex)
+      const lossPoint = bendLoss.bends[bendIndex]
+      if (lossPoint.position_fraction !== bend.position_fraction) {
+        return null
+      }
+      return {
+        id: `bend-${bendIndex}-${bend.position_fraction}`,
+        positionFraction: t,
+        position: frame.position,
+        tangent: frame.tangent,
+        quaternion: getTangentQuaternion(frame.tangent),
+        lossDb: lossPoint.estimated_radiation_loss_db,
+        localLossDbPerM: lossPoint.local_loss_db_per_m,
+        cumulativeLossDb: lossPoint.cumulative_bend_loss_db,
+        outputPowerDbm: lossPoint.output_power_dbm,
+        remainingPowerFraction: Math.pow(
+          10,
+          -lossPoint.cumulative_bend_loss_db / 10,
+        ),
+        direction: pathBend?.direction ?? getDirection(bend) ?? 'left',
+        displayRadius: pathBend?.displayRadius ?? 0,
+        validity: lossPoint.validity,
+      }
+    })
+    .filter((marker): marker is SpatialBendMarker => marker !== null)
 }

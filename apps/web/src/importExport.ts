@@ -460,9 +460,13 @@ export function exportMacrobendLossCsv(
       'Radius (mm)',
       'Angle (deg)',
       'Direction',
-      'Supplied Loss (dB)',
+      'Bend Length (m)',
+      'Alpha Power (1/m)',
+      'Local Estimated Loss (dB/m)',
+      'Estimated Radiation Loss (dB)',
       'Cumulative Loss (dB)',
       'Output Power (dBm)',
+      'Model Validity',
     ],
   ]
 
@@ -475,9 +479,13 @@ export function exportMacrobendLossCsv(
       String(bend.radius_mm),
       String(bend.angle_deg),
       bend.direction ?? 'left',
-      String(bend.supplied_loss_db),
+      String(bend.bend_length_m),
+      String(bend.alpha_power_per_m),
+      String(bend.local_loss_db_per_m),
+      String(bend.estimated_radiation_loss_db),
       String(bend.cumulative_bend_loss_db),
       String(bend.output_power_dbm),
+      bend.validity,
     ])
   }
 
@@ -487,9 +495,28 @@ export function exportMacrobendLossCsv(
     '-',
     '-',
     '-',
+    String(macrobendResult.total_bent_length_m),
+    '-',
+    String(macrobendResult.max_local_loss_db_per_m),
     '-',
     String(macrobendResult.total_bend_loss_db),
     String(macrobendResult.output_power_dbm),
+    macrobendResult.validity,
+  ])
+
+  rows.push([
+    'MODEL',
+    macrobendResult.model_manifest.scientific_label,
+    String(macrobendResult.wavelength_m),
+    String(macrobendResult.minimum_bend_radius_m ?? ''),
+    macrobendResult.beta_source ?? 'not required for a straight path',
+    '-',
+    '-',
+    '-',
+    '-',
+    '-',
+    '-',
+    '-',
   ])
 
   return rows

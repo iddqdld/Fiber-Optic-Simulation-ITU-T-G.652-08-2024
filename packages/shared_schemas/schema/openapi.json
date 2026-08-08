@@ -2033,7 +2033,7 @@
               "one uniform fibre section",
               "all calculations share one operating wavelength",
               "fibre composition is uniform over the section",
-              "user-supplied bend losses are applied after straight-fibre attenuation"
+              "Marcuse LP01 radiation loss is applied after straight-fibre attenuation"
             ],
             "items": {
               "type": "string"
@@ -2050,7 +2050,7 @@
           },
           "limitations": {
             "default": [
-              "bend geometry does not derive bend loss",
+              "bend transitions and coating effects do not derive bend loss",
               "excludes splices and connectors",
               "excludes polarization-mode dispersion",
               "excludes optical nonlinearity",
@@ -2070,8 +2070,8 @@
             "type": "string"
           },
           "model_version": {
-            "const": "1.1.0",
-            "default": "1.1.0",
+            "const": "1.2.0",
+            "default": "1.2.0",
             "title": "Model Version",
             "type": "string"
           }
@@ -2561,7 +2561,7 @@
         "additionalProperties": false,
         "properties": {
           "angle_deg": {
-            "description": "Macrobend angle in degrees (deg).",
+            "description": "Constant-curvature macrobend angle in degrees (deg).",
             "exclusiveMinimum": 0,
             "maximum": 360,
             "title": "Angle Deg",
@@ -2580,23 +2580,16 @@
             "type": "number"
           },
           "radius_mm": {
-            "description": "Macrobend bend radius in millimetres (mm).",
+            "description": "Physical macrobend radius in millimetres (mm).",
             "exclusiveMinimum": 0,
             "title": "Radius Mm",
-            "type": "number"
-          },
-          "supplied_loss_db": {
-            "description": "User-supplied macrobend loss in decibels (dB).",
-            "minimum": 0,
-            "title": "Supplied Loss Db",
             "type": "number"
           }
         },
         "required": [
           "position_fraction",
           "radius_mm",
-          "angle_deg",
-          "supplied_loss_db"
+          "angle_deg"
         ],
         "title": "MacrobendInput",
         "type": "object"
@@ -2604,17 +2597,12 @@
       "MacrobendLossManifest": {
         "additionalProperties": false,
         "properties": {
-          "aggregation": {
-            "const": "additive_db",
-            "default": "additive_db",
-            "title": "Aggregation",
-            "type": "string"
-          },
           "assumptions": {
             "default": [
-              "each bend loss is user supplied and passive",
-              "bends are ordered in the provided propagation order",
-              "losses are additive in dB"
+              "weakly guiding equivalent step-index fibre",
+              "scalar LP01 mode and circular transverse index model",
+              "idealized infinite or absorbing cladding treatment",
+              "constant curvature within each configured bend"
             ],
             "items": {
               "type": "string"
@@ -2624,9 +2612,12 @@
           },
           "limitations": {
             "default": [
-              "geometry and metadata do not affect or alter supplied loss; radius, angle, direction, and position do not derive loss",
-              "no wavelength/MFD/index/radiation model is included",
-              "this is not the G.652 qualification test or conformance"
+              "analytical engineering estimate, not measured manufacturer bend-loss data",
+              "no coating, cable jacket, microbend, or cladding-coating recoupling model",
+              "no full-vector bent mode, polarization coupling, or bend stress-optic model",
+              "no abrupt bend-transition mode-mismatch loss",
+              "fixed-index wavelength sweeps are approximate unless wavelength-dependent indices are supplied",
+              "not a G.652 compliance certificate"
             ],
             "items": {
               "type": "string"
@@ -2635,21 +2626,44 @@
             "type": "array"
           },
           "loss_source": {
-            "const": "user_supplied",
-            "default": "user_supplied",
+            "const": "calculated",
+            "default": "calculated",
             "title": "Loss Source",
             "type": "string"
           },
           "model_id": {
-            "const": "user_supplied_macrobend_loss",
-            "default": "user_supplied_macrobend_loss",
+            "const": "marcuse_lp01_step_index_macrobend",
+            "default": "marcuse_lp01_step_index_macrobend",
             "title": "Model Id",
             "type": "string"
           },
           "model_version": {
-            "const": "1.1.0",
-            "default": "1.1.0",
+            "const": "1.0.0",
+            "default": "1.0.0",
             "title": "Model Version",
+            "type": "string"
+          },
+          "path_model": {
+            "const": "piecewise_constant_curvature",
+            "default": "piecewise_constant_curvature",
+            "title": "Path Model",
+            "type": "string"
+          },
+          "references": {
+            "default": [
+              "D. Marcuse, JOSA 66(3), 216-220 (1976), DOI 10.1364/JOSA.66.000216",
+              "D. Marcuse, JOSA 66(4), 311-320 (1976), DOI 10.1364/JOSA.66.000311"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "scientific_label": {
+            "const": "Estimated LP01 macrobend radiation loss \u2014 Marcuse model",
+            "default": "Estimated LP01 macrobend radiation loss \u2014 Marcuse model",
+            "title": "Scientific Label",
             "type": "string"
           }
         },
@@ -2659,56 +2673,84 @@
       "MacrobendLossPoint": {
         "additionalProperties": false,
         "properties": {
+          "alpha_power_per_m": {
+            "minimum": 0,
+            "title": "Alpha Power Per M",
+            "type": "number"
+          },
           "angle_deg": {
-            "description": "Macrobend angle in degrees (deg).",
             "exclusiveMinimum": 0,
             "maximum": 360,
             "title": "Angle Deg",
             "type": "number"
           },
+          "bend_length_m": {
+            "exclusiveMinimum": 0,
+            "title": "Bend Length M",
+            "type": "number"
+          },
           "cumulative_bend_loss_db": {
-            "description": "Cumulative macrobend loss through this point in decibels (dB).",
             "minimum": 0,
             "title": "Cumulative Bend Loss Db",
             "type": "number"
           },
           "direction": {
-            "$ref": "#/components/schemas/BendDirection",
-            "default": "left",
-            "description": "Planar turn direction viewed from above the transverse y axis."
+            "$ref": "#/components/schemas/BendDirection"
+          },
+          "estimated_radiation_loss_db": {
+            "minimum": 0,
+            "title": "Estimated Radiation Loss Db",
+            "type": "number"
+          },
+          "local_loss_db_per_m": {
+            "minimum": 0,
+            "title": "Local Loss Db Per M",
+            "type": "number"
+          },
+          "numerical_underflow": {
+            "title": "Numerical Underflow",
+            "type": "boolean"
           },
           "output_power_dbm": {
-            "description": "Output optical power level at this point in decibels referenced to one milliwatt (dBm).",
             "title": "Output Power Dbm",
             "type": "number"
           },
           "position_fraction": {
-            "description": "Macrobend position as a dimensionless fraction of propagation distance.",
             "maximum": 1,
             "minimum": 0,
             "title": "Position Fraction",
             "type": "number"
           },
           "radius_mm": {
-            "description": "Macrobend bend radius in millimetres (mm).",
             "exclusiveMinimum": 0,
             "title": "Radius Mm",
             "type": "number"
           },
-          "supplied_loss_db": {
-            "description": "User-supplied macrobend loss in decibels (dB).",
-            "minimum": 0,
-            "title": "Supplied Loss Db",
-            "type": "number"
+          "validity": {
+            "$ref": "#/components/schemas/MarcuseModelValidity"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
           "position_fraction",
           "radius_mm",
           "angle_deg",
-          "supplied_loss_db",
+          "direction",
+          "bend_length_m",
+          "alpha_power_per_m",
+          "local_loss_db_per_m",
+          "estimated_radiation_loss_db",
           "cumulative_bend_loss_db",
-          "output_power_dbm"
+          "output_power_dbm",
+          "validity",
+          "numerical_underflow"
         ],
         "title": "MacrobendLossPoint",
         "type": "object"
@@ -2718,7 +2760,7 @@
         "properties": {
           "bends": {
             "default": [],
-            "description": "Macrobends in propagation order, with at most 32 entries.",
+            "description": "Constant-curvature macrobends in propagation order.",
             "items": {
               "$ref": "#/components/schemas/MacrobendInput"
             },
@@ -2726,13 +2768,62 @@
             "title": "Bends",
             "type": "array"
           },
+          "beta_per_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Beta Per M"
+          },
+          "cladding_radius_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cladding Radius M"
+          },
+          "core_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Core Radius M",
+            "type": "number"
+          },
           "input_power_dbm": {
-            "description": "Input optical power level in decibels referenced to one milliwatt (dBm).",
             "title": "Input Power Dbm",
+            "type": "number"
+          },
+          "n_cladding": {
+            "exclusiveMinimum": 0,
+            "title": "N Cladding",
+            "type": "number"
+          },
+          "n_core": {
+            "exclusiveMinimum": 0,
+            "title": "N Core",
+            "type": "number"
+          },
+          "wavelength_m": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength M",
             "type": "number"
           }
         },
         "required": [
+          "wavelength_m",
+          "core_radius_m",
+          "n_core",
+          "n_cladding",
           "input_power_dbm"
         ],
         "title": "MacrobendLossRequest",
@@ -2749,12 +2840,82 @@
             "title": "Bends",
             "type": "array"
           },
+          "beta_per_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beta Per M"
+          },
+          "beta_source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PropagationConstantSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cladding_radius_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cladding Radius M"
+          },
+          "core_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Core Radius M",
+            "type": "number"
+          },
           "input_power_dbm": {
             "title": "Input Power Dbm",
             "type": "number"
           },
+          "max_local_loss_db_per_m": {
+            "minimum": 0,
+            "title": "Max Local Loss Db Per M",
+            "type": "number"
+          },
+          "minimum_bend_radius_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Bend Radius M"
+          },
           "model_manifest": {
             "$ref": "#/components/schemas/MacrobendLossManifest"
+          },
+          "n_cladding": {
+            "exclusiveMinimum": 0,
+            "title": "N Cladding",
+            "type": "number"
+          },
+          "n_core": {
+            "exclusiveMinimum": 0,
+            "title": "N Core",
+            "type": "number"
+          },
+          "numerical_underflow": {
+            "title": "Numerical Underflow",
+            "type": "boolean"
           },
           "output_power_dbm": {
             "title": "Output Power Dbm",
@@ -2764,17 +2925,220 @@
             "minimum": 0,
             "title": "Total Bend Loss Db",
             "type": "number"
+          },
+          "total_bent_length_m": {
+            "minimum": 0,
+            "title": "Total Bent Length M",
+            "type": "number"
+          },
+          "validity": {
+            "$ref": "#/components/schemas/MarcuseModelValidity"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wavelength_m": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength M",
+            "type": "number"
           }
         },
         "required": [
+          "wavelength_m",
+          "core_radius_m",
+          "cladding_radius_m",
+          "n_core",
+          "n_cladding",
+          "beta_per_m",
+          "beta_source",
           "input_power_dbm",
+          "total_bent_length_m",
+          "minimum_bend_radius_m",
+          "max_local_loss_db_per_m",
           "total_bend_loss_db",
           "output_power_dbm",
+          "validity",
+          "numerical_underflow",
           "bends",
           "model_manifest"
         ],
         "title": "MacrobendLossResult",
         "type": "object"
+      },
+      "MarcuseBendLossInput": {
+        "additionalProperties": false,
+        "properties": {
+          "bend_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Bend Radius M",
+            "type": "number"
+          },
+          "beta_per_m": {
+            "exclusiveMinimum": 0,
+            "title": "Beta Per M",
+            "type": "number"
+          },
+          "cladding_radius_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cladding Radius M"
+          },
+          "core_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Core Radius M",
+            "type": "number"
+          },
+          "n_cladding": {
+            "exclusiveMinimum": 0,
+            "title": "N Cladding",
+            "type": "number"
+          },
+          "n_core": {
+            "exclusiveMinimum": 0,
+            "title": "N Core",
+            "type": "number"
+          },
+          "wavelength_m": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wavelength_m",
+          "core_radius_m",
+          "n_core",
+          "n_cladding",
+          "beta_per_m",
+          "bend_radius_m"
+        ],
+        "title": "MarcuseBendLossInput",
+        "type": "object"
+      },
+      "MarcuseBendLossResult": {
+        "additionalProperties": false,
+        "properties": {
+          "alpha_power_per_m": {
+            "minimum": 0,
+            "title": "Alpha Power Per M",
+            "type": "number"
+          },
+          "bend_radius_m": {
+            "exclusiveMinimum": 0,
+            "title": "Bend Radius M",
+            "type": "number"
+          },
+          "beta_per_m": {
+            "exclusiveMinimum": 0,
+            "title": "Beta Per M",
+            "type": "number"
+          },
+          "gamma_per_m": {
+            "exclusiveMinimum": 0,
+            "title": "Gamma Per M",
+            "type": "number"
+          },
+          "kappa_per_m": {
+            "exclusiveMinimum": 0,
+            "title": "Kappa Per M",
+            "type": "number"
+          },
+          "log_alpha_power_per_m": {
+            "title": "Log Alpha Power Per M",
+            "type": "number"
+          },
+          "loss_db_per_m": {
+            "minimum": 0,
+            "title": "Loss Db Per M",
+            "type": "number"
+          },
+          "model": {
+            "const": "marcuse-lp01-step-index",
+            "default": "marcuse-lp01-step-index",
+            "title": "Model",
+            "type": "string"
+          },
+          "numerical_underflow": {
+            "title": "Numerical Underflow",
+            "type": "boolean"
+          },
+          "scientific_label": {
+            "const": "Estimated LP01 macrobend radiation loss \u2014 Marcuse model",
+            "default": "Estimated LP01 macrobend radiation loss \u2014 Marcuse model",
+            "title": "Scientific Label",
+            "type": "string"
+          },
+          "u_dimensionless": {
+            "exclusiveMinimum": 0,
+            "title": "U Dimensionless",
+            "type": "number"
+          },
+          "v_number_dimensionless": {
+            "exclusiveMinimum": 0,
+            "title": "V Number Dimensionless",
+            "type": "number"
+          },
+          "validity": {
+            "$ref": "#/components/schemas/MarcuseModelValidity"
+          },
+          "w_dimensionless": {
+            "exclusiveMinimum": 0,
+            "title": "W Dimensionless",
+            "type": "number"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "wavelength_m": {
+            "exclusiveMinimum": 0,
+            "title": "Wavelength M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "wavelength_m",
+          "bend_radius_m",
+          "beta_per_m",
+          "kappa_per_m",
+          "gamma_per_m",
+          "v_number_dimensionless",
+          "u_dimensionless",
+          "w_dimensionless",
+          "alpha_power_per_m",
+          "loss_db_per_m",
+          "log_alpha_power_per_m",
+          "validity",
+          "numerical_underflow"
+        ],
+        "title": "MarcuseBendLossResult",
+        "type": "object"
+      },
+      "MarcuseModelValidity": {
+        "enum": [
+          "valid",
+          "warning",
+          "outside_model_validity"
+        ],
+        "title": "MarcuseModelValidity",
+        "type": "string"
       },
       "MaterialConfidence": {
         "enum": [
@@ -5319,6 +5683,14 @@
         "title": "PhotoelasticConvention",
         "type": "string"
       },
+      "PropagationConstantSource": {
+        "enum": [
+          "existing_effective_index",
+          "scalar_step_index_lp01"
+        ],
+        "title": "PropagationConstantSource",
+        "type": "string"
+      },
       "PulseSeries": {
         "additionalProperties": false,
         "properties": {
@@ -6071,6 +6443,44 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/bends/marcuse/calculate": {
+      "post": {
+        "operationId": "calculate_marcuse_lp01_bend_loss",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarcuseBendLossInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarcuseBendLossResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation or Marcuse calculation failed"
+          }
+        },
+        "summary": "Post Marcuse Bend Loss"
+      }
+    },
     "/api/v1/guidance/calculate": {
       "post": {
         "operationId": "calculate_guidance",

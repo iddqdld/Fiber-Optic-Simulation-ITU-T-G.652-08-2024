@@ -24,6 +24,8 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
         "MacrobendLossPoint",
         "MacrobendLossRequest",
         "MacrobendLossResult",
+        "MarcuseBendLossInput",
+        "MarcuseBendLossResult",
         "ModelManifest",
         "PulseSeries",
         "SimulationConfig",
@@ -53,7 +55,6 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
         "radius_mm",
         "angle_deg",
         "direction",
-        "supplied_loss_db",
     }
     assert schemas["BendDirection"]["enum"] == ["left", "right"]
     assert schemas["MacrobendInput"]["properties"]["direction"]["default"] == "left"
@@ -65,9 +66,25 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
         "$ref": "#/components/schemas/MacrobendLossPoint"
     }
     assert schemas["MacrobendLossManifest"]["properties"]["model_id"]["const"] == (
-        "user_supplied_macrobend_loss"
+        "marcuse_lp01_step_index_macrobend"
     )
-    assert schemas["MacrobendLossManifest"]["properties"]["model_version"]["const"] == ("1.1.0")
+    assert schemas["MacrobendLossManifest"]["properties"]["model_version"]["const"] == "1.0.0"
+    assert schemas["MacrobendLossManifest"]["properties"]["scientific_label"]["const"] == (
+        "Estimated LP01 macrobend radiation loss — Marcuse model"
+    )
+    assert schemas["MarcuseBendLossInput"]["additionalProperties"] is False
+    assert set(schemas["MarcuseBendLossInput"]["properties"]) == {
+        "wavelength_m",
+        "core_radius_m",
+        "cladding_radius_m",
+        "n_core",
+        "n_cladding",
+        "beta_per_m",
+        "bend_radius_m",
+    }
+    assert schemas["MarcuseBendLossResult"]["properties"]["model"]["const"] == (
+        "marcuse-lp01-step-index"
+    )
 
 
 def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
@@ -185,6 +202,7 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         assert name in schemas
 
     assert set(schema["paths"]) == {
+        "/api/v1/bends/marcuse/calculate",
         "/api/v1/health",
         "/api/v1/guidance/calculate",
         "/api/v1/photoelastic/panda/field-map",
@@ -324,6 +342,7 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
     paths = main.app.openapi()["paths"]
 
     assert set(paths) == {
+        "/api/v1/bends/marcuse/calculate",
         "/api/v1/health",
         "/api/v1/guidance/calculate",
         "/api/v1/photoelastic/panda/field-map",
@@ -371,8 +390,29 @@ def test_level1_preview_path_has_exact_operation_and_response_contracts() -> Non
         operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
+
+
+def test_marcuse_bend_path_has_exact_operation_and_response_contracts() -> None:
+    path = main.app.openapi()["paths"]["/api/v1/bends/marcuse/calculate"]
+
+    assert set(path) == {"post"}
+    operation = path["post"]
+    assert operation["operationId"] == "calculate_marcuse_lp01_bend_loss"
+    assert (
+        operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/MarcuseBendLossInput"
+    )
+    assert set(operation["responses"]) == {"200", "422"}
+    assert (
+        operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/MarcuseBendLossResult"
+    )
+    assert (
+        operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/ErrorResponse"
+    )
     assert operation["responses"]["422"]["description"] == (
-        "Request validation or calculation failed"
+        "Request validation or Marcuse calculation failed"
     )
 
 
@@ -673,7 +713,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
     ]
 
     manifest = schemas["Level1SimulationManifest"]
-    assert manifest["properties"]["model_version"]["const"] == "1.1.0"
+    assert manifest["properties"]["model_version"]["const"] == "1.2.0"
     for field in ("component_model_ids", "assumptions", "limitations"):
         assert manifest["properties"][field]["type"] == "array"
         assert manifest["properties"][field]["items"] == {"type": "string"}

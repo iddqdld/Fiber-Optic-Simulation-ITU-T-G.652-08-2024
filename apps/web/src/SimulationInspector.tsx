@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { RayGuidance } from './FibreGeometryView'
 import type { FieldIssues } from './fieldIssues'
+import type { MacrobendLossResult } from './macrobend'
 import {
   Level1Form,
   type CableApplication,
@@ -30,7 +31,7 @@ type SimulationInspectorProps = {
   macrobends?: readonly MacrobendInput[]
   onAddMacrobend?: (bend: MacrobendInput) => void
   onRemoveMacrobend?: (index: number) => void
-  totalBendLossDb?: number | null
+  bendLoss?: MacrobendLossResult | null
 }
 
 export function SimulationInspector({
@@ -49,7 +50,7 @@ export function SimulationInspector({
   macrobends,
   onAddMacrobend,
   onRemoveMacrobend,
-  totalBendLossDb,
+  bendLoss,
 }: SimulationInspectorProps) {
   const [visualizationExpanded, setVisualizationExpanded] = useState(true)
 
@@ -68,7 +69,8 @@ export function SimulationInspector({
         macrobends={macrobends}
         onAddMacrobend={onAddMacrobend}
         onRemoveMacrobend={onRemoveMacrobend}
-        totalBendLossDb={totalBendLossDb}
+        bendLoss={bendLoss}
+        modeRegime={rayGuidance?.modeRegime ?? null}
       />
       <section
         className="level1-inspector-section visualization-section"

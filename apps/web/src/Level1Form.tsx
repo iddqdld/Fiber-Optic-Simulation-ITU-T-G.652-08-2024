@@ -6,6 +6,7 @@ import type {
 } from '../../../packages/shared_schemas/generated/api'
 import type { FieldIssue, FieldIssues } from './fieldIssues'
 import { parseAndValidateConfiguration } from './importExport'
+import type { MacrobendLossResult } from './macrobend'
 import {
   getBoundaryKindLabel,
   getNumericFieldLabel,
@@ -59,7 +60,8 @@ export type Level1FormProps = {
   macrobends?: readonly MacrobendInput[]
   onAddMacrobend?: (bend: MacrobendInput) => void
   onRemoveMacrobend?: (index: number) => void
-  totalBendLossDb?: number | null
+  bendLoss?: MacrobendLossResult | null
+  modeRegime?: 'single_mode' | 'multimode' | null
 }
 
 type NumericInputProps = {
@@ -720,8 +722,20 @@ type MacrobendsSectionProps = {
   macrobends?: readonly MacrobendInput[]
   onAddMacrobend?: (bend: MacrobendInput) => void
   onRemoveMacrobend?: (index: number) => void
-  totalBendLossDb?: number | null
+  bendLoss?: MacrobendLossResult | null
+  modeRegime?: 'single_mode' | 'multimode' | null
+  preset: Preset
   lengthKm?: string
+}
+
+function formatBendValue(value: number, digits = 6): string {
+  if (value === 0) {
+    return '0'
+  }
+  if (Math.abs(value) < 0.001 || Math.abs(value) >= 1e4) {
+    return value.toExponential(3)
+  }
+  return value.toFixed(digits).replace(/\.?0+$/, '')
 }
 
 function MacrobendsInspectorSection({
@@ -730,28 +744,26 @@ function MacrobendsInspectorSection({
   macrobends = [],
   onAddMacrobend,
   onRemoveMacrobend,
-  totalBendLossDb,
+  bendLoss,
+  modeRegime,
+  preset,
   lengthKm,
 }: MacrobendsSectionProps) {
   const [positionPct, setPositionPct] = useState('30')
   const [radiusMm, setRadiusMm] = useState('15')
   const [angleDeg, setAngleDeg] = useState('360')
   const [direction, setDirection] = useState<'left' | 'right'>('left')
-  const [lossDb, setLossDb] = useState('0.15')
 
   const handleAdd = () => {
     const pos = Math.max(0, Math.min(1, (parseFloat(positionPct) || 0) / 100))
     const rad = Math.max(0.1, parseFloat(radiusMm) || 15)
     const ang = Math.max(1, Math.min(360, parseFloat(angleDeg) || 360))
-    const loss = Math.max(0, parseFloat(lossDb) || 0.1)
-
     if (onAddMacrobend !== undefined) {
       onAddMacrobend({
         position_fraction: pos,
         radius_mm: rad,
         angle_deg: ang,
         direction,
-        supplied_loss_db: loss,
       })
     }
   }
@@ -761,17 +773,104 @@ function MacrobendsInspectorSection({
   return (
     <InspectorSection
       id="macrobends"
-      title="Macrobends & Bend Loss"
+      title="Macrobends and bend loss"
       expanded={expanded}
       onToggle={onToggle}
       issues={[]}
     >
       <div className="macrobend-section-content">
-        {totalBendLossDb !== undefined && totalBendLossDb !== null && (
+        {bendLoss !== undefined && bendLoss !== null && (
           <div className="macrobend-total-loss-banner">
-            <span>Total Backend Bend Loss:</span>
-            <strong>{totalBendLossDb.toFixed(3)} dB</strong>
+            <strong>{bendLoss.model_manifest.scientific_label}</strong>
+            <dl className="macrobend-result-facts">
+              <div>
+                <dt>Wavelength</dt>
+                <dd>{formatBendValue(bendLoss.wavelength_m * 1e9, 3)} nm</dd>
+              </div>
+              <div>
+                <dt>Minimum bend radius</dt>
+                <dd>
+                  {bendLoss.minimum_bend_radius_m === null
+                    ? 'Straight path'
+                    : `${formatBendValue(bendLoss.minimum_bend_radius_m * 1e3, 3)} mm`}
+                </dd>
+              </div>
+              <div>
+                <dt>Bent length</dt>
+                <dd>{formatBendValue(bendLoss.total_bent_length_m)} m</dd>
+              </div>
+              <div>
+                <dt>Maximum local loss</dt>
+                <dd>
+                  {formatBendValue(bendLoss.max_local_loss_db_per_m)} dB/m
+                </dd>
+              </div>
+              <div>
+                <dt>Total estimated loss</dt>
+                <dd>{formatBendValue(bendLoss.total_bend_loss_db)} dB</dd>
+              </div>
+              <div>
+                <dt>Input power after straight loss</dt>
+                <dd>{formatBendValue(bendLoss.input_power_dbm, 3)} dBm</dd>
+              </div>
+              <div>
+                <dt>Estimated output power</dt>
+                <dd>{formatBendValue(bendLoss.output_power_dbm, 3)} dBm</dd>
+              </div>
+              <div>
+                <dt>Propagation constant source</dt>
+                <dd>
+                  {bendLoss.beta_source ?? 'Not required for a straight path'}
+                </dd>
+              </div>
+              <div>
+                <dt>Model validity</dt>
+                <dd>{bendLoss.validity.replaceAll('_', ' ')}</dd>
+              </div>
+            </dl>
+            {bendLoss.warnings.length > 0 && (
+              <ul
+                className="macrobend-model-warnings"
+                aria-label="Bend model warnings"
+              >
+                {bendLoss.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            )}
+            <details className="macrobend-scientific-limits">
+              <summary>Scientific assumptions and limits</summary>
+              <p>Model assumptions:</p>
+              <ul>
+                {bendLoss.model_manifest.assumptions.map((assumption) => (
+                  <li key={assumption}>{assumption}</li>
+                ))}
+              </ul>
+              <p>Unsupported effects:</p>
+              <ul>
+                {bendLoss.model_manifest.limitations.map((limitation) => (
+                  <li key={limitation}>{limitation}</li>
+                ))}
+              </ul>
+            </details>
           </div>
+        )}
+
+        <p className="model-note" role="note">
+          Demonstration estimate using project material parameters. This is not
+          measured manufacturer performance or a G.652 compliance certificate.
+        </p>
+        {modeRegime === 'multimode' && (
+          <p className="model-note" role="note">
+            Multimode regime: bend-loss result shown for LP01 component only.
+          </p>
+        )}
+        {preset === 'g652d' && (
+          <p className="model-note macrobend-standard-reference" role="note">
+            ITU-T G.652.D reference limit: ≤ 0.1 dB for 100 turns at 30 mm
+            radius at 1625 nm. This is a standards limit, not a measured or
+            predicted value for this cable.
+          </p>
         )}
 
         <div className="macrobend-add-form">
@@ -825,25 +924,13 @@ function MacrobendsInspectorSection({
                 <option value="right">Right</option>
               </select>
             </div>
-            <div className="form-field level1-inspector-field">
-              <label htmlFor="bend-loss">Loss (dB)</label>
-              <input
-                id="bend-loss"
-                type="number"
-                min="0"
-                max="10"
-                step="0.05"
-                value={lossDb}
-                onChange={(e) => setLossDb(e.target.value)}
-              />
-            </div>
           </div>
           <button
             type="button"
             className="editor-shell-tab macrobend-add-btn"
             onClick={handleAdd}
           >
-            + Add Bend Hotspot
+            + Add bend
           </button>
         </div>
 
@@ -866,7 +953,7 @@ function MacrobendsInspectorSection({
                     className="macrobend-item"
                   >
                     <div className="macrobend-item-details">
-                      <strong>Hotspot #{itemIndex + 1}</strong>
+                      <strong>Bend {itemIndex + 1}</strong>
                       <span>
                         Pos: {pct}% {length > 0 ? `(${distKm} km)` : ''}
                       </span>
@@ -874,9 +961,19 @@ function MacrobendsInspectorSection({
                         r={bend.radius_mm}mm, {bend.angle_deg}°{' '}
                         {(bend.direction ?? 'left').toUpperCase()}
                       </span>
-                      <span className="macrobend-loss-badge">
-                        -{bend.supplied_loss_db} dB
-                      </span>
+                      {bendLoss?.bends[itemIndex] !== undefined && (
+                        <span className="macrobend-loss-badge">
+                          {formatBendValue(
+                            bendLoss.bends[itemIndex]
+                              .estimated_radiation_loss_db,
+                          )}{' '}
+                          dB estimated ·{' '}
+                          {formatBendValue(
+                            bendLoss.bends[itemIndex].local_loss_db_per_m,
+                          )}{' '}
+                          dB/m
+                        </span>
+                      )}
                     </div>
                     {onRemoveMacrobend !== undefined && (
                       <button
@@ -912,7 +1009,8 @@ export function Level1Form({
   macrobends,
   onAddMacrobend,
   onRemoveMacrobend,
-  totalBendLossDb,
+  bendLoss,
+  modeRegime,
 }: Level1FormProps) {
   const [expandedSections, setExpandedSections] = useState<
     Set<InspectorSectionId>
@@ -1029,7 +1127,9 @@ export function Level1Form({
             macrobends={macrobends}
             onAddMacrobend={onAddMacrobend}
             onRemoveMacrobend={onRemoveMacrobend}
-            totalBendLossDb={totalBendLossDb}
+            bendLoss={bendLoss}
+            modeRegime={modeRegime}
+            preset={values.preset}
             lengthKm={values.length_km}
           />
           <NumericalSamplingInspectorSection

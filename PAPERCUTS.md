@@ -1,3 +1,7 @@
+I started the Vite check server inside the restricted sandbox, but local port binding failed with `EPERM`. The live browser check requires the approved unsandboxed development-server command.
+
+I printed only the test exit code and tail, but the command returned a live session ID after its time slice. Printing and polling that session ID is required for long test suites.
+
 I searched several project roots in one command, but the root `package.json` does not exist. The search still returned useful results, but a repository map or root manifest can prevent this path warning.
 
 I tried to record the first issue with `yarn papercut`, but the repository has no root package manifest or `papercut` command. I recorded both issues directly so the required friction log is not lost.
@@ -63,3 +67,13 @@ The Playwright MCP package exists in the npx execution cache, but npm offline mo
 I tried to start Luna agents with `fork_context`, but custom agent types cannot inherit a full-history fork. Start Luna agents with a self-contained prompt and no fork.
 
 I tried to record this issue with `yarn papercut`, but the repository still has no root package manifest or `papercut` command. I added the entry directly so the friction record remains complete.
+I started two Luna audits with full-history context. The launcher rejects a custom agent role with `fork_context`, so Luna prompts must contain their own project context.
+
+I tried to record the Luna launcher issue with `yarn papercut`, but the repository has no root package manifest or `papercut` command. I added both entries directly.
+I checked the installed SciPy version with uv. The default uv cache is read-only in this workspace, so Python commands need `UV_CACHE_DIR=/tmp/fiber-optics-uv-cache`.
+I added SciPy as a direct physics dependency with uv. Workspace resolution tried to fetch unrelated locked packages and failed because sandbox DNS access is disabled.
+I added the scalar LP01 solver and its package export in one patch. The export list used a different order, so the patch failed before it changed either file.
+I ran the first Phase D unit tests. One trend threshold exceeded the actual 80,862-fold ratio, and one fixture passed aggregate-only fields to the local model.
+I added SciPy stubs for strict mypy checks. uv again resolved the full workspace and failed on sandbox DNS before it reached the requested package.
+I added a guided-mode check to the frontend bend validator. A repeated guard pattern placed it in the input-array function, so I moved it to the result function.
+I ran the full backend test suite with quiet output. The command showed four failures, but the captured output ended before every failure detail and final summary.

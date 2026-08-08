@@ -48,6 +48,7 @@ describe('VisualizationInspector', () => {
     expect(screen.getByLabelText('Scale markers')).toBeChecked()
     expect(screen.getByLabelText('Spatial power indicators')).toBeChecked()
     expect(screen.getByLabelText('Spatial pulse markers')).toBeChecked()
+    expect(screen.getByLabelText('Marcuse bend-loss overlay')).toBeChecked()
     expect(screen.getByLabelText('Path style')).toHaveValue('straight')
     expect(screen.getByText('≥ 0.01 normalized intensity')).toBeVisible()
     expect(
@@ -72,6 +73,11 @@ describe('VisualizationInspector', () => {
     fireEvent.click(screen.getByLabelText('Educational ray'))
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ rayViewEnabled: false }),
+    )
+
+    fireEvent.click(screen.getByLabelText('Marcuse bend-loss overlay'))
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ bendLossOverlayEnabled: false }),
     )
 
     fireEvent.change(screen.getByLabelText('Path style'), {

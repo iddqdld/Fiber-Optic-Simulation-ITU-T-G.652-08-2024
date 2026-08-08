@@ -182,6 +182,7 @@ export type FibreGeometrySceneProps = {
   scaleMarkersEnabled?: boolean
   powerIndicatorsEnabled?: boolean
   pulseMarkersEnabled?: boolean
+  bendLossOverlayEnabled?: boolean
   attenuation?: PowerDistanceData | null
   macrobends?: readonly MacrobendInput[] | null
   bendLoss?: MacrobendLossResult | null
@@ -1545,14 +1546,29 @@ function PhotonicLeakageCones({ lossDb }: { lossDb: number }) {
   )
 }
 
-function SpatialBendMarkerLayer({ markers }: { markers: SpatialBendMarker[] }) {
+function BendLossSeverityLayer({ markers }: { markers: SpatialBendMarker[] }) {
+  const maximumLocalLoss = Math.max(
+    0,
+    ...markers.map((marker) => marker.localLossDbPerM),
+  )
   return (
-    <group name="spatial-bend-marker-layer">
+    <group name="marcuse-bend-loss-severity-layer">
       {markers.map((marker, index) => {
-        const lossScale = Math.max(0.4, Math.min(3.0, marker.lossDb / 0.5))
+        const normalizedSeverity =
+          maximumLocalLoss === 0
+            ? 0
+            : Math.log1p(marker.localLossDbPerM) / Math.log1p(maximumLocalLoss)
+        const lossScale = 0.4 + 2.6 * Math.sqrt(normalizedSeverity)
         const clampRadius = 0.52 + lossScale * 0.08
         const clampWidth = 0.18 + lossScale * 0.04
-        const glowColor = marker.lossDb >= 1.0 ? '#ff1a00' : '#ff5500'
+        const glowColor =
+          marker.validity === 'outside_model_validity'
+            ? '#d946ef'
+            : normalizedSeverity > 0.66
+              ? '#ff1a00'
+              : normalizedSeverity > 0.33
+                ? '#ff9f1c'
+                : '#38bdf8'
         const signalOpacity = clamp(
           0.35 + 0.6 * Math.sqrt(marker.remainingPowerFraction),
           0.35,
@@ -1655,6 +1671,7 @@ export function FibreGeometryScene({
   scaleMarkersEnabled = false,
   powerIndicatorsEnabled = false,
   pulseMarkersEnabled = false,
+  bendLossOverlayEnabled = true,
   attenuation = null,
   macrobends = null,
   bendLoss = null,
@@ -1699,13 +1716,15 @@ export function FibreGeometryScene({
         fibrePath,
       )
     : []
-  const bendMarkers = getSpatialBendMarkers(
-    fibreRoute,
-    visualLength,
-    macrobends,
-    fibrePath,
-    bendLoss,
-  )
+  const bendMarkers = bendLossOverlayEnabled
+    ? getSpatialBendMarkers(
+        fibreRoute,
+        visualLength,
+        macrobends,
+        fibrePath,
+        bendLoss,
+      )
+    : []
   const hasOverlay =
     rayViewEnabled ||
     modeFieldGeometry !== null ||
@@ -1740,7 +1759,7 @@ export function FibreGeometryScene({
         <SpatialPulseMarkerLayer markers={pulseMarkers} />
       )}
       {bendMarkers.length > 0 && (
-        <SpatialBendMarkerLayer markers={bendMarkers} />
+        <BendLossSeverityLayer markers={bendMarkers} />
       )}
       {rayViewEnabled && (
         <EducationalRayLayer
@@ -1864,6 +1883,7 @@ type FibreShowcaseLegendProps = {
   scaleMarkersEnabled: boolean
   powerIndicatorsEnabled: boolean
   pulseMarkersEnabled: boolean
+  bendLossOverlayEnabled: boolean
   attenuation: PowerDistanceData | null
   pulseAnimation: PulseAnimationData | null
   macrobends: readonly MacrobendInput[] | null
@@ -1879,6 +1899,7 @@ function FibreShowcaseLegend({
   scaleMarkersEnabled,
   powerIndicatorsEnabled,
   pulseMarkersEnabled,
+  bendLossOverlayEnabled,
   attenuation,
   pulseAnimation,
   macrobends,
@@ -1904,13 +1925,15 @@ function FibreShowcaseLegend({
   const pulseMarkers = pulseMarkersEnabled
     ? getSpatialPulseMarkers(route, visualLength, pulseAnimation, fibrePath)
     : []
-  const bendMarkers = getSpatialBendMarkers(
-    route,
-    visualLength,
-    macrobends,
-    fibrePath,
-    bendLoss,
-  )
+  const bendMarkers = bendLossOverlayEnabled
+    ? getSpatialBendMarkers(
+        route,
+        visualLength,
+        macrobends,
+        fibrePath,
+        bendLoss,
+      )
+    : []
 
   return (
     <aside
@@ -1931,17 +1954,23 @@ function FibreShowcaseLegend({
               normalized display scale.
             </li>
             <li>
-              Backend bend results:
+              Marcuse bend-loss overlay uses local estimated loss in dB/m:
               <ul aria-label="Bend loss values">
                 {bendMarkers.map((marker, index) => (
                   <li key={marker.id}>
-                    Bend {index + 1}: {marker.cumulativeLossDb} dB cumulative
-                    {marker.outputPowerDbm === null
-                      ? ''
-                      : ` · ${marker.outputPowerDbm} dBm output`}
+                    Bend {index + 1}: {formatModeValue(marker.localLossDbPerM)}{' '}
+                    dB/m · {formatModeValue(marker.lossDb)} dB bend loss ·{' '}
+                    {formatModeValue(marker.cumulativeLossDb)} dB cumulative
+                    {' · '}
+                    {formatModeValue(marker.outputPowerDbm)} dBm output
                   </li>
                 ))}
               </ul>
+            </li>
+            <li>
+              Blue-to-red markers show relative local severity. Magenta marks
+              geometry outside model validity. The LP01 field colors do not
+              change.
             </li>
           </>
         )}
@@ -2072,6 +2101,8 @@ export function FibreGeometryView({
   const powerIndicatorsEnabled =
     visualizationSettings?.powerIndicatorsEnabled ?? true
   const pulseMarkersEnabled = visualizationSettings?.pulseMarkersEnabled ?? true
+  const bendLossOverlayEnabled =
+    visualizationSettings?.bendLossOverlayEnabled ?? true
   const updateVisualizationSetting = useCallback(
     <Key extends keyof VisualizationSettings>(
       key: Key,
@@ -2223,6 +2254,7 @@ export function FibreGeometryView({
           scaleMarkersEnabled,
           powerIndicatorsEnabled,
           pulseMarkersEnabled,
+          bendLossOverlayEnabled,
           attenuation,
           macrobends,
           bendLoss,
@@ -2238,6 +2270,7 @@ export function FibreGeometryView({
         scaleMarkersEnabled={scaleMarkersEnabled}
         powerIndicatorsEnabled={powerIndicatorsEnabled}
         pulseMarkersEnabled={pulseMarkersEnabled}
+        bendLossOverlayEnabled={bendLossOverlayEnabled}
         attenuation={attenuation}
         pulseAnimation={pulseAnimationForScene}
         macrobends={macrobends}
@@ -2318,9 +2351,9 @@ export function FibreGeometryView({
 
       <p id="geometry-scale-note" className="geometry-note">
         Radial dimensions are normalized for visibility. The cladding shell is
-        illustrative because no cladding diameter is configured. Longitudinal
-        scale is compressed and not to scale. Curved routes are display-only
-        path styles; they do not change Level 1 physics.
+        illustrative. Longitudinal scale is compressed and not to scale. The
+        preset curve styles are display-only. Configured bend radii and angles
+        drive the Marcuse estimate, while their displayed radii stay normalized.
       </p>
     </section>
   )

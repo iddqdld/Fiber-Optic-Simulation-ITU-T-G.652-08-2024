@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { components } from '../../../packages/shared_schemas/generated/api'
 import type { FormValues } from './Level1Form'
 import {
   downloadFile,
@@ -229,29 +230,57 @@ describe('importExport module', () => {
     const mockMacrobendResult = {
       bends: [
         {
+          alpha_power_per_m: 0.48862373258628533,
           angle_deg: 90,
+          bend_length_m: 0.023561944901923447,
           direction: 'right',
           position_fraction: 0.5,
           radius_mm: 15,
-          supplied_loss_db: 0.05,
+          estimated_radiation_loss_db: 0.05,
+          local_loss_db_per_m: 2.122065907891938,
           cumulative_bend_loss_db: 0.05,
+          numerical_underflow: false,
           output_power_dbm: -3.05,
+          validity: 'valid',
+          warnings: [],
         },
       ],
+      beta_per_m: 5_950_000,
+      beta_source: 'scalar_step_index_lp01',
+      cladding_radius_m: null,
+      core_radius_m: 4.1e-6,
       input_power_dbm: -3,
+      max_local_loss_db_per_m: 2.122065907891938,
+      minimum_bend_radius_m: 0.015,
+      model_manifest: {
+        assumptions: [],
+        limitations: [],
+        loss_source: 'calculated',
+        model_id: 'marcuse_lp01_step_index_macrobend',
+        model_version: '1.0.0',
+        path_model: 'piecewise_constant_curvature',
+        references: [],
+        scientific_label:
+          'Estimated LP01 macrobend radiation loss — Marcuse model',
+      },
+      n_cladding: 1.465,
+      n_core: 1.47,
+      numerical_underflow: false,
       output_power_dbm: -3.05,
       total_bend_loss_db: 0.05,
-      model_manifest: {
-        model_name: 'test',
-        model_version: '1.0.0',
-      },
-    }
+      total_bent_length_m: 0.023561944901923447,
+      validity: 'valid',
+      warnings: [],
+      wavelength_m: 1.55e-6,
+    } satisfies components['schemas']['MacrobendLossResult']
 
     const csvContent = exportMacrobendLossCsv(mockMacrobendResult as never)
     expect(csvContent).toContain(
       'Bend #,Position Fraction,Radius (mm),Angle (deg),Direction',
     )
-    expect(csvContent).toContain('1,0.5,15,90,right,0.05,0.05,-3.05')
+    expect(csvContent).toContain(
+      '1,0.5,15,90,right,0.023561944901923447,0.48862373258628533,2.122065907891938,0.05,0.05,-3.05,valid',
+    )
   })
 
   it('triggers file download without throwing', () => {

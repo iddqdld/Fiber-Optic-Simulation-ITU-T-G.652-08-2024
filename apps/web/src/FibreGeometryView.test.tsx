@@ -15,6 +15,7 @@ import {
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { Curve, Vector3 } from 'three'
+import type { components } from '../../../packages/shared_schemas/generated/api'
 
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({
@@ -63,7 +64,8 @@ import {
 } from './fibreShowcase'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { defaultVisualizationSettings } from './visualizationSettings'
-import type { MacrobendInput } from './Level1Form'
+type MacrobendInput = components['schemas']['MacrobendInput']
+type MacrobendLossResult = components['schemas']['MacrobendLossResult']
 
 type SceneElementProps = {
   args?: unknown[]
@@ -208,6 +210,52 @@ const attenuation = {
   modelId: 'constant_fibre_attenuation',
   modelVersion: '1.0.0',
 } satisfies PowerDistanceData
+
+const bendLoss = {
+  beta_per_m: 5_950_000,
+  beta_source: 'scalar_step_index_lp01',
+  bends: [
+    {
+      alpha_power_per_m: 0.05756462732485114,
+      angle_deg: 90,
+      bend_length_m: 0.023561944901923447,
+      cumulative_bend_loss_db: 0.005890486225480862,
+      direction: 'left',
+      estimated_radiation_loss_db: 0.005890486225480862,
+      local_loss_db_per_m: 0.25,
+      numerical_underflow: false,
+      output_power_dbm: -3.005890486225481,
+      position_fraction: 0.5,
+      radius_mm: 15,
+      validity: 'valid',
+      warnings: [],
+    },
+  ],
+  cladding_radius_m: null,
+  core_radius_m: 4.1e-6,
+  input_power_dbm: -3,
+  max_local_loss_db_per_m: 0.25,
+  minimum_bend_radius_m: 0.015,
+  model_manifest: {
+    assumptions: [],
+    limitations: [],
+    loss_source: 'calculated',
+    model_id: 'marcuse_lp01_step_index_macrobend',
+    model_version: '1.0.0',
+    path_model: 'piecewise_constant_curvature',
+    references: [],
+    scientific_label: 'Estimated LP01 macrobend radiation loss — Marcuse model',
+  },
+  n_cladding: 1.465,
+  n_core: 1.47,
+  numerical_underflow: false,
+  output_power_dbm: -3.005890486225481,
+  total_bend_loss_db: 0.005890486225480862,
+  total_bent_length_m: 0.023561944901923447,
+  validity: 'valid',
+  warnings: [],
+  wavelength_m: 1.55e-6,
+} satisfies MacrobendLossResult
 
 afterEach(() => {
   cleanup()
@@ -487,16 +535,56 @@ describe('FibreGeometryScene', () => {
           radius_mm: 15,
           angle_deg: 90,
           direction: 'right',
-          supplied_loss_db: 0.2,
         },
       ],
+      bendLoss: {
+        ...bendLoss,
+        bends: [{ ...bendLoss.bends[0], direction: 'right' }],
+      },
     })
 
     expect(findSceneElement(scene, 'curved-fibre-body')).toBeTruthy()
     expect(findSceneElement(scene, 'solid-core-geometry').type).toBe(
       'tubeGeometry',
     )
-    expect(findSceneElement(scene, 'spatial-bend-marker-layer')).toBeTruthy()
+    expect(
+      findSceneElement(scene, 'marcuse-bend-loss-severity-layer'),
+    ).toBeTruthy()
+  })
+
+  test('keeps the Marcuse severity layer separate and switchable', () => {
+    const bend: MacrobendInput = {
+      position_fraction: 0.5,
+      radius_mm: 15,
+      angle_deg: 90,
+      direction: 'left',
+    }
+    const enabled = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      rayViewEnabled: false,
+      modeViewEnabled: false,
+      pulseAnimationEnabled: false,
+      macrobends: [bend],
+      bendLoss,
+    })
+    const disabled = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      rayViewEnabled: false,
+      modeViewEnabled: false,
+      pulseAnimationEnabled: false,
+      bendLossOverlayEnabled: false,
+      macrobends: [bend],
+      bendLoss,
+    })
+
+    expect(
+      findSceneElement(enabled, 'marcuse-bend-loss-severity-layer'),
+    ).toBeTruthy()
+    expect(() =>
+      findSceneElement(disabled, 'marcuse-bend-loss-severity-layer'),
+    ).toThrow()
   })
 
   test('moves the ray and pulse through the same configured bend path', () => {
@@ -506,7 +594,6 @@ describe('FibreGeometryScene', () => {
         radius_mm: 15,
         angle_deg: 90,
         direction: 'left',
-        supplied_loss_db: 0.2,
       },
     ]
     const path = buildFibrePath('straight', 8, bends)
@@ -837,7 +924,6 @@ describe('pulse animation runtime', () => {
         radius_mm: 15,
         angle_deg: 90,
         direction: 'left',
-        supplied_loss_db: 0.2,
       },
     ])
 
@@ -997,6 +1083,47 @@ describe('FibreGeometryView', () => {
     ).toHaveTextContent('Output FWHM: 49.30770730829005 ps')
   })
 
+  test('shows calculated local dB/m values in the separate bend severity layer', () => {
+    const bend: MacrobendInput = {
+      position_fraction: 0.5,
+      radius_mm: 15,
+      angle_deg: 90,
+      direction: 'left',
+    }
+    render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={null}
+        modeProfile={null}
+        pulseAnimation={null}
+        macrobends={[bend]}
+        bendLoss={bendLoss}
+        visualizationSettings={{
+          ...defaultVisualizationSettings,
+          rayViewEnabled: false,
+          modeViewEnabled: false,
+          pulseAnimationEnabled: false,
+          scaleMarkersEnabled: false,
+          powerIndicatorsEnabled: false,
+          pulseMarkersEnabled: false,
+          bendLossOverlayEnabled: true,
+        }}
+      />,
+    )
+
+    const legend = screen.getByLabelText('3D showcase legend')
+    expect(legend).toHaveTextContent(
+      'Marcuse bend-loss overlay uses local estimated loss in dB/m:',
+    )
+    expect(
+      within(legend).getByRole('list', { name: 'Bend loss values' }),
+    ).toHaveTextContent('Bend 1: 0.25 dB/m')
+    expect(legend).toHaveTextContent(
+      'Blue-to-red markers show relative local severity',
+    )
+  })
+
   test('handles null entered values and updates the visual length output', () => {
     render(
       <FibreGeometryView
@@ -1022,7 +1149,7 @@ describe('FibreGeometryView', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Radial dimensions are normalized for visibility. The cladding shell is illustrative because no cladding diameter is configured. Longitudinal scale is compressed and not to scale. Curved routes are display-only path styles; they do not change Level 1 physics.',
+        'Radial dimensions are normalized for visibility. The cladding shell is illustrative. Longitudinal scale is compressed and not to scale. The preset curve styles are display-only. Configured bend radii and angles drive the Marcuse estimate, while their displayed radii stay normalized.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByLabelText('Approximate LP01 field')).toBeChecked()

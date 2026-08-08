@@ -144,6 +144,20 @@ export function VisualizationInspector({
           />
           Spatial pulse markers
         </label>
+        <label
+          className="inspector-toggle"
+          htmlFor="inspector-bend-loss-overlay"
+        >
+          <input
+            id="inspector-bend-loss-overlay"
+            type="checkbox"
+            checked={settings.bendLossOverlayEnabled}
+            onChange={(event) =>
+              update('bendLossOverlayEnabled', event.currentTarget.checked)
+            }
+          />
+          Marcuse bend-loss overlay
+        </label>
         <label className="inspector-toggle" htmlFor="inspector-ray-view">
           <input
             id="inspector-ray-view"
@@ -249,8 +263,8 @@ export function VisualizationInspector({
       </dl>
       <p className="inspector-help">
         Visualization controls change display only and do not recalculate the
-        simulation. Curved routes are schematic; power and pulse markers map
-        backend samples onto the displayed path.
+        simulation. Preset routes are schematic. Configured bend geometry drives
+        the Marcuse result, while markers map backend values onto the display.
       </p>
     </div>
   )

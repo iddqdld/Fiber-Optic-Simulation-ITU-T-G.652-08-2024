@@ -293,10 +293,9 @@ def test_sweep_preserves_bends_and_publishes_final_post_bend_power() -> None:
                 "position_fraction": position,
                 "radius_mm": 12.0,
                 "angle_deg": 90.0,
-                "supplied_loss_db": loss,
             }
         )
-        for position, loss in ((0.2, 0.4), (0.7, 0.6))
+        for position in (0.2, 0.7)
     )
     request = make_sweep(
         parameter=Level1SweepParameter.LENGTH_KM,
