@@ -22,6 +22,10 @@ function Harness({
       settings={settings}
       rayGuidance={{
         criticalAngleDeg: 85.27298324998428,
+        modeRegime: 'single_mode',
+        vNumberDimensionless: 2.0133583577642065,
+        modeRegimeCutoffVDimensionless: 2.405,
+        cableCutoffWavelengthMaxNm: null,
         modelId: 'ideal_circular_step_index_guidance',
         modelVersion: '1.0.0',
       }}

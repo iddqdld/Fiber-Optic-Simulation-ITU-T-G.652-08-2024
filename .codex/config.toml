@@ -8,9 +8,8 @@ command = "npx"
 args = [
   "-y",
   "@playwright/mcp@latest",
-  "--headless",
-  "--isolated",
-  "--browser=firefox",
+  "--config",
+  "/home/iddqdld/fiber-optics/.codex/playwright-mcp.json",
 ]
 env = { PLAYWRIGHT_BROWSERS_PATH = "/home/iddqdld/fiber-optics/.playwright-browsers" }
 startup_timeout_sec = 30

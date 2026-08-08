@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
-import { AdditiveBlending, Curve, Vector3 } from 'three'
+import { AdditiveBlending, Curve, DoubleSide, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 import type { MacrobendInput } from './Level1Form'
@@ -16,7 +16,6 @@ import {
   CAMERA_PRESETS,
   CAMERA_PRESET_OPTIONS,
   FIBRE_ROUTE_OPTIONS,
-  getCurveMidpoint,
   getLongitudinalSegmentTransform,
   getScaleMarkers,
   getSpatialBendMarkers,
@@ -28,6 +27,11 @@ import {
   type SpatialBendMarker,
 } from './fibreShowcase'
 import type { MacrobendLossResult } from './macrobend'
+import {
+  getLP01PathFieldGeometry,
+  LP01_PATH_SAMPLE_COUNT,
+  type LP01PathFieldGeometry,
+} from './lp01FieldPath'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { PulseAnimationLayer } from './PulseAnimationLayer'
 import {
@@ -59,15 +63,45 @@ const MAX_RAY_SLOPE = 0.85
 const DEGREES_TO_RADIANS = Math.PI / 180
 const MIN_MODE_GRID_POINTS = 3
 const MAX_MODE_GRID_POINTS = 65
-const MODE_FIELD_POINT_SIZE = 0.12
-const MODE_FIELD_GLOW_POINT_SIZE = 0.22
 const MODE_FIELD_DISPLAY_THRESHOLD = 0.01
-const MODE_FIELD_RADIUS_RING_SEGMENTS = 64
-const MODE_FIELD_RADIUS_RING_THICKNESS = 0.018
 const LEAKAGE_MARKER_COUNT = 7
 const LEAKAGE_MARKER_BASE_SIZE = 0.055
 const MODE_PROFILE_MODEL_ID = 'gaussian_lp01_mode_profile'
 const MODE_PROFILE_MODEL_VERSION = '1.0.0'
+const IDEAL_MODE_REGIME_CUTOFF_V = 2.405
+const LP01_FIELD_VERTEX_SHADER = `
+attribute float normalizedField;
+attribute float normalizedIntensity;
+varying float fieldAmplitude;
+varying float fieldIntensity;
+
+void main() {
+  fieldAmplitude = normalizedField;
+  fieldIntensity = normalizedIntensity;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+const LP01_FIELD_FRAGMENT_SHADER = `
+precision highp float;
+varying float fieldAmplitude;
+varying float fieldIntensity;
+
+vec3 fieldColor(float amplitude) {
+  vec3 low = vec3(0.08, 0.18, 0.58);
+  vec3 middle = vec3(0.12, 0.82, 0.92);
+  vec3 high = vec3(1.0, 0.92, 0.36);
+  return amplitude < 0.5
+    ? mix(low, middle, amplitude * 2.0)
+    : mix(middle, high, (amplitude - 0.5) * 2.0);
+}
+
+void main() {
+  if (fieldIntensity < 0.01) discard;
+  vec3 color = fieldColor(clamp(fieldAmplitude, 0.0, 1.0));
+  float alpha = 0.12 + 0.76 * clamp(fieldIntensity, 0.0, 1.0);
+  gl_FragColor = vec4(color, alpha);
+}
+`
 
 function canRenderWebGL(): boolean {
   if (import.meta.env.MODE === 'test') {
@@ -87,6 +121,10 @@ function canRenderWebGL(): boolean {
 
 export type RayGuidance = {
   criticalAngleDeg: number
+  modeRegime: 'single_mode' | 'multimode'
+  vNumberDimensionless: number
+  modeRegimeCutoffVDimensionless: number
+  cableCutoffWavelengthMaxNm: number | null
   modelId: string
   modelVersion: string
 }
@@ -97,6 +135,7 @@ export type ModeProfileData = {
   gridPoints: number
   xUm: number[]
   yUm: number[]
+  normalizedField: number[][]
   normalizedIntensity: number[][]
   modelId: string
   modelVersion: string
@@ -186,6 +225,19 @@ function isValidRayGuidance(
     Number.isFinite(guidance.criticalAngleDeg) &&
     guidance.criticalAngleDeg > 0 &&
     guidance.criticalAngleDeg < 90 &&
+    (guidance.modeRegime === 'single_mode' ||
+      guidance.modeRegime === 'multimode') &&
+    Number.isFinite(guidance.vNumberDimensionless) &&
+    guidance.vNumberDimensionless > 0 &&
+    Number.isFinite(guidance.modeRegimeCutoffVDimensionless) &&
+    guidance.modeRegimeCutoffVDimensionless === IDEAL_MODE_REGIME_CUTOFF_V &&
+    guidance.modeRegime ===
+      (guidance.vNumberDimensionless < IDEAL_MODE_REGIME_CUTOFF_V
+        ? 'single_mode'
+        : 'multimode') &&
+    (guidance.cableCutoffWavelengthMaxNm === null ||
+      (Number.isFinite(guidance.cableCutoffWavelengthMaxNm) &&
+        guidance.cableCutoffWavelengthMaxNm > 0)) &&
     typeof guidance.modelId === 'string' &&
     guidance.modelId.trim().length > 0 &&
     typeof guidance.modelVersion === 'string' &&
@@ -209,9 +261,11 @@ function isValidModeProfile(
     profile.gridPoints % 2 === 0 ||
     !Array.isArray(profile.xUm) ||
     !Array.isArray(profile.yUm) ||
+    !Array.isArray(profile.normalizedField) ||
     !Array.isArray(profile.normalizedIntensity) ||
     profile.xUm.length !== profile.gridPoints ||
     profile.yUm.length !== profile.gridPoints ||
+    profile.normalizedField.length !== profile.gridPoints ||
     profile.normalizedIntensity.length !== profile.gridPoints ||
     profile.modelId !== MODE_PROFILE_MODEL_ID ||
     profile.modelVersion !== MODE_PROFILE_MODEL_VERSION ||
@@ -224,12 +278,31 @@ function isValidModeProfile(
   return (
     profile.xUm.every((value) => Number.isFinite(value)) &&
     profile.yUm.every((value) => Number.isFinite(value)) &&
+    profile.normalizedField.every(
+      (row) =>
+        Array.isArray(row) &&
+        row.length === profile.gridPoints &&
+        row.every(
+          (value) => Number.isFinite(value) && value >= 0 && value <= 1,
+        ),
+    ) &&
     profile.normalizedIntensity.every(
       (row) =>
         Array.isArray(row) &&
         row.length === profile.gridPoints &&
         row.every(
           (value) => Number.isFinite(value) && value >= 0 && value <= 1,
+        ),
+    ) &&
+    profile.normalizedField.length === profile.normalizedIntensity.length &&
+    profile.normalizedField.every(
+      (row, rowIndex) =>
+        row.length === profile.normalizedIntensity[rowIndex].length &&
+        row.every(
+          (field, columnIndex) =>
+            Math.abs(
+              field ** 2 - profile.normalizedIntensity[rowIndex][columnIndex],
+            ) <= 1e-9,
         ),
     )
   )
@@ -249,93 +322,9 @@ function hasValidPhysicalCoreRadius(
   )
 }
 
-type ModeFieldGeometry = {
-  positions: Float32Array
-  colors: Float32Array
-  intensities: Float32Array
-  sampleCount: number
-}
-
-function getModeFieldColor(intensity: number): [number, number, number] {
-  const t = clamp(intensity, 0, 1)
-
-  if (t < 0.33) {
-    const local = t / 0.33
-    return [0.08 + local * 0.12, 0.12 + local * 0.55, 0.45 + local * 0.45]
-  }
-
-  if (t < 0.66) {
-    const local = (t - 0.33) / 0.33
-    return [0.2 + local * 0.75, 0.67 + local * 0.25, 0.9 - local * 0.55]
-  }
-
-  const local = (t - 0.66) / 0.34
-  return [0.95 + local * 0.05, 0.92 + local * 0.08, 0.35 + local * 0.65]
-}
-
 function getLeakageMarkerColor(progress: number): [number, number, number] {
   const fade = 1 - progress
   return [0.98, 0.35 + fade * 0.25, 0.18 + fade * 0.12]
-}
-
-function getModeFieldGeometry(
-  profile: ModeProfileData | null | undefined,
-  coreRadiusUm: number | null,
-): ModeFieldGeometry | null {
-  if (
-    !isValidModeProfile(profile) ||
-    !hasValidPhysicalCoreRadius(coreRadiusUm)
-  ) {
-    return null
-  }
-
-  const normalizedCoreRadius = getNormalisedCoreRadius(coreRadiusUm)
-  const coordinateScale = normalizedCoreRadius / coreRadiusUm
-  const maximumSampleCount = profile.gridPoints * profile.gridPoints
-  const positions = new Float32Array(maximumSampleCount * 3)
-  const colors = new Float32Array(maximumSampleCount * 3)
-  const intensities = new Float32Array(maximumSampleCount)
-  let sampleIndex = 0
-
-  for (let rowIndex = 0; rowIndex < profile.gridPoints; rowIndex += 1) {
-    const y = profile.yUm[rowIndex]
-    const intensityRow = profile.normalizedIntensity[rowIndex]
-
-    for (
-      let columnIndex = 0;
-      columnIndex < profile.gridPoints;
-      columnIndex += 1
-    ) {
-      const intensity = intensityRow[columnIndex]
-
-      if (intensity < MODE_FIELD_DISPLAY_THRESHOLD) {
-        continue
-      }
-
-      const positionOffset = sampleIndex * 3
-      const [red, green, blue] = getModeFieldColor(intensity)
-
-      positions[positionOffset] = 0
-      positions[positionOffset + 1] = profile.xUm[columnIndex] * coordinateScale
-      positions[positionOffset + 2] = y * coordinateScale
-      colors[positionOffset] = red
-      colors[positionOffset + 1] = green
-      colors[positionOffset + 2] = blue
-      intensities[sampleIndex] = intensity
-      sampleIndex += 1
-    }
-  }
-
-  if (sampleIndex === 0) {
-    return null
-  }
-
-  return {
-    positions: positions.slice(0, sampleIndex * 3),
-    colors: colors.slice(0, sampleIndex * 3),
-    intensities: intensities.slice(0, sampleIndex),
-    sampleCount: sampleIndex,
-  }
 }
 
 function getRayStatus(
@@ -365,6 +354,14 @@ function formatEnteredValue(value: number | null, unit: string): string {
 
 function formatDegrees(value: number): string {
   return `${value.toFixed(1)}°`
+}
+
+function formatModeValue(value: number): string {
+  return Number.parseFloat(value.toPrecision(5)).toString()
+}
+
+function formatModeRegime(regime: RayGuidance['modeRegime']): string {
+  return regime === 'single_mode' ? 'Single-mode' : 'Multimode'
 }
 
 function getSegmentGeometry(start: RayPoint, end: RayPoint) {
@@ -643,126 +640,81 @@ function EducationalRayLayer({
 
 function ApproximateLP01FieldLayer({
   geometry,
-  modeFieldRadiusUm,
-  coreRadiusUm,
+  path,
 }: {
-  geometry: ModeFieldGeometry
-  modeFieldRadiusUm: number
-  coreRadiusUm: number
+  geometry: LP01PathFieldGeometry
+  path: FibrePath
 }) {
-  const ringRadius =
-    (modeFieldRadiusUm / coreRadiusUm) * getNormalisedCoreRadius(coreRadiusUm)
-
   return (
     <group name="approximate-lp01-field-layer">
-      <mesh name="approximate-lp01-field-backdrop" rotation={[0, HALF_TURN, 0]}>
-        <circleGeometry
-          name="approximate-lp01-field-backdrop-geometry"
-          args={[CLADDING_RADIUS * 0.98, 64]}
-        />
-        <meshBasicMaterial
-          name="approximate-lp01-field-backdrop-material"
-          color="#0b1220"
-          transparent
-          opacity={0.55}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>
-      <mesh
-        name="approximate-lp01-field-radius-ring"
-        rotation={[0, HALF_TURN, 0]}
-      >
-        <torusGeometry
-          name="approximate-lp01-field-radius-ring-geometry"
+      <mesh name="approximate-lp01-mode-field-radius-shell">
+        <tubeGeometry
+          name="approximate-lp01-mode-field-radius-shell-geometry"
           args={[
-            ringRadius,
-            MODE_FIELD_RADIUS_RING_THICKNESS,
+            path.curve,
+            geometry.pathSampleCount - 1,
+            geometry.modeFieldRadius,
             12,
-            MODE_FIELD_RADIUS_RING_SEGMENTS,
+            false,
           ]}
         />
         <meshBasicMaterial
-          name="approximate-lp01-field-radius-ring-material"
+          name="approximate-lp01-mode-field-radius-shell-material"
           color="#f8fafc"
           transparent
-          opacity={0.85}
+          opacity={0.12}
           depthWrite={false}
           toneMapped={false}
+          wireframe
         />
       </mesh>
-      <points name="approximate-lp01-field-glow">
-        <bufferGeometry name="approximate-lp01-field-glow-geometry">
-          <bufferAttribute
-            attach="attributes-position"
-            name="approximate-lp01-field-glow-position-attribute"
-            args={[geometry.positions, 3]}
-            array={geometry.positions}
-            count={geometry.sampleCount}
-            itemSize={3}
-          />
-          <bufferAttribute
-            attach="attributes-color"
-            name="approximate-lp01-field-glow-color-attribute"
-            args={[geometry.colors, 3]}
-            array={geometry.colors}
-            count={geometry.sampleCount}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          name="approximate-lp01-field-glow-material"
-          size={MODE_FIELD_GLOW_POINT_SIZE}
-          vertexColors
-          transparent
-          opacity={0.28}
-          depthWrite={false}
-          depthTest={false}
-          sizeAttenuation
-          toneMapped={false}
-          blending={AdditiveBlending}
-        />
-      </points>
-      <points name="approximate-lp01-field">
+      <mesh name="approximate-lp01-field">
         <bufferGeometry name="approximate-lp01-field-geometry">
           <bufferAttribute
             attach="attributes-position"
             name="approximate-lp01-field-position-attribute"
             args={[geometry.positions, 3]}
             array={geometry.positions}
-            count={geometry.sampleCount}
+            count={geometry.vertexCount}
             itemSize={3}
           />
           <bufferAttribute
-            attach="attributes-color"
-            name="approximate-lp01-field-color-attribute"
-            args={[geometry.colors, 3]}
-            array={geometry.colors}
-            count={geometry.sampleCount}
-            itemSize={3}
+            attach="attributes-normalizedField"
+            name="approximate-lp01-field-amplitude-attribute"
+            args={[geometry.normalizedField, 1]}
+            array={geometry.normalizedField}
+            count={geometry.vertexCount}
+            itemSize={1}
           />
           <bufferAttribute
-            attach="attributes-intensity"
+            attach="attributes-normalizedIntensity"
             name="approximate-lp01-field-intensity-attribute"
-            args={[geometry.intensities, 1]}
-            array={geometry.intensities}
-            count={geometry.sampleCount}
+            args={[geometry.normalizedIntensity, 1]}
+            array={geometry.normalizedIntensity}
+            count={geometry.vertexCount}
+            itemSize={1}
+          />
+          <bufferAttribute
+            attach="index"
+            name="approximate-lp01-field-index-attribute"
+            args={[geometry.indices, 1]}
+            array={geometry.indices}
+            count={geometry.indices.length}
             itemSize={1}
           />
         </bufferGeometry>
-        <pointsMaterial
+        <shaderMaterial
           name="approximate-lp01-field-material"
-          size={MODE_FIELD_POINT_SIZE}
-          vertexColors
+          vertexShader={LP01_FIELD_VERTEX_SHADER}
+          fragmentShader={LP01_FIELD_FRAGMENT_SHADER}
           transparent
-          opacity={0.96}
           depthWrite={false}
           depthTest={false}
-          sizeAttenuation
           toneMapped={false}
           blending={AdditiveBlending}
+          side={DoubleSide}
         />
-      </points>
+      </mesh>
     </group>
   )
 }
@@ -771,6 +723,7 @@ type ModeProfilePanelProps = {
   enabled: boolean
   onEnabledChange: (enabled: boolean) => void
   modeProfile: ModeProfileData | null
+  guidance: RayGuidance | null
   coreRadiusUm: number | null
   showToggle: boolean
 }
@@ -779,6 +732,7 @@ function ModeProfilePanel({
   enabled,
   onEnabledChange,
   modeProfile,
+  guidance,
   coreRadiusUm,
   showToggle,
 }: ModeProfilePanelProps) {
@@ -835,16 +789,24 @@ function ModeProfilePanel({
                 </dd>
               </div>
               <div>
-                <dt>Normalized intensity (dimensionless)</dt>
-                <dd>0–1</dd>
+                <dt>Normalized field amplitude</dt>
+                <dd>0–1, shown by color</dd>
               </div>
               <div>
-                <dt>Display threshold</dt>
+                <dt>Normalized intensity</dt>
+                <dd>0–1, shown by opacity</dd>
+              </div>
+              <div>
+                <dt>LP01 visibility floor</dt>
                 <dd>≥ {MODE_FIELD_DISPLAY_THRESHOLD} normalized intensity</dd>
               </div>
               <div>
-                <dt>1/e field-radius ring</dt>
-                <dd>White torus at supplied mode-field radius</dd>
+                <dt>Path stations</dt>
+                <dd>{LP01_PATH_SAMPLE_COUNT}</dd>
+              </div>
+              <div>
+                <dt>1/e field-radius shell</dt>
+                <dd>White wireframe at the supplied radius</dd>
               </div>
               <div>
                 <dt>Approximate model</dt>
@@ -868,16 +830,22 @@ function ModeProfilePanel({
           )}
 
           <p id="mode-profile-explanation" className="mode-profile-explanation">
-            This is a scalar, circularly symmetric Gaussian LP01 approximation
-            reconstructed from backend normalized-intensity samples (related to
-            |E|²). Intensity uses a heat colormap with additive glow; the white
-            ring marks the supplied 1/e field radius (1/e² intensity radius).
-            Samples below 0.01, or 1% of unit peak, are omitted from the display
-            for clarity without changing the backend grid or reported values.
-            This field layer is separate from the educational ray and is not a
-            physical ray path. It is not an exact step-index eigenmode or a
-            full-wave electromagnetic solution.
+            This scalar weak-guidance approximation transports the circular
+            Gaussian LP01 profile along the shared path. Two orthogonal center
+            planes show the circular profile. Color shows normalized field
+            amplitude. Opacity shows normalized intensity, which is proportional
+            to |E|². The white shell marks the supplied 1/e field radius, which
+            is also the 1/e² intensity radius. The shader hides values below
+            0.01 without changing backend data. This layer is not an exact
+            step-index eigenmode or a full-wave electromagnetic solution.
           </p>
+          {isValidRayGuidance(guidance) &&
+            guidance.modeRegime === 'multimode' && (
+              <p className="mode-profile-explanation" role="note">
+                This multimode case shows only the LP01 component. Higher-order
+                modes and source coupling are not part of this phase.
+              </p>
+            )}
         </>
       )}
     </>
@@ -1696,14 +1664,21 @@ export function FibreGeometryScene({
   const visualLength = getVisualLength(visualLengthModelUnits)
   const fibrePath =
     suppliedFibrePath ?? buildFibrePath(fibreRoute, visualLength, macrobends)
-  const modeFieldGeometry = modeViewEnabled
-    ? getModeFieldGeometry(modeProfile, coreRadiusUm)
-    : null
+  const modeFieldGeometry =
+    modeViewEnabled &&
+    isValidModeProfile(modeProfile) &&
+    hasValidPhysicalCoreRadius(coreRadiusUm)
+      ? getLP01PathFieldGeometry(
+          modeProfile,
+          fibrePath,
+          coreRadiusUm,
+          coreRadius,
+        )
+      : null
   const validPulseData = isValidPulseAnimationData(pulseAnimation)
     ? pulseAnimation
     : null
   const pulseAnimationData = pulseAnimationEnabled ? validPulseData : null
-  const overlayOrigin = getCurveMidpoint(fibreRoute, visualLength, fibrePath)
   const scaleMarkers = scaleMarkersEnabled
     ? getScaleMarkers(fibreRoute, visualLength, sectionLengthKm, 5, fibrePath)
     : []
@@ -1777,17 +1752,12 @@ export function FibreGeometryScene({
           bendLoss={bendLoss}
         />
       )}
-      <group name="schematic-overlay-frame" position={overlayOrigin}>
-        {modeFieldGeometry !== null &&
-          isValidModeProfile(modeProfile) &&
-          hasValidPhysicalCoreRadius(coreRadiusUm) && (
-            <ApproximateLP01FieldLayer
-              geometry={modeFieldGeometry}
-              modeFieldRadiusUm={modeProfile.modeFieldRadiusUm}
-              coreRadiusUm={coreRadiusUm}
-            />
-          )}
-      </group>
+      {modeFieldGeometry !== null && (
+        <ApproximateLP01FieldLayer
+          geometry={modeFieldGeometry}
+          path={fibrePath}
+        />
+      )}
       {pulseAnimationData !== null && (
         <PulseAnimationLayer
           key={pulseAnimationResetSignal}
@@ -1809,6 +1779,41 @@ type FibreGeometryViewportProps = {
   sceneProps: FibreGeometrySceneProps
 }
 
+function ModeRegimeOverlay({ guidance }: { guidance: RayGuidance | null }) {
+  if (!isValidRayGuidance(guidance)) {
+    return null
+  }
+
+  return (
+    <dl
+      className="mode-regime-overlay"
+      data-regime={guidance.modeRegime}
+      aria-label="Calculated mode regime"
+    >
+      <div>
+        <dt>Mode regime</dt>
+        <dd>{formatModeRegime(guidance.modeRegime)}</dd>
+      </div>
+      <div>
+        <dt>V-number</dt>
+        <dd>{formatModeValue(guidance.vNumberDimensionless)}</dd>
+      </div>
+      <div>
+        <dt>Ideal step-index boundary</dt>
+        <dd>V = {formatModeValue(guidance.modeRegimeCutoffVDimensionless)}</dd>
+      </div>
+      <div>
+        <dt>G.652.D cable cut-off limit</dt>
+        <dd>
+          {guidance.cableCutoffWavelengthMaxNm === null
+            ? 'Not applied for the custom preset'
+            : `≤ ${formatModeValue(guidance.cableCutoffWavelengthMaxNm)} nm (measurement-based standard limit)`}
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
 function FibreGeometryViewport({
   webglAvailable,
   cameraPreset,
@@ -1817,6 +1822,7 @@ function FibreGeometryViewport({
 }: FibreGeometryViewportProps) {
   return (
     <div className="geometry-viewport">
+      <ModeRegimeOverlay guidance={sceneProps.rayGuidance ?? null} />
       {webglAvailable ? (
         <Canvas
           role="img"
@@ -1982,7 +1988,7 @@ function FibreShowcaseLegend({
           </li>
         )}
         <li>Educational ray and pulse animation follow the displayed path.</li>
-        <li>The LP01 field remains a mid-path transverse slice.</li>
+        <li>The scalar LP01 field follows the displayed path.</li>
       </ul>
     </aside>
   )
@@ -2292,6 +2298,7 @@ export function FibreGeometryView({
           updateVisualizationSetting('modeViewEnabled', enabled)
         }
         modeProfile={modeProfile}
+        guidance={rayGuidance}
         coreRadiusUm={coreRadiusUm}
         showToggle={showConfigurationControls}
       />

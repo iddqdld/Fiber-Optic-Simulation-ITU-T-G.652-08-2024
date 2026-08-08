@@ -1,0 +1,10 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "isolated": true,
+    "launchOptions": {
+      "headless": true,
+      "args": ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+    }
+  }
+}
