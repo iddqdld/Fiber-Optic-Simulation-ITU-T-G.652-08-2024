@@ -1,7 +1,7 @@
 import type { components } from '../../../packages/shared_schemas/generated/api'
 
 type MacrobendInput = components['schemas']['MacrobendInput']
-type MacrobendLossResult = components['schemas']['MacrobendLossResult']
+export type MacrobendLossResult = components['schemas']['MacrobendLossResult']
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null

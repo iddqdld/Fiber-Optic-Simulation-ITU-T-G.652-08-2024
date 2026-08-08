@@ -1,30 +1,33 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
 import { AdditiveBlending, Curve, Vector3 } from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 
 import type { MacrobendInput } from './Level1Form'
 import {
+  buildCriticalRayPath,
+  buildReflectedRayPath,
+  buildTransmittedRayPath,
+  getEducationalRayTubeGeometry,
+  type EducationalRayPoint,
+} from './educationalRayPath'
+import {
   buildFibrePath,
   CAMERA_PRESETS,
   CAMERA_PRESET_OPTIONS,
   FIBRE_ROUTE_OPTIONS,
   getCurveMidpoint,
+  getLongitudinalSegmentTransform,
   getScaleMarkers,
   getSpatialBendMarkers,
   getSpatialPowerMarkers,
   getSpatialPulseMarkers,
   type CameraPresetId,
+  type FibrePath,
   type FibreRouteStyle,
   type SpatialBendMarker,
 } from './fibreShowcase'
+import type { MacrobendLossResult } from './macrobend'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { PulseAnimationLayer } from './PulseAnimationLayer'
 import {
@@ -51,7 +54,6 @@ const DEFAULT_INCIDENCE_ANGLE_DEG = 86
 const MIN_INCIDENCE_ANGLE_DEG = 0
 const MAX_INCIDENCE_ANGLE_DEG = 89.9
 const RAY_THICKNESS = 0.035
-const RAY_EDGE_FACTOR = 0.82
 const MIN_RAY_SLOPE = 0.18
 const MAX_RAY_SLOPE = 0.85
 const DEGREES_TO_RADIANS = Math.PI / 180
@@ -116,6 +118,7 @@ export type FibreGeometryViewProps = {
   pulseAnimation: PulseAnimationData | null
   attenuation?: PowerDistanceData | null
   macrobends?: readonly MacrobendInput[] | null
+  bendLoss?: MacrobendLossResult | null
   visualizationSettings?: VisualizationSettings
   onVisualizationSettingsChange?: (settings: VisualizationSettings) => void
   showConfigurationControls?: boolean
@@ -142,6 +145,8 @@ export type FibreGeometrySceneProps = {
   pulseMarkersEnabled?: boolean
   attenuation?: PowerDistanceData | null
   macrobends?: readonly MacrobendInput[] | null
+  bendLoss?: MacrobendLossResult | null
+  fibrePath?: FibrePath
 }
 
 type RayPoint = [number, number, number]
@@ -363,18 +368,7 @@ function formatDegrees(value: number): string {
 }
 
 function getSegmentGeometry(start: RayPoint, end: RayPoint) {
-  const deltaX = end[0] - start[0]
-  const deltaY = end[1] - start[1]
-
-  return {
-    length: Math.hypot(deltaX, deltaY),
-    position: [
-      (start[0] + end[0]) / 2,
-      (start[1] + end[1]) / 2,
-      (start[2] + end[2]) / 2,
-    ] as RayPoint,
-    rotation: [0, 0, Math.atan2(deltaY, deltaX)] as RayPoint,
-  }
+  return getLongitudinalSegmentTransform(start, end)
 }
 
 function RaySegment({
@@ -384,10 +378,10 @@ function RaySegment({
   color = '#ffe066',
   thickness = RAY_THICKNESS,
 }: RaySegmentProps) {
-  const { length, position, rotation } = getSegmentGeometry(start, end)
+  const { length, position, quaternion } = getSegmentGeometry(start, end)
 
   return (
-    <mesh name={name} position={position} rotation={rotation}>
+    <mesh name={name} position={position} quaternion={quaternion}>
       <boxGeometry
         name={`${name}-geometry`}
         args={[length, thickness, thickness]}
@@ -409,126 +403,106 @@ function getRaySlope(incidenceAngleDeg: number): number {
   )
 }
 
-function ReflectedRay({
-  coreRadius,
-  visualLength,
-  incidenceAngleDeg,
-  macrobends,
+function RayPathMesh({
+  name,
+  points,
+  color = '#ffe066',
+  thickness = RAY_THICKNESS,
+  opacity = 1,
 }: {
-  coreRadius: number
-  visualLength: number
-  incidenceAngleDeg: number
-  macrobends?: readonly MacrobendInput[] | null
+  name: string
+  points: EducationalRayPoint[]
+  color?: string
+  thickness?: number
+  opacity?: number
 }) {
-  const startX = -visualLength / 2 + 0.25
-  const endX = visualLength / 2 - 0.25
-  const totalSpan = endX - startX
-  const upperY = coreRadius * RAY_EDGE_FACTOR
-  const lowerY = -upperY
-  const slope = getRaySlope(incidenceAngleDeg)
-  const segments: ReactNode[] = []
-  let currentX = startX
-  let currentY = lowerY
-  let targetY = upperY
-  let segmentIndex = 0
+  const geometry = getEducationalRayTubeGeometry(points, thickness)
 
-  const bendXs: number[] =
-    macrobends && totalSpan > 0
-      ? macrobends
-          .map(
-            (bend) =>
-              startX +
-              Math.max(0, Math.min(1, bend.position_fraction)) * totalSpan,
-          )
-          .sort((left, right) => left - right)
-      : []
-
-  while (currentX < endX) {
-    const nextBounceX = Math.min(
-      endX,
-      currentX + Math.abs(targetY - currentY) / slope,
-    )
-    const nextBounceY =
-      currentY +
-      (targetY > currentY ? 1 : -1) * slope * (nextBounceX - currentX)
-
-    let nextX = nextBounceX
-    let nextY = nextBounceY
-    let isSplitAtBend = false
-
-    for (const bx of bendXs) {
-      if (bx > currentX + 0.001 && bx < nextBounceX - 0.001) {
-        nextX = bx
-        nextY =
-          currentY + (targetY > currentY ? 1 : -1) * slope * (nextX - currentX)
-        isSplitAtBend = true
-        break
-      }
-    }
-
-    const midXFraction =
-      totalSpan === 0 ? 0 : ((currentX + nextX) / 2 - startX) / totalSpan
-
-    let accumulatedLossDb = 0
-    if (macrobends && macrobends.length > 0) {
-      for (const bend of macrobends) {
-        if (bend.position_fraction <= midXFraction + 0.0001) {
-          accumulatedLossDb += bend.supplied_loss_db
-        }
-      }
-    }
-
-    const dimFactor =
-      accumulatedLossDb > 0
-        ? Math.max(0.35, 0.65 * Math.pow(10, -accumulatedLossDb / 4.0))
-        : 1.0
-    const thickness = RAY_THICKNESS * dimFactor
-    const color =
-      accumulatedLossDb >= 1.0
-        ? '#d92600'
-        : accumulatedLossDb > 0
-          ? '#f25c05'
-          : '#ffe066'
-
-    segments.push(
-      <RaySegment
-        key={`tir-${segmentIndex}`}
-        name={`educational-ray-tir-segment-${segmentIndex}`}
-        start={[currentX, currentY, 0]}
-        end={[nextX, nextY, 0]}
-        color={color}
-        thickness={thickness}
-      />,
-    )
-
-    if (nextX >= endX) {
-      break
-    }
-
-    currentX = nextX
-    currentY = nextY
-    if (!isSplitAtBend) {
-      targetY = targetY === upperY ? lowerY : upperY
-    }
-    segmentIndex += 1
+  if (geometry === null) {
+    return null
   }
 
-  return <group name="educational-ray-tir">{segments}</group>
+  return (
+    <mesh name={name}>
+      <tubeGeometry name={`${name}-geometry`} args={geometry.args} />
+      <meshBasicMaterial
+        name="educational-ray-material"
+        color={color}
+        transparent={opacity < 1}
+        opacity={opacity}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  )
+}
+
+function getLossAppearance(cumulativeLossDb: number) {
+  const remainingPower = Math.pow(10, -cumulativeLossDb / 10)
+  const brightness = clamp(Math.sqrt(remainingPower), 0.35, 1)
+
+  return {
+    thickness: RAY_THICKNESS * (0.55 + 0.45 * brightness),
+    opacity: 0.45 + 0.55 * brightness,
+    color:
+      cumulativeLossDb >= 1
+        ? '#d92600'
+        : cumulativeLossDb > 0
+          ? '#f25c05'
+          : '#ffe066',
+  }
+}
+
+function ReflectedRay({
+  coreRadius,
+  incidenceAngleDeg,
+  path,
+  macrobends,
+  bendLoss,
+}: {
+  coreRadius: number
+  incidenceAngleDeg: number
+  path: FibrePath
+  macrobends?: readonly MacrobendInput[] | null
+  bendLoss?: MacrobendLossResult | null
+}) {
+  const chunks = buildReflectedRayPath(
+    path,
+    coreRadius,
+    getRaySlope(incidenceAngleDeg),
+    macrobends,
+    bendLoss,
+  )
+
+  return (
+    <group name="educational-ray-tir">
+      {chunks.map((chunk, index) => {
+        const appearance = getLossAppearance(chunk.cumulativeLossDb)
+        return (
+          <RayPathMesh
+            key={`${chunk.points[0].t}-${chunk.points.at(-1)?.t}-${chunk.cumulativeLossDb}`}
+            name={`educational-ray-tir-segment-${index}`}
+            points={chunk.points}
+            {...appearance}
+          />
+        )
+      })}
+    </group>
+  )
 }
 
 function CriticalRay({
   coreRadius,
-  visualLength,
+  path,
 }: {
   coreRadius: number
-  visualLength: number
+  path: FibrePath
 }) {
   return (
     <group name="educational-ray-critical-boundary">
-      <RaySegment
+      <RayPathMesh
         name="educational-ray-critical-boundary-segment"
-        start={[-visualLength / 2 + 0.25, coreRadius * 0.98, 0]}
-        end={[visualLength / 2 - 0.25, coreRadius * 0.98, 0]}
+        points={buildCriticalRayPath(path, coreRadius)}
       />
     </group>
   )
@@ -536,60 +510,29 @@ function CriticalRay({
 
 function TransmittedRay({
   coreRadius,
-  visualLength,
+  path,
 }: {
   coreRadius: number
-  visualLength: number
+  path: FibrePath
 }) {
-  const boundaryPoint: RayPoint = [0, coreRadius * 0.98, 0]
-  const exitPoint: RayPoint = [
-    visualLength / 2 - 0.25,
-    CLADDING_RADIUS * 0.72,
-    0,
-  ]
-  const leakageMarkers: ReactNode[] = []
-
-  for (let index = 0; index < LEAKAGE_MARKER_COUNT; index += 1) {
-    const progress = index / (LEAKAGE_MARKER_COUNT - 1)
-    const markerX =
-      boundaryPoint[0] + (exitPoint[0] - boundaryPoint[0]) * progress
-    const markerY =
-      boundaryPoint[1] + (exitPoint[1] - boundaryPoint[1]) * progress
-    const flare = progress * 0.14
-    const [red, green, blue] = getLeakageMarkerColor(progress)
-    const size = LEAKAGE_MARKER_BASE_SIZE * (1.35 - progress * 0.55)
-
-    leakageMarkers.push(
-      <mesh
-        key={`leak-${index}`}
-        name={`educational-ray-leakage-marker-${index}`}
-        position={[markerX, markerY + flare * (index % 2 === 0 ? 1 : -0.35), 0]}
-      >
-        <sphereGeometry
-          name={`educational-ray-leakage-marker-${index}-geometry`}
-          args={[size, 16, 16]}
-        />
-        <meshBasicMaterial
-          name={`educational-ray-leakage-marker-${index}-material`}
-          color={`rgb(${Math.round(red * 255)}, ${Math.round(green * 255)}, ${Math.round(blue * 255)})`}
-          transparent
-          opacity={0.95 - progress * 0.45}
-          depthWrite={false}
-          toneMapped={false}
-        />
-      </mesh>,
-    )
-  }
+  const ray = buildTransmittedRayPath(
+    path,
+    coreRadius,
+    CLADDING_RADIUS,
+    LEAKAGE_MARKER_COUNT,
+  )
 
   return (
     <group name="educational-ray-transmission">
-      <RaySegment
+      <RayPathMesh
         name="educational-ray-transmission-incident-segment"
-        start={[-visualLength / 2 + 0.25, -coreRadius * 0.55, 0]}
-        end={boundaryPoint}
+        points={ray.incident}
         color="#ffd166"
       />
-      <mesh name="educational-ray-leakage-point" position={boundaryPoint}>
+      <mesh
+        name="educational-ray-leakage-point"
+        position={ray.leakagePoint.position}
+      >
         <sphereGeometry
           name="educational-ray-leakage-point-geometry"
           args={[0.09, 20, 20]}
@@ -603,7 +546,10 @@ function TransmittedRay({
           toneMapped={false}
         />
       </mesh>
-      <mesh name="educational-ray-leakage-glow" position={boundaryPoint}>
+      <mesh
+        name="educational-ray-leakage-glow"
+        position={ray.leakagePoint.position}
+      >
         <sphereGeometry
           name="educational-ray-leakage-glow-geometry"
           args={[0.16, 20, 20]}
@@ -617,30 +563,58 @@ function TransmittedRay({
           toneMapped={false}
         />
       </mesh>
-      <RaySegment
+      <RayPathMesh
         name="educational-ray-transmission-exiting-segment"
-        start={boundaryPoint}
-        end={exitPoint}
+        points={ray.exiting}
         color="#ff7a59"
         thickness={RAY_THICKNESS * 0.85}
       />
-      <group name="educational-ray-leakage-markers">{leakageMarkers}</group>
+      <group name="educational-ray-leakage-markers">
+        {ray.leakageMarkers.map((marker, index) => {
+          const progress = index / (ray.leakageMarkers.length - 1)
+          const [red, green, blue] = getLeakageMarkerColor(progress)
+          const size = LEAKAGE_MARKER_BASE_SIZE * (1.35 - progress * 0.55)
+
+          return (
+            <mesh
+              key={`leak-${marker.t}`}
+              name={`educational-ray-leakage-marker-${index}`}
+              position={marker.position}
+            >
+              <sphereGeometry
+                name={`educational-ray-leakage-marker-${index}-geometry`}
+                args={[size, 16, 16]}
+              />
+              <meshBasicMaterial
+                name={`educational-ray-leakage-marker-${index}-material`}
+                color={`rgb(${Math.round(red * 255)}, ${Math.round(green * 255)}, ${Math.round(blue * 255)})`}
+                transparent
+                opacity={0.95 - progress * 0.45}
+                depthWrite={false}
+                toneMapped={false}
+              />
+            </mesh>
+          )
+        })}
+      </group>
     </group>
   )
 }
 
 function EducationalRayLayer({
   coreRadius,
-  visualLength,
   incidenceAngleDeg,
   guidance,
+  path,
   macrobends,
+  bendLoss,
 }: {
   coreRadius: number
-  visualLength: number
   incidenceAngleDeg: number
   guidance: RayGuidance | null | undefined
+  path: FibrePath
   macrobends?: readonly MacrobendInput[] | null
+  bendLoss?: MacrobendLossResult | null
 }) {
   const status = getRayStatus(incidenceAngleDeg, guidance)
 
@@ -648,21 +622,20 @@ function EducationalRayLayer({
     return (
       <ReflectedRay
         coreRadius={coreRadius}
-        visualLength={visualLength}
         incidenceAngleDeg={incidenceAngleDeg}
+        path={path}
         macrobends={macrobends}
+        bendLoss={bendLoss}
       />
     )
   }
 
   if (status === 'critical_boundary') {
-    return <CriticalRay coreRadius={coreRadius} visualLength={visualLength} />
+    return <CriticalRay coreRadius={coreRadius} path={path} />
   }
 
   if (status === 'transmission') {
-    return (
-      <TransmittedRay coreRadius={coreRadius} visualLength={visualLength} />
-    )
+    return <TransmittedRay coreRadius={coreRadius} path={path} />
   }
 
   return null
@@ -1612,6 +1585,11 @@ function SpatialBendMarkerLayer({ markers }: { markers: SpatialBendMarker[] }) {
         const clampRadius = 0.52 + lossScale * 0.08
         const clampWidth = 0.18 + lossScale * 0.04
         const glowColor = marker.lossDb >= 1.0 ? '#ff1a00' : '#ff5500'
+        const signalOpacity = clamp(
+          0.35 + 0.6 * Math.sqrt(marker.remainingPowerFraction),
+          0.35,
+          0.95,
+        )
         return (
           <group
             key={marker.id}
@@ -1644,7 +1622,7 @@ function SpatialBendMarkerLayer({ markers }: { markers: SpatialBendMarker[] }) {
               <meshBasicMaterial
                 color={glowColor}
                 transparent
-                opacity={0.95}
+                opacity={signalOpacity}
                 depthWrite={false}
                 toneMapped={false}
               />
@@ -1655,7 +1633,7 @@ function SpatialBendMarkerLayer({ markers }: { markers: SpatialBendMarker[] }) {
               <meshBasicMaterial
                 color={glowColor}
                 transparent
-                opacity={Math.min(0.55, 0.2 + lossScale * 0.1)}
+                opacity={Math.min(signalOpacity * 0.58, 0.2 + lossScale * 0.1)}
                 depthWrite={false}
                 toneMapped={false}
               />
@@ -1678,7 +1656,7 @@ function SpatialBendMarkerLayer({ markers }: { markers: SpatialBendMarker[] }) {
               <meshBasicMaterial
                 color={glowColor}
                 transparent
-                opacity={0.95}
+                opacity={signalOpacity}
                 depthWrite={false}
                 toneMapped={false}
               />
@@ -1711,10 +1689,13 @@ export function FibreGeometryScene({
   pulseMarkersEnabled = false,
   attenuation = null,
   macrobends = null,
+  bendLoss = null,
+  fibrePath: suppliedFibrePath,
 }: FibreGeometrySceneProps) {
   const coreRadius = getNormalisedCoreRadius(coreRadiusUm)
   const visualLength = getVisualLength(visualLengthModelUnits)
-  const fibrePath = buildFibrePath(fibreRoute, visualLength, macrobends)
+  const fibrePath =
+    suppliedFibrePath ?? buildFibrePath(fibreRoute, visualLength, macrobends)
   const modeFieldGeometry = modeViewEnabled
     ? getModeFieldGeometry(modeProfile, coreRadiusUm)
     : null
@@ -1748,6 +1729,7 @@ export function FibreGeometryScene({
     visualLength,
     macrobends,
     fibrePath,
+    bendLoss,
   )
   const hasOverlay =
     rayViewEnabled ||
@@ -1785,16 +1767,17 @@ export function FibreGeometryScene({
       {bendMarkers.length > 0 && (
         <SpatialBendMarkerLayer markers={bendMarkers} />
       )}
+      {rayViewEnabled && (
+        <EducationalRayLayer
+          coreRadius={coreRadius}
+          incidenceAngleDeg={incidenceAngleDeg}
+          guidance={rayGuidance}
+          path={fibrePath}
+          macrobends={macrobends}
+          bendLoss={bendLoss}
+        />
+      )}
       <group name="schematic-overlay-frame" position={overlayOrigin}>
-        {rayViewEnabled && (
-          <EducationalRayLayer
-            coreRadius={coreRadius}
-            visualLength={visualLength}
-            incidenceAngleDeg={incidenceAngleDeg}
-            guidance={rayGuidance}
-            macrobends={macrobends}
-          />
-        )}
         {modeFieldGeometry !== null &&
           isValidModeProfile(modeProfile) &&
           hasValidPhysicalCoreRadius(coreRadiusUm) && (
@@ -1804,16 +1787,17 @@ export function FibreGeometryScene({
               coreRadiusUm={coreRadiusUm}
             />
           )}
-        {pulseAnimationData !== null && (
-          <PulseAnimationLayer
-            key={pulseAnimationResetSignal}
-            data={pulseAnimationData}
-            visualLength={visualLength}
-            isPlaying={pulseAnimationPlaying}
-            onComplete={onPulseAnimationComplete}
-          />
-        )}
       </group>
+      {pulseAnimationData !== null && (
+        <PulseAnimationLayer
+          key={pulseAnimationResetSignal}
+          data={pulseAnimationData}
+          visualLength={visualLength}
+          path={fibrePath}
+          isPlaying={pulseAnimationPlaying}
+          onComplete={onPulseAnimationComplete}
+        />
+      )}
     </group>
   )
 }
@@ -1877,6 +1861,8 @@ type FibreShowcaseLegendProps = {
   attenuation: PowerDistanceData | null
   pulseAnimation: PulseAnimationData | null
   macrobends: readonly MacrobendInput[] | null
+  bendLoss: MacrobendLossResult | null
+  fibrePath: FibrePath
 }
 
 function FibreShowcaseLegend({
@@ -1890,8 +1876,9 @@ function FibreShowcaseLegend({
   attenuation,
   pulseAnimation,
   macrobends,
+  bendLoss,
+  fibrePath,
 }: FibreShowcaseLegendProps) {
-  const fibrePath = buildFibrePath(route, visualLength, macrobends)
   const routeLabel =
     fibrePath.source === 'physical_bends'
       ? 'Configured planar bends'
@@ -1911,6 +1898,13 @@ function FibreShowcaseLegend({
   const pulseMarkers = pulseMarkersEnabled
     ? getSpatialPulseMarkers(route, visualLength, pulseAnimation, fibrePath)
     : []
+  const bendMarkers = getSpatialBendMarkers(
+    route,
+    visualLength,
+    macrobends,
+    fibrePath,
+    bendLoss,
+  )
 
   return (
     <aside
@@ -1925,10 +1919,25 @@ function FibreShowcaseLegend({
       {fibrePath.error !== null && <p role="alert">{fibrePath.error}</p>}
       <ul>
         {fibrePath.source === 'physical_bends' && (
-          <li>
-            Bend angles and directions define the planar path. Radius uses a
-            normalized display scale.
-          </li>
+          <>
+            <li>
+              Bend angles and directions define the planar path. Radius uses a
+              normalized display scale.
+            </li>
+            <li>
+              Backend bend results:
+              <ul aria-label="Bend loss values">
+                {bendMarkers.map((marker, index) => (
+                  <li key={marker.id}>
+                    Bend {index + 1}: {marker.cumulativeLossDb} dB cumulative
+                    {marker.outputPowerDbm === null
+                      ? ''
+                      : ` · ${marker.outputPowerDbm} dBm output`}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          </>
         )}
         {scaleMarkersEnabled && (
           <li>
@@ -1972,10 +1981,8 @@ function FibreShowcaseLegend({
             )}
           </li>
         )}
-        <li>
-          Educational ray, LP01 field, and pulse animation stay as mid-path
-          schematic overlays.
-        </li>
+        <li>Educational ray and pulse animation follow the displayed path.</li>
+        <li>The LP01 field remains a mid-path transverse slice.</li>
       </ul>
     </aside>
   )
@@ -2010,6 +2017,7 @@ export function FibreGeometryView({
   pulseAnimation,
   attenuation = null,
   macrobends = null,
+  bendLoss = null,
   visualizationSettings,
   onVisualizationSettingsChange,
   showConfigurationControls = true,
@@ -2045,6 +2053,10 @@ export function FibreGeometryView({
   const incidenceAngleDeg =
     visualizationSettings?.incidenceAngleDeg ?? localIncidenceAngleDeg
   const fibreRoute = visualizationSettings?.fibreRoute ?? 'straight'
+  const fibrePath = useMemo(
+    () => buildFibrePath(fibreRoute, visualLength, macrobends),
+    [fibreRoute, macrobends, visualLength],
+  )
   const cameraPreset =
     visualizationSettings === undefined
       ? localCameraPreset
@@ -2207,6 +2219,8 @@ export function FibreGeometryView({
           pulseMarkersEnabled,
           attenuation,
           macrobends,
+          bendLoss,
+          fibrePath,
         }}
       />
 
@@ -2221,6 +2235,8 @@ export function FibreGeometryView({
         attenuation={attenuation}
         pulseAnimation={pulseAnimationForScene}
         macrobends={macrobends}
+        bendLoss={bendLoss}
+        fibrePath={fibrePath}
       />
 
       {showConfigurationControls && (

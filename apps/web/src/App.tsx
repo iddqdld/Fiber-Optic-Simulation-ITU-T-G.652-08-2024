@@ -618,6 +618,7 @@ type VisualizationData = {
   pulseAnimation: PulseAnimationData
   pulseComparison: PulseComparisonData
   attenuation: PowerDistanceData
+  bendLoss: PreviewResult['bend_loss']
 }
 
 function defaultResultDrawerOpen(): boolean {
@@ -895,6 +896,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
             pulseAnimation: toPulseAnimationData(body),
             pulseComparison: toPulseComparisonData(body.pulse_broadening),
             attenuation: toPowerDistanceData(body.attenuation),
+            bendLoss: body.bend_loss,
           })
           setServiceError(null)
           setPreviewStatus('Preview ready')
@@ -1092,6 +1094,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
             pulseAnimation={visualizationData?.pulseAnimation ?? null}
             attenuation={visualizationData?.attenuation ?? null}
             macrobends={macrobends}
+            bendLoss={visualizationData?.bendLoss ?? null}
             visualizationSettings={visualizationSettings}
             onVisualizationSettingsChange={setVisualizationSettings}
             showConfigurationControls={false}

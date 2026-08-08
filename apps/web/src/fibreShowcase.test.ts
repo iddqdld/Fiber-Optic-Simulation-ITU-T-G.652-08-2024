@@ -1,9 +1,12 @@
 import { describe, expect, test } from 'vitest'
+import { Quaternion, Vector3 } from 'three'
 
 import {
   buildFibreCurve,
   buildFibrePath,
   getFibrePathFrame,
+  getLongitudinalSegmentTransform,
+  getTangentQuaternion,
   getCurveMidpoint,
   getScaleMarkers,
   getSpatialPowerMarkers,
@@ -188,6 +191,35 @@ describe('fibreShowcase helpers', () => {
 
     const midpoint = getFibrePathFrame(path, 0.5)
     expect(midpoint.normal).toEqual([0, 1, 0])
+  })
+
+  test('rotates the local longitudinal axis onto each path tangent', () => {
+    const path = buildFibrePath('straight', 8, [
+      bend('left', { position_fraction: 0.5, angle_deg: 180 }),
+    ])
+
+    for (const t of [0, 0.5, 1]) {
+      const frame = getFibrePathFrame(path, t)
+      const quaternion = new Quaternion(...getTangentQuaternion(frame.tangent))
+      const longitudinal = new Vector3(1, 0, 0).applyQuaternion(quaternion)
+
+      expect(longitudinal.x).toBeCloseTo(frame.tangent[0])
+      expect(longitudinal.y).toBeCloseTo(frame.tangent[1])
+      expect(longitudinal.z).toBeCloseTo(frame.tangent[2])
+      expect(quaternion.toArray().every(Number.isFinite)).toBe(true)
+    }
+  })
+
+  test('aligns a longitudinal segment in all three dimensions', () => {
+    const transform = getLongitudinalSegmentTransform([0, 0, 0], [1, 2, 3])
+    const quaternion = new Quaternion(...transform.quaternion)
+    const direction = new Vector3(1, 0, 0).applyQuaternion(quaternion)
+
+    expect(transform.length).toBeCloseTo(Math.sqrt(14))
+    expect(transform.position).toEqual([0.5, 1, 1.5])
+    expect(direction.x).toBeCloseTo(1 / Math.sqrt(14))
+    expect(direction.y).toBeCloseTo(2 / Math.sqrt(14))
+    expect(direction.z).toBeCloseTo(3 / Math.sqrt(14))
   })
 
   test('reports invalid physical bend data without using a preset', () => {
