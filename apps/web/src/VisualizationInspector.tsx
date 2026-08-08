@@ -237,7 +237,7 @@ export function VisualizationInspector({
 
       <dl className="inspector-model-facts">
         <div>
-          <dt>LP01 display threshold</dt>
+          <dt>LP01 visibility floor</dt>
           <dd>≥ {modeDisplayThreshold} normalized intensity</dd>
         </div>
         <div>

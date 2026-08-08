@@ -85,6 +85,10 @@ type SceneElementProps = {
   size?: number
   sizeAttenuation?: boolean
   vertexColors?: boolean
+  vertexShader?: string
+  fragmentShader?: string
+  wireframe?: boolean
+  side?: unknown
   quaternion?: unknown
 }
 
@@ -152,11 +156,12 @@ function sceneElements(
 
 const modeAxis = [-4, 0, 4]
 const modeFieldRadiusUm = 4.82
-const modeIntensity = modeAxis.map((yUm) =>
+const modeField = modeAxis.map((yUm) =>
   modeAxis.map((xUm) =>
-    Math.exp((-2 * (xUm ** 2 + yUm ** 2)) / modeFieldRadiusUm ** 2),
+    Math.exp(-((xUm ** 2 + yUm ** 2) / modeFieldRadiusUm ** 2)),
   ),
 )
+const modeIntensity = modeField.map((row) => row.map((field) => field ** 2))
 
 const modeProfile = {
   modeFieldRadiusUm: 4.82,
@@ -164,12 +169,20 @@ const modeProfile = {
   gridPoints: 3,
   xUm: modeAxis,
   yUm: modeAxis,
+  normalizedField: modeField,
   normalizedIntensity: modeIntensity,
   modelId: 'gaussian_lp01_mode_profile',
   modelVersion: '1.0.0',
   normalizationConvention: 'unit_peak_field_and_intensity',
   radiusConvention: '1/e_field_radius',
 } satisfies ModeProfileData
+
+const modeGuidance = {
+  modeRegime: 'single_mode',
+  vNumberDimensionless: 2.0133583577642065,
+  modeRegimeCutoffVDimensionless: 2.405,
+  cableCutoffWavelengthMaxNm: null,
+} as const
 
 const pulseAnimation = {
   inputPulseFwhmPs: 25,
@@ -223,6 +236,7 @@ describe('FibreGeometryScene', () => {
   test('makes the core translucent and renders each educational path state', () => {
     const guidance: RayGuidance = {
       criticalAngleDeg: 80,
+      ...modeGuidance,
       modelId: 'ideal-circular-step-index-guidance',
       modelVersion: '1.0.0',
     }
@@ -290,6 +304,7 @@ describe('FibreGeometryScene', () => {
           visualLengthModelUnits: 8,
           rayGuidance: {
             criticalAngleDeg: 80,
+            ...modeGuidance,
             modelId: 'model',
             modelVersion: '1.0.0',
           },
@@ -312,7 +327,7 @@ describe('FibreGeometryScene', () => {
     expect(bounded.coreGeometry.props.args).toEqual([0.4, 0.4, 12, 48])
   })
 
-  test('renders backend samples in one mapped transverse points buffer', () => {
+  test('renders one shader mesh that follows the shared path', () => {
     const { scene, coreMaterial } = sceneElements(4, 8, {
       modeProfile,
       rayViewEnabled: false,
@@ -326,36 +341,54 @@ describe('FibreGeometryScene', () => {
       scene,
       'approximate-lp01-field-intensity-attribute',
     )
+    const amplitudeAttribute = findSceneElement(
+      scene,
+      'approximate-lp01-field-amplitude-attribute',
+    )
+    const indexAttribute = findSceneElement(
+      scene,
+      'approximate-lp01-field-index-attribute',
+    )
     const material = findSceneElement(scene, 'approximate-lp01-field-material')
     const positions = positionAttribute.props.array as Float32Array
+    const amplitudes = amplitudeAttribute.props.array as Float32Array
     const intensities = intensityAttribute.props.array as Float32Array
 
     expect(points.props.name).toBe('approximate-lp01-field')
-    expect(positionAttribute.props).toMatchObject({ count: 9, itemSize: 3 })
-    expect(intensityAttribute.props).toMatchObject({ count: 9, itemSize: 1 })
+    expect(positionAttribute.props).toMatchObject({ count: 774, itemSize: 3 })
+    expect(amplitudeAttribute.props).toMatchObject({
+      count: 774,
+      itemSize: 1,
+    })
+    expect(intensityAttribute.props).toMatchObject({
+      count: 774,
+      itemSize: 1,
+    })
+    expect(indexAttribute.props).toMatchObject({ count: 3072, itemSize: 1 })
     expect(positionAttribute.props.args?.[1]).toBe(3)
     expect(intensityAttribute.props.args?.[1]).toBe(1)
-    expect(positions[0]).toBe(0)
+    expect(positions[0]).toBeCloseTo(-4)
     expect(positions[1]).toBeCloseTo(-0.4)
-    expect(positions[2]).toBeCloseTo(-0.4)
-    expect(Array.from(positions.slice(12, 15))).toEqual([0, 0, 0])
-    expect(positions[24]).toBe(0)
-    expect(positions[25]).toBeCloseTo(0.4)
-    expect(positions[26]).toBeCloseTo(0.4)
-    expect(intensities[0]).toBeCloseTo(modeProfile.normalizedIntensity[0][0])
-    expect(intensities[4]).toBe(1)
-    expect(intensities).toHaveLength(9)
+    expect(positions[2]).toBeCloseTo(0)
+    expect(Array.from(positions.slice(3, 6))).toEqual([-4, 0, 0])
+    expect(positions[1161]).toBeCloseTo(-4)
+    expect(positions[1162]).toBeCloseTo(0)
+    expect(positions[1163]).toBeCloseTo(-0.4)
+    expect(amplitudes[1]).toBe(1)
+    expect(intensities[1]).toBe(1)
+    expect(intensities).toHaveLength(774)
     expect(material.props).toMatchObject({
-      size: expect.any(Number),
-      vertexColors: true,
       transparent: true,
       depthWrite: false,
+      depthTest: false,
       blending: expect.anything(),
+      side: expect.anything(),
     })
+    expect(material.props.vertexShader).toContain('normalizedField')
+    expect(material.props.fragmentShader).toContain('fieldIntensity < 0.01')
     expect(
-      findSceneElement(scene, 'approximate-lp01-field-radius-ring'),
+      findSceneElement(scene, 'approximate-lp01-mode-field-radius-shell'),
     ).toBeTruthy()
-    expect(findSceneElement(scene, 'approximate-lp01-field-glow')).toBeTruthy()
     expect(coreMaterial.props).toMatchObject({
       transparent: true,
       opacity: 0.42,
@@ -363,33 +396,36 @@ describe('FibreGeometryScene', () => {
     })
   })
 
-  test('omits samples below the disclosed display threshold', () => {
+  test('keeps backend samples and applies the visibility floor in the shader', () => {
     const thresholdedProfile = {
       ...modeProfile,
+      normalizedField: modeProfile.normalizedField.map((row) => [...row]),
       normalizedIntensity: modeProfile.normalizedIntensity.map((row) => [
         ...row,
       ]),
     }
-    thresholdedProfile.normalizedIntensity[0][0] = 0.009
+    thresholdedProfile.normalizedIntensity[1][0] = 0.009
+    thresholdedProfile.normalizedField[1][0] = Math.sqrt(0.009)
     const { scene } = sceneElements(4, 8, {
       modeProfile: thresholdedProfile,
       rayViewEnabled: false,
     })
-    const positionAttribute = findSceneElement(
-      scene,
-      'approximate-lp01-field-position-attribute',
-    )
     const intensityAttribute = findSceneElement(
       scene,
       'approximate-lp01-field-intensity-attribute',
     )
     const intensities = intensityAttribute.props.array as Float32Array
 
-    expect(positionAttribute.props.count).toBe(8)
-    expect(intensityAttribute.props.count).toBe(8)
+    expect(intensityAttribute.props.count).toBe(774)
     expect(
-      Array.from(intensities).every((intensity) => intensity >= 0.01),
+      Array.from(intensities).some(
+        (intensity) => Math.abs(intensity - 0.009) < 1e-6,
+      ),
     ).toBe(true)
+    expect(
+      findSceneElement(scene, 'approximate-lp01-field-material').props
+        .fragmentShader,
+    ).toContain('fieldIntensity < 0.01')
   })
 
   test('does not render field geometry when disabled or malformed', () => {
@@ -482,6 +518,7 @@ describe('FibreGeometryScene', () => {
       fibrePath: path,
       rayGuidance: {
         criticalAngleDeg: 80,
+        ...modeGuidance,
         modelId: 'model',
         modelVersion: '1.0.0',
       },
@@ -879,12 +916,13 @@ describe('camera preset controller', () => {
 describe('FibreGeometryView', () => {
   const guidance: RayGuidance = {
     criticalAngleDeg: 80,
+    ...modeGuidance,
     modelId: 'ideal-circular-step-index-guidance',
     modelVersion: '1.0.0',
   }
 
   test('exposes the named region, visual range control, and demand viewport', () => {
-    render(
+    const { container } = render(
       <FibreGeometryView
         coreRadiusUm={4.1}
         sectionLengthKm={12.5}
@@ -898,6 +936,13 @@ describe('FibreGeometryView', () => {
       screen.getByRole('region', { name: '3D fibre geometry' }),
     ).toBeInTheDocument()
     expect(screen.getByText('Entered core radius')).toBeInTheDocument()
+    const modeRegime = container.querySelector('.mode-regime-overlay')
+    expect(modeRegime).toHaveTextContent('Mode regimeSingle-mode')
+    expect(modeRegime).toHaveTextContent('V-number2.0134')
+    expect(modeRegime).toHaveTextContent('Ideal step-index boundaryV = 2.405')
+    expect(modeRegime).toHaveTextContent(
+      'G.652.D cable cut-off limitNot applied for the custom preset',
+    )
     expect(screen.getByText('4.1 µm')).toBeInTheDocument()
     expect(screen.getByText('Entered section length')).toBeInTheDocument()
     expect(screen.getByText('12.5 km')).toBeInTheDocument()
@@ -1140,7 +1185,7 @@ describe('FibreGeometryView', () => {
       <FibreGeometryView
         coreRadiusUm={4}
         sectionLengthKm={12.5}
-        rayGuidance={null}
+        rayGuidance={{ ...guidance, cableCutoffWavelengthMaxNm: 1260 }}
         modeProfile={modeProfile}
         pulseAnimation={null}
       />,
@@ -1153,38 +1198,42 @@ describe('FibreGeometryView', () => {
     expect(screen.getByText('Grid half-width')).toBeInTheDocument()
     expect(screen.getByText('±4 µm')).toBeInTheDocument()
     expect(screen.getByText('3 × 3 (9 samples)')).toBeInTheDocument()
-    expect(
-      screen.getByText('Normalized intensity (dimensionless)'),
-    ).toBeInTheDocument()
-    expect(screen.getByText('0–1')).toBeInTheDocument()
-    expect(screen.getByText('Display threshold')).toBeInTheDocument()
+    expect(screen.getByText('Normalized field amplitude')).toBeInTheDocument()
+    expect(screen.getByText('0–1, shown by color')).toBeInTheDocument()
+    expect(screen.getByText('Normalized intensity')).toBeInTheDocument()
+    expect(screen.getByText('0–1, shown by opacity')).toBeInTheDocument()
+    expect(screen.getByText('LP01 visibility floor')).toBeInTheDocument()
     expect(screen.getByText('≥ 0.01 normalized intensity')).toBeInTheDocument()
+    expect(screen.getByText('Path stations')).toBeInTheDocument()
+    expect(screen.getByText('129')).toBeInTheDocument()
     expect(
       within(container.querySelector('.mode-facts') as HTMLElement).getByText(
         'Approximate model',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByText(/gaussian_lp01_mode_profile/)).toBeInTheDocument()
-    expect(screen.getByText(/1\.0\.0/)).toBeInTheDocument()
+    const modeFacts = within(
+      container.querySelector('.mode-facts') as HTMLElement,
+    )
+    expect(
+      modeFacts.getByText(/gaussian_lp01_mode_profile/),
+    ).toBeInTheDocument()
+    expect(modeFacts.getByText(/1\.0\.0/)).toBeInTheDocument()
     expect(
       screen.getByText('unit_peak_field_and_intensity'),
     ).toBeInTheDocument()
     expect(screen.getByText('1/e_field_radius')).toBeInTheDocument()
 
     const explanation = document.querySelector('.mode-profile-explanation')
-    expect(explanation).toHaveTextContent(
-      'scalar, circularly symmetric Gaussian LP01 approximation',
-    )
-    expect(explanation).toHaveTextContent(
-      'backend normalized-intensity samples',
-    )
-    expect(explanation).toHaveTextContent('heat colormap')
+    expect(explanation).toHaveTextContent('scalar weak-guidance approximation')
+    expect(explanation).toHaveTextContent('shared path')
+    expect(explanation).toHaveTextContent('normalized field amplitude')
+    expect(explanation).toHaveTextContent('normalized intensity')
     expect(explanation).toHaveTextContent('1/e field radius')
-    expect(explanation).toHaveTextContent('not a physical ray path')
     expect(explanation).toHaveTextContent('not an exact step-index eigenmode')
     expect(explanation).toHaveTextContent('full-wave electromagnetic solution')
-    expect(explanation).toHaveTextContent(
-      'Samples below 0.01, or 1% of unit peak, are omitted',
+    expect(explanation).toHaveTextContent('shader hides values below 0.01')
+    expect(container.querySelector('.mode-regime-overlay')).toHaveTextContent(
+      'G.652.D cable cut-off limit≤ 1260 nm (measurement-based standard limit)',
     )
 
     fireEvent.click(toggle)
@@ -1220,6 +1269,33 @@ describe('FibreGeometryView', () => {
     expect(
       container.querySelector('.mode-profile-explanation'),
     ).toBeInTheDocument()
+  })
+
+  test('labels the LP01 layer as one component at the multimode boundary', () => {
+    const { container } = render(
+      <FibreGeometryView
+        coreRadiusUm={4}
+        sectionLengthKm={12.5}
+        rayGuidance={{
+          ...guidance,
+          modeRegime: 'multimode',
+          vNumberDimensionless: 2.405,
+        }}
+        modeProfile={modeProfile}
+        pulseAnimation={null}
+      />,
+    )
+
+    const modeRegime = container.querySelector('.mode-regime-overlay')
+    expect(modeRegime).toHaveAttribute('data-regime', 'multimode')
+    expect(modeRegime).toHaveTextContent('Mode regimeMultimode')
+    expect(modeRegime).toHaveTextContent('V-number2.405')
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'This multimode case shows only the LP01 component',
+    )
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Higher-order modes and source coupling are not part of this phase',
+    )
   })
 
   test('provides the educational angle control, backend model facts, and explanation', () => {
@@ -1295,6 +1371,7 @@ describe('FibreGeometryView', () => {
   test('can select the exact backend critical angle when it is between slider steps', () => {
     const preciseGuidance: RayGuidance = {
       criticalAngleDeg: 85.27298324998428,
+      ...modeGuidance,
       modelId: 'ideal-circular-step-index-guidance',
       modelVersion: '1.0.0',
     }
@@ -1382,6 +1459,7 @@ describe('FibreGeometryView', () => {
         sectionLengthKm={12.5}
         rayGuidance={{
           criticalAngleDeg: Number.NaN,
+          ...modeGuidance,
           modelId: 'invalid',
           modelVersion: '1.0.0',
         }}

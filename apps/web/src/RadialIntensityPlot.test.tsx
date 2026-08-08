@@ -30,6 +30,11 @@ function buildProfile(
     gridPoints: 3,
     xUm: [-1, 0, 1],
     yUm: [-1, 0, 1],
+    normalizedField: [
+      [Math.sqrt(0.2), Math.sqrt(0.3), Math.sqrt(0.4)],
+      [Math.sqrt(0.11), 1, Math.sqrt(0.22)],
+      [Math.sqrt(0.5), Math.sqrt(0.6), Math.sqrt(0.7)],
+    ],
     normalizedIntensity: [
       [0.2, 0.3, 0.4],
       [0.11, 1, 0.22],

@@ -98,6 +98,7 @@ const initialFormValues: FormValues = {
 const INVALID_CONFIGURATION = 'Invalid configuration. Check the entered values.'
 const PREVIEW_FAILED = 'Preview failed.'
 const PREVIEW_UNREACHABLE = 'Unable to reach the preview service.'
+const IDEAL_MODE_REGIME_CUTOFF_V = 2.405
 const numericFormFields = [
   'n_core',
   'n_cladding',
@@ -211,6 +212,23 @@ function isNormalizedGrid(
         row.length === gridPoints &&
         row.every(
           (sample) => isFiniteNumber(sample) && sample >= 0 && sample <= 1,
+        ),
+    )
+  )
+}
+
+function hasFieldIntensityRelation(
+  field: number[][],
+  intensity: number[][],
+): boolean {
+  return (
+    field.length === intensity.length &&
+    field.every(
+      (row, rowIndex) =>
+        row.length === intensity[rowIndex].length &&
+        row.every(
+          (sample, columnIndex) =>
+            Math.abs(sample ** 2 - intensity[rowIndex][columnIndex]) <= 1e-9,
         ),
     )
   )
@@ -398,6 +416,15 @@ function isPreviewStandardsChecks(value: unknown): value is StandardsChecks {
   )
 }
 
+function getCableCutoffWavelengthMaxNm(
+  standardsChecks: StandardsChecks,
+): number | null {
+  const value =
+    standardsChecks.preset_definition?.limits?.cable_cutoff_wavelength_max_nm
+
+  return isFiniteNumber(value) && value > 0 ? value : null
+}
+
 function isModeProfileResult(value: unknown): value is ModeProfileResult {
   if (
     !isRecord(value) ||
@@ -420,6 +447,10 @@ function isModeProfileResult(value: unknown): value is ModeProfileResult {
   }
 
   return (
+    hasFieldIntensityRelation(
+      value.normalized_field,
+      value.normalized_intensity,
+    ) &&
     value.model_manifest.model_id === 'gaussian_lp01_mode_profile' &&
     value.model_manifest.model_version === '1.0.0' &&
     value.model_manifest.normalization_convention ===
@@ -515,7 +546,12 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     guidance.critical_angle_deg >= 90 ||
     !isRecord(guidance.model_manifest) ||
     guidance.model_manifest.model_id !== 'ideal_circular_step_index_guidance' ||
-    guidance.model_manifest.model_version !== '1.0.0'
+    guidance.model_manifest.model_version !== '1.0.0' ||
+    !isFiniteNumber(
+      guidance.model_manifest.mode_regime_cutoff_v_dimensionless,
+    ) ||
+    guidance.model_manifest.mode_regime_cutoff_v_dimensionless !==
+      IDEAL_MODE_REGIME_CUTOFF_V
   ) {
     return false
   }
@@ -536,6 +572,11 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     (guidance.mode_regime === 'single_mode' ||
       guidance.mode_regime === 'multimode') &&
     isFiniteNumber(guidance.v_number_dimensionless) &&
+    guidance.v_number_dimensionless > 0 &&
+    guidance.mode_regime ===
+      (guidance.v_number_dimensionless < IDEAL_MODE_REGIME_CUTOFF_V
+        ? 'single_mode'
+        : 'multimode') &&
     isFiniteNumber(guidance.numerical_aperture_dimensionless) &&
     isModeProfileResult(value.mode_profile) &&
     isRecord(value.model_manifest) &&
@@ -571,6 +612,7 @@ function toModeProfileData(value: ModeProfileResult): ModeProfileData {
     gridPoints: value.grid_points,
     xUm: value.x_um,
     yUm: value.y_um,
+    normalizedField: value.normalized_field,
     normalizedIntensity: value.normalized_intensity,
     modelId: value.model_manifest.model_id,
     modelVersion: value.model_manifest.model_version,
@@ -889,6 +931,13 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
           setVisualizationData({
             rayGuidance: {
               criticalAngleDeg: body.guidance.critical_angle_deg,
+              modeRegime: body.guidance.mode_regime,
+              vNumberDimensionless: body.guidance.v_number_dimensionless,
+              modeRegimeCutoffVDimensionless:
+                body.guidance.model_manifest.mode_regime_cutoff_v_dimensionless,
+              cableCutoffWavelengthMaxNm: getCableCutoffWavelengthMaxNm(
+                body.standards_checks,
+              ),
               modelId: body.guidance.model_manifest.model_id,
               modelVersion: body.guidance.model_manifest.model_version,
             },

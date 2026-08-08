@@ -14,8 +14,11 @@ import type {
   operations,
 } from '../../../packages/shared_schemas/generated/api'
 import App from './App'
-import type { ModeProfileData } from './FibreGeometryView'
-import type { PulseAnimationData } from './FibreGeometryView'
+import type {
+  ModeProfileData,
+  PulseAnimationData,
+  RayGuidance,
+} from './FibreGeometryView'
 import {
   initialPandaFieldValues,
   type PandaFieldRequest,
@@ -33,11 +36,7 @@ import type { PulseComparisonData } from './pulseComparisonPlot'
 type GeometryProps = {
   coreRadiusUm: number | null
   sectionLengthKm: number | null
-  rayGuidance: {
-    criticalAngleDeg: number
-    modelId: string
-    modelVersion: string
-  } | null
+  rayGuidance: RayGuidance | null
   modeProfile: ModeProfileData | null
   pulseAnimation: PulseAnimationData | null
   attenuation: PowerDistanceData | null
@@ -67,12 +66,12 @@ vi.mock('./FibreGeometryView', () => ({
       <p aria-label="Ray guidance" data-testid="ray-guidance">
         {rayGuidance === null
           ? 'null'
-          : `${rayGuidance.criticalAngleDeg}° · ${rayGuidance.modelId} · ${rayGuidance.modelVersion}`}
+          : `${rayGuidance.criticalAngleDeg}° · ${rayGuidance.modeRegime} · V ${rayGuidance.vNumberDimensionless} · ideal boundary ${rayGuidance.modeRegimeCutoffVDimensionless} · cable cutoff ${rayGuidance.cableCutoffWavelengthMaxNm ?? 'none'} · ${rayGuidance.modelId} · ${rayGuidance.modelVersion}`}
       </p>
       <p aria-label="Mode profile" data-testid="mode-profile">
         {modeProfile === null
           ? 'null'
-          : `Grid: ${modeProfile.gridPoints} x ${modeProfile.gridPoints} · Extent: x ${modeProfile.xUm[0]}..${modeProfile.xUm.at(-1)} µm, y ${modeProfile.yUm[0]}..${modeProfile.yUm.at(-1)} µm · Center intensity: ${modeProfile.normalizedIntensity[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Radius: ${modeProfile.modeFieldRadiusUm} µm · Model: ${modeProfile.modelId} ${modeProfile.modelVersion} · Normalization: ${modeProfile.normalizationConvention} · Radius convention: ${modeProfile.radiusConvention}`}
+          : `Grid: ${modeProfile.gridPoints} x ${modeProfile.gridPoints} · Extent: x ${modeProfile.xUm[0]}..${modeProfile.xUm.at(-1)} µm, y ${modeProfile.yUm[0]}..${modeProfile.yUm.at(-1)} µm · Center field: ${modeProfile.normalizedField[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Center intensity: ${modeProfile.normalizedIntensity[(modeProfile.gridPoints - 1) / 2][(modeProfile.gridPoints - 1) / 2]} · Radius: ${modeProfile.modeFieldRadiusUm} µm · Model: ${modeProfile.modelId} ${modeProfile.modelVersion} · Normalization: ${modeProfile.normalizationConvention} · Radius convention: ${modeProfile.radiusConvention}`}
       </p>
       <p aria-label="Pulse animation" data-testid="pulse-animation">
         {pulseAnimation === null ? (
@@ -795,6 +794,9 @@ const g652dPreset = {
     'the preset is not a complete G.652.D conformance determination',
   ],
   source_references: ['ITU-T G.652 (08/2024), Table 2'],
+  limits: {
+    cable_cutoff_wavelength_max_nm: 1260,
+  } as components['schemas']['G652DStandardLimits'],
 } satisfies components['schemas']['G652DPreset']
 
 const dispersionCheckManifest = {
@@ -2330,6 +2332,10 @@ describe('Level 1 preview state and results', () => {
     mockFetch({ preview: [first.promise] })
 
     render(<App />)
+    await act(async () => {
+      await import('./FibreGeometryView')
+      await Promise.resolve()
+    })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
     expect(modeProfileOutput()).toHaveTextContent('null')
     expect(radialIntensityPlotOutput()).toHaveTextContent('null')
@@ -2351,7 +2357,10 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
-      '85.27298324998428° · ideal_circular_step_index_guidance · 1.0.0',
+      '85.27298324998428°',
+    )
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      'ideal_circular_step_index_guidance · 1.0.0',
     )
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
     expect(radialIntensityPlotOutput()).toHaveTextContent('Grid: 65 x 65')
@@ -2448,12 +2457,14 @@ describe('Level 1 preview state and results', () => {
       1.4992187712298396e-17,
       16,
     )
+    expect(modeProfile.normalized_field[32][32]).toBe(1)
 
     expect(modeProfileOutput()).toHaveTextContent('Grid: 65 x 65')
     expect(modeProfileOutput()).toHaveTextContent(
       'Extent: x -15..15 µm, y -15..15 µm',
     )
     expect(modeProfileOutput()).toHaveTextContent('Center intensity: 1')
+    expect(modeProfileOutput()).toHaveTextContent('Center field: 1')
     expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
     expect(modeProfileOutput()).toHaveTextContent(
       'Model: gaussian_lp01_mode_profile 1.0.0',
@@ -2463,6 +2474,9 @@ describe('Level 1 preview state and results', () => {
     )
     expect(modeProfileOutput()).toHaveTextContent(
       'Radius convention: 1/e_field_radius',
+    )
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      'single_mode · V 2.0133583577642065 · ideal boundary 2.405 · cable cutoff none',
     )
   })
 
@@ -2525,7 +2539,10 @@ describe('Level 1 preview state and results', () => {
       await Promise.resolve()
     })
     expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
-      '81.83568244780919° · ideal_circular_step_index_guidance · 1.0.0',
+      '81.83568244780919°',
+    )
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      'ideal_circular_step_index_guidance · 1.0.0',
     )
     expect(modeProfileOutput()).toHaveTextContent('Radius: 4.82 µm')
     expect(radialIntensityPlotOutput()).toHaveTextContent('Center intensity: 1')
@@ -2732,6 +2749,18 @@ describe('Level 1 preview state and results', () => {
           customResult.mode_profile.normalized_intensity.map((row, index) =>
             index === 32
               ? row.map((value, column) => (column === 32 ? Number.NaN : value))
+              : row,
+          ),
+      },
+    ],
+    [
+      'a mismatched field and intensity sample',
+      {
+        ...customResult.mode_profile,
+        normalized_intensity:
+          customResult.mode_profile.normalized_intensity.map((row, index) =>
+            index === 32
+              ? row.map((value, column) => (column === 32 ? 0.9 : value))
               : row,
           ),
       },
@@ -3486,6 +3515,10 @@ describe('Level 1 preview state and results', () => {
     expect(g652dPreview).toHaveTextContent('G.652.D')
     expect(g652dPreview).toHaveTextContent(/Dispersion.*Pass/i)
     expect(g652dPreview).toHaveTextContent(/Attenuation.*Pass/i)
+    selectWorkspace('3D scene')
+    expect(screen.getByTestId('ray-guidance')).toHaveTextContent(
+      'ideal boundary 2.405 · cable cutoff 1260',
+    )
     expect(previewCalls(fetchMock)).toHaveLength(2)
   })
 })
