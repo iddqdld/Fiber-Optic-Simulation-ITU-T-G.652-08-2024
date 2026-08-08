@@ -581,7 +581,7 @@ function isPreviewResult(value: unknown): value is PreviewResult {
     isModeProfileResult(value.mode_profile) &&
     isRecord(value.model_manifest) &&
     value.model_manifest.model_id === 'level1_single_section_simulation' &&
-    value.model_manifest.model_version === '1.1.0' &&
+    value.model_manifest.model_version === '1.2.0' &&
     Array.isArray(value.warnings) &&
     value.warnings.every(isPreviewWarning) &&
     isPreviewStandardsChecks(value.standards_checks) &&
@@ -1224,7 +1224,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
         macrobends={macrobends}
         onAddMacrobend={handleAddMacrobend}
         onRemoveMacrobend={handleRemoveMacrobend}
-        totalBendLossDb={result?.bend_loss?.total_bend_loss_db ?? null}
+        bendLoss={matchingResult?.bend_loss ?? null}
       />
     )
 

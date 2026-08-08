@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { Quaternion, Vector3 } from 'three'
 
+import type { components } from '../../../packages/shared_schemas/generated/api'
 import {
   buildFibreCurve,
   buildFibrePath,
@@ -15,7 +16,8 @@ import {
   sampleFibrePath,
   sampleFibrePathFrames,
 } from './fibreShowcase'
-import type { MacrobendInput } from './Level1Form'
+type MacrobendLossResult = components['schemas']['MacrobendLossResult']
+type MacrobendInput = components['schemas']['MacrobendInput']
 import type { PowerDistanceData } from './powerDistancePlot'
 import type { PulseAnimationData } from './pulseAnimation'
 
@@ -62,8 +64,69 @@ function bend(
     radius_mm: 15,
     angle_deg: 90,
     direction,
-    supplied_loss_db: 0.2,
     ...overrides,
+  }
+}
+
+function bendLossFor(inputs: readonly MacrobendInput[]): MacrobendLossResult {
+  let cumulativeLossDb = 0
+  const bends = inputs.map((input) => {
+    const bendLengthM =
+      input.radius_mm * 1e-3 * ((input.angle_deg * Math.PI) / 180)
+    const localLossDbPerM = 0.25
+    const estimatedRadiationLossDb = localLossDbPerM * bendLengthM
+    cumulativeLossDb += estimatedRadiationLossDb
+    return {
+      alpha_power_per_m: localLossDbPerM / (10 / Math.log(10)),
+      angle_deg: input.angle_deg,
+      bend_length_m: bendLengthM,
+      cumulative_bend_loss_db: cumulativeLossDb,
+      direction: input.direction,
+      estimated_radiation_loss_db: estimatedRadiationLossDb,
+      local_loss_db_per_m: localLossDbPerM,
+      numerical_underflow: false,
+      output_power_dbm: -3 - cumulativeLossDb,
+      position_fraction: input.position_fraction,
+      radius_mm: input.radius_mm,
+      validity: 'valid' as const,
+      warnings: [],
+    }
+  })
+  return {
+    beta_per_m: 5_950_000,
+    beta_source: 'scalar_step_index_lp01',
+    bends,
+    cladding_radius_m: null,
+    core_radius_m: 4.1e-6,
+    input_power_dbm: -3,
+    max_local_loss_db_per_m: inputs.length === 0 ? 0 : 0.25,
+    minimum_bend_radius_m:
+      inputs.length === 0
+        ? null
+        : Math.min(...inputs.map((input) => input.radius_mm * 1e-3)),
+    model_manifest: {
+      assumptions: [],
+      limitations: [],
+      loss_source: 'calculated',
+      model_id: 'marcuse_lp01_step_index_macrobend',
+      model_version: '1.0.0',
+      path_model: 'piecewise_constant_curvature',
+      references: [],
+      scientific_label:
+        'Estimated LP01 macrobend radiation loss — Marcuse model',
+    },
+    n_cladding: 1.465,
+    n_core: 1.47,
+    numerical_underflow: false,
+    output_power_dbm: -3 - cumulativeLossDb,
+    total_bend_loss_db: cumulativeLossDb,
+    total_bent_length_m: bends.reduce(
+      (total, point) => total + point.bend_length_m,
+      0,
+    ),
+    validity: 'valid',
+    warnings: [],
+    wavelength_m: 1.55e-6,
   }
 }
 
@@ -151,7 +214,13 @@ describe('fibreShowcase helpers', () => {
       bend('right', { position_fraction: 1, radius_mm: 30, angle_deg: 360 }),
     ]
     const path = buildFibrePath('straight', 8, bends)
-    const markers = getSpatialBendMarkers('straight', 8, bends, path)
+    const markers = getSpatialBendMarkers(
+      'straight',
+      8,
+      bends,
+      path,
+      bendLossFor(bends),
+    )
 
     expect(markers.map((marker) => marker.positionFraction)).toEqual([0, 1])
     expect(

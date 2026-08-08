@@ -192,7 +192,7 @@ async def test_normal_maximum_grid_preview_p95_stays_below_plan_budget(
         "group-delay-overflow",
         "pulse-broadening-overflow",
         "v-number-overflow",
-        "macrobend-overflow",
+        "macrobend-radius-underflow",
     ],
 )
 async def test_extreme_finite_previews_return_structured_calculation_errors(
@@ -218,9 +218,8 @@ async def test_extreme_finite_previews_return_structured_calculation_errors(
             "bends": [
                 {
                     "position_fraction": index / (MAX_MACROBENDS + 1),
-                    "radius_mm": 12.0,
+                    "radius_mm": 5e-324,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 1e308,
                 }
                 for index in range(1, MAX_MACROBENDS + 1)
             ],

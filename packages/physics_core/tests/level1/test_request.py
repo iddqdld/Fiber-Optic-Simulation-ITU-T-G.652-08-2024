@@ -45,13 +45,12 @@ def source_values() -> dict[str, object]:
 
 def bend_values(
     position_fraction: float = 0.25,
-    supplied_loss_db: float = 0.4,
 ) -> dict[str, object]:
     return {
         "position_fraction": position_fraction,
         "radius_mm": 12.0,
         "angle_deg": 90.0,
-        "supplied_loss_db": supplied_loss_db,
+        "direction": "left",
     }
 
 

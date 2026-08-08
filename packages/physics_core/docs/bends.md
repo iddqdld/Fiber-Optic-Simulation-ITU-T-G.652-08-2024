@@ -1,42 +1,37 @@
-# User-supplied macrobend loss
+# Marcuse LP01 macrobend loss
 
-`calculate_macrobend_loss` aggregates the losses supplied for an ordered tuple
-of macrobends. It does not derive loss from bend geometry or from an optical
-fibre model.
+`calculate_marcuse_bend_loss` calculates constant-curvature radiation loss for the scalar LP01 mode of an equivalent weakly guiding step-index fibre.
 
-The units are:
+The function uses SI units. It receives the wavelength, core radius, refractive indices, propagation constant, and physical bend radius.
 
-- `position_fraction`: dimensionless, inclusive from 0 to 1;
-- `radius_mm`: bend radius in millimetres (mm);
-- `angle_deg`: bend angle in degrees (deg), greater than 0 and at most 360;
-- `direction`: planar `left` or `right` turn, with `left` as the default;
-- `supplied_loss_db` and `cumulative_bend_loss_db`: loss in decibels (dB);
-- `input_power_dbm`, point `output_power_dbm`, and result `output_power_dbm`:
-  optical power levels in decibels referenced to one milliwatt (dBm).
-
-For bends in the provided propagation order, the calculation is
+The power attenuation coefficient is
 
 \[
-A_{\mathrm{bends}} = \sum_i A_i,
-\qquad
-P_{\mathrm{out,dBm}} = P_{\mathrm{in,dBm}} - A_{\mathrm{bends}}.
+\alpha_{\mathrm p}=
+\frac{\sqrt{\pi}\,\kappa^2}
+{2\,\gamma^{3/2}V^2\sqrt{R}\,[K_1(\gamma a)]^2}
+\exp\left[-\frac{2}{3}\frac{\gamma^3}{\beta^2}R\right].
 \]
 
-Each result bend echoes the bend metadata, records cumulative loss through
-that bend, and records the corresponding output power. Zero computed loss is
-represented as positive `0.0`. The request and result `bends` accept at most
-`MAX_MACROBENDS = 32` entries. Positions must be strictly increasing in the
-provided propagation order, and the model enforces passive, ordered,
-non-decreasing cumulative loss and non-increasing point power.
+The model evaluates this expression in the log domain. A scaled `K1` Bessel function prevents loss of numeric range.
 
-The selected policy is explicit user-supplied additive loss: each supplied
-loss is treated as passive, bends are ordered, and losses are added in dB.
-Radius, angle, direction, and position do not derive loss. There is no
-wavelength, MFD, index, or radiation model in this package. This is not the
-G.652 qualification test or a G.652 conformance model.
+`calculate_macrobend_loss` applies the model to configured circular arcs. Each arc has physical length \(R|\theta|\).
 
-The model is valid for finite numeric inputs that satisfy the stated bounds
-and for aggregation results that remain finite. It intentionally defers
-empirical macrobend-loss curves, wavelength and mode-field dependence,
-refractive-index and radiation modelling, uncertainty treatment, and any
-standards qualification or conformance work.
+The total estimated loss is
+
+\[
+A_{\mathrm{bend,dB}}=
+\frac{10}{\ln 10}\sum_i \alpha_{\mathrm p}(R_i)R_i|\theta_i|.
+\]
+
+The existing propagation constant has priority. If it is absent, the module solves the scalar LP01 step-index characteristic equation.
+
+`integrate_local_curvature_marcuse` accepts sampled three-dimensional SI coordinates. It applies the same model through a local-curvature trapezoidal integral.
+
+This path result is an engineering estimate. Abrupt curvature transitions can add mode mismatch that the integral does not include.
+
+The geometry guard uses the physical cladding radius when it is available. It reports a warning or `outside_model_validity` for very small bend radii.
+
+The model excludes coatings, cable structures, microbends, polarization coupling, stress-optic coupling, and full-vector bent modes.
+
+The result is not measured manufacturer data. It is not a G.652 compliance certificate.

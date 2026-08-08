@@ -33,6 +33,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
     source = request.source
     section = request.section
     sampling = request.sampling
+    preset = get_g652d_preset() if request.preset is Level1FibrePreset.G652D else None
 
     guidance = calculate_guidance(
         GuidanceRequest(
@@ -58,6 +59,13 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
     )
     bend_loss = calculate_macrobend_loss(
         MacrobendLossRequest(
+            wavelength_m=source.wavelength_nm * 1e-9,
+            core_radius_m=fibre.core_radius_um * 1e-6,
+            cladding_radius_m=(
+                preset.limits.cladding_diameter_nominal_um * 0.5e-6 if preset is not None else None
+            ),
+            n_core=fibre.n_core,
+            n_cladding=fibre.n_cladding,
             input_power_dbm=attenuation.output_power_dbm,
             bends=section.bends,
         )
@@ -103,7 +111,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
             attenuation=None,
         )
     else:
-        preset = get_g652d_preset()
+        assert preset is not None
         dispersion_check = check_g652d_dispersion(
             G652DDispersionCheckRequest(
                 wavelength_nm=source.wavelength_nm,

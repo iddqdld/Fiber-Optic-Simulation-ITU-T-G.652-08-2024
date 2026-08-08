@@ -1,44 +1,76 @@
 import { describe, expect, test } from 'vitest'
 
-import type { MacrobendInput } from './Level1Form'
+import type { components } from '../../../packages/shared_schemas/generated/api'
 import {
   buildCriticalRayPath,
   buildReflectedRayPath,
   buildTransmittedRayPath,
 } from './educationalRayPath'
 import { buildFibrePath, getFibrePathFrame } from './fibreShowcase'
-import type { MacrobendLossResult } from './macrobend'
 
-function bend(lossDb = 0.4): MacrobendInput {
+type MacrobendLossResult = components['schemas']['MacrobendLossResult']
+type MacrobendInput = components['schemas']['MacrobendInput']
+
+function bend(): MacrobendInput {
   return {
     position_fraction: 0.5,
     radius_mm: 15,
     angle_deg: 90,
     direction: 'left',
-    supplied_loss_db: lossDb,
   }
 }
 
-function bendResult(input: MacrobendInput): MacrobendLossResult {
+function bendResult(
+  input: MacrobendInput,
+  lossDb: number,
+): MacrobendLossResult {
+  const bendLengthM =
+    input.radius_mm * 1e-3 * ((input.angle_deg * Math.PI) / 180)
+  const localLossDbPerM = lossDb / bendLengthM
+  const alphaPowerPerM = localLossDbPerM / (10 / Math.log(10))
+
   return {
+    beta_per_m: 5_950_000,
+    beta_source: 'scalar_step_index_lp01',
+    cladding_radius_m: null,
+    core_radius_m: 4.1e-6,
     input_power_dbm: -3,
-    total_bend_loss_db: input.supplied_loss_db,
-    output_power_dbm: -3 - input.supplied_loss_db,
+    max_local_loss_db_per_m: localLossDbPerM,
+    minimum_bend_radius_m: input.radius_mm * 1e-3,
+    n_cladding: 1.465,
+    n_core: 1.47,
+    numerical_underflow: false,
+    total_bend_loss_db: lossDb,
+    output_power_dbm: -3 - lossDb,
+    total_bent_length_m: bendLengthM,
+    validity: 'valid',
+    warnings: [],
+    wavelength_m: 1.55e-6,
     bends: [
       {
         ...input,
         direction: input.direction ?? 'left',
-        cumulative_bend_loss_db: input.supplied_loss_db,
-        output_power_dbm: -3 - input.supplied_loss_db,
+        alpha_power_per_m: alphaPowerPerM,
+        bend_length_m: bendLengthM,
+        local_loss_db_per_m: localLossDbPerM,
+        estimated_radiation_loss_db: lossDb,
+        cumulative_bend_loss_db: lossDb,
+        numerical_underflow: false,
+        output_power_dbm: -3 - lossDb,
+        validity: 'valid',
+        warnings: [],
       },
     ],
     model_manifest: {
-      model_id: 'user_supplied_macrobend_loss',
-      model_version: '1.1.0',
-      loss_source: 'user_supplied',
-      aggregation: 'additive_db',
       assumptions: [],
       limitations: [],
+      loss_source: 'calculated',
+      model_id: 'marcuse_lp01_step_index_macrobend',
+      model_version: '1.0.0',
+      path_model: 'piecewise_constant_curvature',
+      references: [],
+      scientific_label:
+        'Estimated LP01 macrobend radiation loss — Marcuse model',
     },
   }
 }
@@ -47,7 +79,13 @@ describe('educational ray path', () => {
   test('keeps reflected samples inside the core and on the physical bend', () => {
     const bends = [bend()]
     const path = buildFibrePath('straight', 8, bends)
-    const chunks = buildReflectedRayPath(path, 0.4, 0.3, bends, null)
+    const chunks = buildReflectedRayPath(
+      path,
+      0.4,
+      0.3,
+      bends,
+      bendResult(bends[0], 0.4),
+    )
     const points = chunks.flatMap((chunk) => chunk.points)
 
     expect(chunks).toHaveLength(2)
@@ -63,9 +101,9 @@ describe('educational ray path', () => {
     }
   })
 
-  test('keeps geometry independent from supplied loss and uses backend loss', () => {
-    const lowBend = bend(0.2)
-    const highBend = bend(1.5)
+  test('keeps geometry independent from bend loss and uses calculated backend loss', () => {
+    const lowBend = bend()
+    const highBend = bend()
     const lowPath = buildFibrePath('straight', 8, [lowBend])
     const highPath = buildFibrePath('straight', 8, [highBend])
     const low = buildReflectedRayPath(
@@ -73,14 +111,14 @@ describe('educational ray path', () => {
       0.4,
       0.3,
       [lowBend],
-      bendResult(lowBend),
+      bendResult(lowBend, 0.2),
     )
     const high = buildReflectedRayPath(
       highPath,
       0.4,
       0.3,
       [highBend],
-      bendResult(highBend),
+      bendResult(highBend, 1.5),
     )
 
     expect(

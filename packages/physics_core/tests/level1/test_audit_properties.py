@@ -72,6 +72,11 @@ def assert_subresults_match_standalone(result: Level1SimulationResult) -> None:
     )
     assert result.bend_loss == calculate_macrobend_loss(
         MacrobendLossRequest(
+            wavelength_m=request.source.wavelength_nm * 1e-9,
+            core_radius_m=request.fibre.core_radius_um * 1e-6,
+            cladding_radius_m=result.bend_loss.cladding_radius_m,
+            n_core=request.fibre.n_core,
+            n_cladding=request.fibre.n_cladding,
             input_power_dbm=result.attenuation.output_power_dbm,
             bends=request.section.bends,
         )
@@ -324,7 +329,7 @@ def test_warning_order_and_component_order_are_stable_for_all_level1_branches() 
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
         "constant_fibre_attenuation",
-        "user_supplied_macrobend_loss",
+        "marcuse_lp01_step_index_macrobend",
         "constant_group_index_delay",
         "first_order_chromatic_pulse_broadening",
         "itu_t_g652d_preset",
@@ -332,7 +337,7 @@ def test_warning_order_and_component_order_are_stable_for_all_level1_branches() 
         "itu_t_g652d_chromatic_dispersion_check",
         "itu_t_g652d_attenuation_check",
     )
-    assert result.model_manifest.model_version == "1.1.0"
+    assert result.model_manifest.model_version == "1.2.0"
 
 
 @pytest.mark.parametrize("preset", [Level1FibrePreset.CUSTOM, Level1FibrePreset.G652D])

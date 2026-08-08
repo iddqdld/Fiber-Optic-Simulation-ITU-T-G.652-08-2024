@@ -23,6 +23,8 @@ from fibre_sim.bends import (
     MacrobendLossPoint,
     MacrobendLossRequest,
     MacrobendLossResult,
+    MarcuseBendLossInput,
+    MarcuseBendLossResult,
 )
 from fibre_sim.guidance import GuidanceRequest
 from fibre_sim.level1 import (
@@ -38,6 +40,7 @@ from fibre_sim.level1 import (
     Level1StandardsChecks,
     Level1Warning,
 )
+from fibre_sim.standards import get_g652d_preset
 from fibre_sim.sweeps import (
     Level1SweepManifest,
     Level1SweepParameter,
@@ -325,12 +328,28 @@ def test_public_bend_models_are_registered_and_closed() -> None:
         MacrobendLossPoint,
         MacrobendLossRequest,
         MacrobendLossResult,
+        MarcuseBendLossInput,
+        MarcuseBendLossResult,
     )
 
     assert set(bend_models).issubset(set(main.CONTRACT_MODELS))
     for model in bend_models:
         assert model.model_config["frozen"] is True
         assert model.model_config["extra"] == "forbid"
+
+    manifest = MacrobendLossManifest()
+    assert manifest.model_id == "marcuse_lp01_step_index_macrobend"
+    assert manifest.scientific_label == ("Estimated LP01 macrobend radiation loss — Marcuse model")
+
+
+def test_g652d_macrobend_reference_is_standards_information() -> None:
+    limits = get_g652d_preset().limits
+
+    assert limits.macrobend_radius_mm == 30.0
+    assert limits.macrobend_turns == 100
+    assert limits.macrobend_wavelength_nm == 1625.0
+    assert limits.macrobend_max_loss_db == 0.1
+    assert "qualification condition" in get_g652d_preset().limitations[2]
 
 
 def test_level1_sweep_models_are_registered_and_parameter_enum_is_published() -> None:

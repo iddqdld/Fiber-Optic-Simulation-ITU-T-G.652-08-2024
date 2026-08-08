@@ -23,6 +23,9 @@ from fibre_sim.bends import (
     MacrobendLossPoint,
     MacrobendLossRequest,
     MacrobendLossResult,
+    MarcuseBendLossInput,
+    MarcuseBendLossResult,
+    calculate_marcuse_bend_loss,
 )
 from fibre_sim.dispersion import (
     ChromaticPulseBroadeningCalculationError,
@@ -272,6 +275,30 @@ async def post_panda_thermal_fem(request: PandaThermalFemRequest) -> PandaTherma
 
 
 @app.post(
+    "/api/v1/bends/marcuse/calculate",
+    operation_id="calculate_marcuse_lp01_bend_loss",
+    response_model=MarcuseBendLossResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or Marcuse calculation failed",
+        }
+    },
+)
+async def post_marcuse_bend_loss(request: MarcuseBendLossInput) -> MarcuseBendLossResult:
+    try:
+        return calculate_marcuse_bend_loss(request)
+    except (MacrobendLossCalculationError, ValidationError, OverflowError) as exc:
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="The Marcuse LP01 macrobend estimate is unavailable for these inputs.",
+            field=None,
+            details={"reason": "marcuse_model_unavailable"},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
     "/api/v1/simulations/preview",
     operation_id="preview_level1_simulation",
     response_model=Level1SimulationResult,
@@ -387,6 +414,8 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     MacrobendLossPoint,
     MacrobendLossRequest,
     MacrobendLossResult,
+    MarcuseBendLossInput,
+    MarcuseBendLossResult,
     MaterialSource,
     ModelManifest,
     ModelReference,

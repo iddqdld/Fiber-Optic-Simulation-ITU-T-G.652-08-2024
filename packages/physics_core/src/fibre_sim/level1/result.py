@@ -66,16 +66,16 @@ class Level1SimulationManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["level1_single_section_simulation"] = "level1_single_section_simulation"
-    model_version: Literal["1.1.0"] = "1.1.0"
+    model_version: Literal["1.2.0"] = "1.2.0"
     component_model_ids: tuple[str, ...]
     assumptions: tuple[str, ...] = (
         "one uniform fibre section",
         "all calculations share one operating wavelength",
         "fibre composition is uniform over the section",
-        "user-supplied bend losses are applied after straight-fibre attenuation",
+        "Marcuse LP01 radiation loss is applied after straight-fibre attenuation",
     )
     limitations: tuple[str, ...] = (
-        "bend geometry does not derive bend loss",
+        "bend transitions and coating effects do not derive bend loss",
         "excludes splices and connectors",
         "excludes polarization-mode dispersion",
         "excludes optical nonlinearity",
@@ -107,13 +107,31 @@ class Level1SimulationResult(BaseModel):
                 "Macrobend input power must equal straight-fibre attenuation output power.",
             )
 
+        if self.bend_loss.wavelength_m != self.configuration.source.wavelength_nm * 1e-9:
+            raise PydanticCustomError(
+                "bend_loss_wavelength_mismatch",
+                "Macrobend wavelength must match the configured source wavelength.",
+            )
+        if self.bend_loss.core_radius_m != self.configuration.fibre.core_radius_um * 1e-6:
+            raise PydanticCustomError(
+                "bend_loss_core_radius_mismatch",
+                "Macrobend core radius must match the configured fibre core radius.",
+            )
+        if (
+            self.bend_loss.n_core != self.configuration.fibre.n_core
+            or self.bend_loss.n_cladding != self.configuration.fibre.n_cladding
+        ):
+            raise PydanticCustomError(
+                "bend_loss_index_mismatch",
+                "Macrobend refractive indices must match the configured fibre indices.",
+            )
+
         configured_bends = tuple(
             (
                 bend.position_fraction,
                 bend.radius_mm,
                 bend.angle_deg,
                 bend.direction,
-                bend.supplied_loss_db,
             )
             for bend in self.configuration.section.bends
         )
@@ -123,7 +141,6 @@ class Level1SimulationResult(BaseModel):
                 bend.radius_mm,
                 bend.angle_deg,
                 bend.direction,
-                bend.supplied_loss_db,
             )
             for bend in self.bend_loss.bends
         )

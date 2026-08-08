@@ -4710,14 +4710,70 @@ summary:focus-visible,
 
 .macrobend-total-loss-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
   padding: 0.5rem 0.75rem;
   background: rgba(249, 115, 22, 0.12);
   border: 1px solid rgba(249, 115, 22, 0.35);
   border-radius: 5px;
   color: #fdba74;
   font-size: 0.76rem;
+}
+
+.macrobend-result-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.macrobend-result-facts div {
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 4px;
+}
+
+.macrobend-result-facts dt {
+  color: #fed7aa;
+  font-size: 0.65rem;
+}
+
+.macrobend-result-facts dd {
+  margin: 0.15rem 0 0;
+  color: #fff7ed;
+  overflow-wrap: anywhere;
+}
+
+.macrobend-model-warnings,
+.macrobend-scientific-limits ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.macrobend-model-warnings {
+  color: #fde68a;
+}
+
+.macrobend-scientific-limits {
+  color: #fed7aa;
+}
+
+.macrobend-scientific-limits summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.macrobend-scientific-limits p {
+  margin: 0.5rem 0 0.2rem;
+  color: #ffedd5;
+}
+
+.macrobend-standard-reference {
+  padding: 0.55rem;
+  border-left: 3px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
 }
 
 .macrobend-total-loss-banner strong {

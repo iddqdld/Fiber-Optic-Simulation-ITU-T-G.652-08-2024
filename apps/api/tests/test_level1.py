@@ -6,7 +6,11 @@ import httpx2
 import pytest
 from apps.api.app.main import app
 
-from fibre_sim.bends import MAX_MACROBENDS
+from fibre_sim.bends import (
+    MAX_MACROBENDS,
+    MarcuseBendLossInput,
+    calculate_marcuse_bend_loss,
+)
 from fibre_sim.level1 import (
     Level1FibreConfig,
     Level1FibrePreset,
@@ -16,6 +20,7 @@ from fibre_sim.level1 import (
     Level1SourceConfig,
     calculate_level1_simulation,
 )
+from fibre_sim.modes import solve_scalar_step_index_lp01
 from fibre_sim.standards import G652DAttenuationApplication
 
 pytestmark = pytest.mark.anyio
@@ -115,9 +120,13 @@ async def test_custom_preview_returns_exact_physics_result_without_standards_det
         == response.json()["attenuation"]["output_power_dbm"]
         == response.json()["bend_loss"]["output_power_dbm"]
     )
-    assert response.json()["model_manifest"]["model_version"] == "1.1.0"
+    assert response.json()["model_manifest"]["model_version"] == "1.2.0"
     assert (
-        "user_supplied_macrobend_loss" in response.json()["model_manifest"]["component_model_ids"]
+        "marcuse_lp01_step_index_macrobend"
+        in response.json()["model_manifest"]["component_model_ids"]
+    )
+    assert response.json()["bend_loss"]["model_manifest"]["scientific_label"] == (
+        "Estimated LP01 macrobend radiation loss — Marcuse model"
     )
     assert len(response.json()["parameter_boundaries"]) == 16
     assert {boundary["field"] for boundary in response.json()["parameter_boundaries"]} == {
@@ -171,6 +180,35 @@ async def test_repeated_valid_preview_requests_are_deterministic(
     assert first.json() == second.json()
 
 
+async def test_marcuse_endpoint_matches_the_approved_synthetic_fixture(
+    client: httpx2.AsyncClient,
+) -> None:
+    mode = solve_scalar_step_index_lp01(
+        wavelength_m=1.625e-6,
+        core_radius_m=4.1e-6,
+        n_core=1.4504,
+        n_cladding=1.4447,
+    )
+    request = MarcuseBendLossInput(
+        wavelength_m=1.625e-6,
+        core_radius_m=4.1e-6,
+        cladding_radius_m=62.5e-6,
+        n_core=1.4504,
+        n_cladding=1.4447,
+        beta_per_m=mode.beta_per_m,
+        bend_radius_m=0.015,
+    )
+
+    response = await client.post(
+        "/api/v1/bends/marcuse/calculate",
+        json=request.model_dump(mode="json"),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == json.loads(calculate_marcuse_bend_loss(request).model_dump_json())
+    assert response.json()["alpha_power_per_m"] == pytest.approx(0.1846161533, rel=1e-9)
+
+
 async def test_preview_serializes_multiple_bends_and_final_power(
     client: httpx2.AsyncClient,
 ) -> None:
@@ -185,14 +223,12 @@ async def test_preview_serializes_multiple_bends_and_final_power(
                 "radius_mm": 12.0,
                 "angle_deg": 90.0,
                 "direction": "left",
-                "supplied_loss_db": 0.4,
             },
             {
                 "position_fraction": 0.7,
                 "radius_mm": 12.0,
                 "angle_deg": 90.0,
                 "direction": "right",
-                "supplied_loss_db": 0.6,
             },
         ],
     }
@@ -208,8 +244,13 @@ async def test_preview_serializes_multiple_bends_and_final_power(
     assert body["configuration"]["section"]["bends"] == configured_section["bends"]
     assert body["attenuation"]["output_power_dbm"] == -5.5
     assert body["bend_loss"]["input_power_dbm"] == -5.5
-    assert body["bend_loss"]["total_bend_loss_db"] == 1.0
-    assert body["bend_loss"]["output_power_dbm"] == -6.5
+    bend_loss = body["bend_loss"]
+    assert bend_loss["total_bend_loss_db"] == pytest.approx(
+        sum(point["estimated_radiation_loss_db"] for point in bend_loss["bends"])
+    )
+    assert bend_loss["output_power_dbm"] == pytest.approx(
+        bend_loss["input_power_dbm"] - bend_loss["total_bend_loss_db"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -287,13 +328,11 @@ async def test_invalid_preview_requests_return_stable_errors_and_trace_echo(
                     "position_fraction": 0.5,
                     "radius_mm": 12.0,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 0.4,
                 },
                 {
                     "position_fraction": 0.5,
                     "radius_mm": 12.0,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 0.4,
                 },
             ],
             ["body", "section"],
@@ -305,7 +344,6 @@ async def test_invalid_preview_requests_return_stable_errors_and_trace_echo(
                     "position_fraction": index / (MAX_MACROBENDS + 1),
                     "radius_mm": 12.0,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 0.1,
                 }
                 for index in range(1, MAX_MACROBENDS + 2)
             ],

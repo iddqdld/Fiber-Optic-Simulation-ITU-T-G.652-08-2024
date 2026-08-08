@@ -363,25 +363,22 @@ export function ImportExportModal({
                     </button>
                   </div>
 
-                  {(previewResult as Record<string, unknown> | null)
-                    ?.macrobend_loss !== undefined &&
-                    (previewResult as Record<string, unknown> | null)
-                      ?.macrobend_loss !== null && (
-                      <div className="import-export-option-card">
-                        <h4>Macrobend Loss</h4>
-                        <p>
-                          Configured bend parameters and calculated bending
-                          attenuation.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={handleExportMacrobendCsv}
-                          className="editor-shell-tab"
-                        >
-                          Download CSV
-                        </button>
-                      </div>
-                    )}
+                  {previewResult.bend_loss !== null && (
+                    <div className="import-export-option-card">
+                      <h4>Macrobend Loss</h4>
+                      <p>
+                        Configured bend parameters and calculated bending
+                        attenuation.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleExportMacrobendCsv}
+                        className="editor-shell-tab"
+                      >
+                        Download CSV
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

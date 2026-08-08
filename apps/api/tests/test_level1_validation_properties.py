@@ -353,13 +353,11 @@ def test_preview_enforces_grid_bounds_and_oddness(
                     "position_fraction": 0.4,
                     "radius_mm": 12.0,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 0.2,
                 },
                 {
                     "position_fraction": 0.4,
                     "radius_mm": 12.0,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 0.3,
                 },
             ],
             ("section",),
@@ -371,7 +369,6 @@ def test_preview_enforces_grid_bounds_and_oddness(
                     "position_fraction": index / (MAX_MACROBENDS + 1),
                     "radius_mm": 12.0,
                     "angle_deg": 90.0,
-                    "supplied_loss_db": 0.1,
                 }
                 for index in range(1, MAX_MACROBENDS + 2)
             ],

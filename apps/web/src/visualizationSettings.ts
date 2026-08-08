@@ -12,6 +12,7 @@ export type VisualizationSettings = {
   scaleMarkersEnabled: boolean
   powerIndicatorsEnabled: boolean
   pulseMarkersEnabled: boolean
+  bendLossOverlayEnabled: boolean
 }
 
 export const defaultVisualizationSettings: VisualizationSettings = {
@@ -26,6 +27,7 @@ export const defaultVisualizationSettings: VisualizationSettings = {
   scaleMarkersEnabled: true,
   powerIndicatorsEnabled: true,
   pulseMarkersEnabled: true,
+  bendLossOverlayEnabled: true,
 }
 
 export const modeDisplayThreshold = 0.01

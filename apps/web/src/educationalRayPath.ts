@@ -135,7 +135,6 @@ function offsetPoint(
 
 function getLossState(
   t: number,
-  macrobends: readonly MacrobendInput[] | null | undefined,
   bendLoss: MacrobendLossResult | null | undefined,
 ): RayLossState {
   if (bendLoss !== null && bendLoss !== undefined) {
@@ -157,19 +156,11 @@ function getLossState(
     return state
   }
 
-  let cumulativeLossDb = 0
-  for (const bend of macrobends ?? []) {
-    if (bend.position_fraction <= t + 1e-9) {
-      cumulativeLossDb += bend.supplied_loss_db
-    }
-  }
-
-  return { cumulativeLossDb, outputPowerDbm: null }
+  return { cumulativeLossDb: 0, outputPowerDbm: null }
 }
 
 function splitAtLossChanges(
   points: EducationalRayPoint[],
-  macrobends: readonly MacrobendInput[] | null | undefined,
   bendLoss: MacrobendLossResult | null | undefined,
 ): EducationalRayChunk[] {
   const chunks: EducationalRayChunk[] = []
@@ -177,7 +168,7 @@ function splitAtLossChanges(
   for (let index = 1; index < points.length; index += 1) {
     const start = points[index - 1]
     const end = points[index]
-    const state = getLossState((start.t + end.t) / 2, macrobends, bendLoss)
+    const state = getLossState((start.t + end.t) / 2, bendLoss)
     const previous = chunks[chunks.length - 1]
 
     if (
@@ -232,7 +223,7 @@ export function buildReflectedRayPath(
     return offsetPoint(path, t, offset)
   })
 
-  return splitAtLossChanges(points, macrobends, bendLoss)
+  return splitAtLossChanges(points, bendLoss)
 }
 
 export function buildCriticalRayPath(

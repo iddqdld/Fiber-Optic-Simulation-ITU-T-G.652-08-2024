@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import type { components } from '../../../packages/shared_schemas/generated/api'
 import {
   Level1Form,
   type FieldBoundaries,
@@ -33,6 +34,59 @@ const values: FormValues = {
   grid_half_width_um: '15',
   grid_points: '65',
 }
+
+const calculatedBend = {
+  position_fraction: 0.5,
+  radius_mm: 15,
+  angle_deg: 90,
+  direction: 'left',
+} satisfies components['schemas']['MacrobendInput']
+
+const calculatedBendLoss = {
+  beta_per_m: 5_950_000,
+  beta_source: 'scalar_step_index_lp01',
+  bends: [
+    {
+      alpha_power_per_m: 0.05756462732485114,
+      angle_deg: 90,
+      bend_length_m: 0.023561944901923447,
+      cumulative_bend_loss_db: 0.005890486225480862,
+      direction: 'left',
+      estimated_radiation_loss_db: 0.005890486225480862,
+      local_loss_db_per_m: 0.25,
+      numerical_underflow: false,
+      output_power_dbm: -3.005890486225481,
+      position_fraction: 0.5,
+      radius_mm: 15,
+      validity: 'valid',
+      warnings: [],
+    },
+  ],
+  cladding_radius_m: null,
+  core_radius_m: 4.1e-6,
+  input_power_dbm: -3,
+  max_local_loss_db_per_m: 0.25,
+  minimum_bend_radius_m: 0.015,
+  model_manifest: {
+    assumptions: [],
+    limitations: [],
+    loss_source: 'calculated',
+    model_id: 'marcuse_lp01_step_index_macrobend',
+    model_version: '1.0.0',
+    path_model: 'piecewise_constant_curvature',
+    references: [],
+    scientific_label: 'Estimated LP01 macrobend radiation loss — Marcuse model',
+  },
+  n_cladding: 1.465,
+  n_core: 1.47,
+  numerical_underflow: false,
+  output_power_dbm: -3.005890486225481,
+  total_bend_loss_db: 0.005890486225480862,
+  total_bent_length_m: 0.023561944901923447,
+  validity: 'valid',
+  warnings: [],
+  wavelength_m: 1.55e-6,
+} satisfies components['schemas']['MacrobendLossResult']
 
 const fieldBoundaries: FieldBoundaries = {
   n_core: [
@@ -128,19 +182,69 @@ describe('Level1Form inspector accordion', () => {
         onAddMacrobend={onAddMacrobend}
       />,
     )
-    openSection('Macrobends & Bend Loss')
+    openSection('Macrobends and bend loss')
     fireEvent.change(screen.getByLabelText('Turn direction'), {
       target: { value: 'right' },
     })
-    fireEvent.click(screen.getByRole('button', { name: '+ Add Bend Hotspot' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ Add bend' }))
 
     expect(onAddMacrobend).toHaveBeenCalledWith({
       position_fraction: 0.3,
       radius_mm: 15,
       angle_deg: 360,
       direction: 'right',
-      supplied_loss_db: 0.15,
     })
+  })
+
+  test('shows the calculated Marcuse label, local dB/m, and multimode LP01 wording', () => {
+    render(
+      <Level1Form
+        values={values}
+        error={null}
+        fieldIssues={{}}
+        fieldBoundaries={{}}
+        onNumericFieldChange={vi.fn()}
+        onPresetChange={vi.fn()}
+        onCableApplicationChange={vi.fn()}
+        macrobends={[calculatedBend]}
+        bendLoss={calculatedBendLoss}
+        modeRegime="multimode"
+      />,
+    )
+    openSection('Macrobends and bend loss')
+
+    expect(
+      screen.getByText(
+        'Estimated LP01 macrobend radiation loss — Marcuse model',
+      ),
+    ).toBeVisible()
+    expect(screen.getAllByText('0.25 dB/m')).not.toHaveLength(0)
+    expect(
+      screen.getByText(
+        'Multimode regime: bend-loss result shown for LP01 component only.',
+      ),
+    ).toBeVisible()
+  })
+
+  test('shows the G.652.D 30 mm, 100 turns, 1625 nm, 0.1 dB reference', () => {
+    render(
+      <Level1Form
+        values={{ ...values, preset: 'g652d' }}
+        error={null}
+        fieldIssues={{}}
+        fieldBoundaries={{}}
+        onNumericFieldChange={vi.fn()}
+        onPresetChange={vi.fn()}
+        onCableApplicationChange={vi.fn()}
+      />,
+    )
+    openSection('Macrobends and bend loss')
+
+    expect(
+      screen.getByText(
+        /ITU-T G\.652\.D reference limit: ≤ 0\.1 dB for 100 turns at 30 mm radius at 1625 nm\./,
+      ),
+    ).toBeVisible()
   })
 
   test('uses the exact physical groups and keeps every field in its group', () => {

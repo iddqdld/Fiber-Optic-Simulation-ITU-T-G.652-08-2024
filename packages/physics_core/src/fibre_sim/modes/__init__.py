@@ -1,4 +1,9 @@
 from .calculations import calculate_gaussian_mode_profile
+from .lp01_step_index import (
+    ScalarLP01ModeSolution,
+    ScalarLP01SolveError,
+    solve_scalar_step_index_lp01,
+)
 from .mode_field_radius import (
     MODE_FIELD_RADIUS_MAX_V,
     MODE_FIELD_RADIUS_MIN_V,
@@ -21,8 +26,11 @@ __all__ = [
     "MODE_FIELD_RADIUS_MAX_V",
     "MODE_FIELD_RADIUS_MIN_V",
     "ModeFieldRadiusValidityError",
+    "ScalarLP01ModeSolution",
+    "ScalarLP01SolveError",
     "approximate_mode_field_radius_um",
     "calculate_gaussian_mode_profile",
+    "solve_scalar_step_index_lp01",
     "MAX_GRID_POINTS",
     "MIN_GRID_POINTS",
 ]
