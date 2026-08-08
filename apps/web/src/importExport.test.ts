@@ -230,6 +230,7 @@ describe('importExport module', () => {
       bends: [
         {
           angle_deg: 90,
+          direction: 'right',
           position_fraction: 0.5,
           radius_mm: 15,
           supplied_loss_db: 0.05,
@@ -248,9 +249,9 @@ describe('importExport module', () => {
 
     const csvContent = exportMacrobendLossCsv(mockMacrobendResult as never)
     expect(csvContent).toContain(
-      'Bend #,Position Fraction,Radius (mm),Angle (deg)',
+      'Bend #,Position Fraction,Radius (mm),Angle (deg),Direction',
     )
-    expect(csvContent).toContain('1,0.5,15,90,0.05,0.05,-3.05')
+    expect(csvContent).toContain('1,0.5,15,90,right,0.05,0.05,-3.05')
   })
 
   it('triggers file download without throwing', () => {

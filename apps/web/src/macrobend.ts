@@ -28,12 +28,22 @@ function hasExactKeys(
 
 function isMacrobendInput(value: unknown): value is MacrobendInput {
   return (
-    hasExactKeys(value, [
+    (hasExactKeys(value, [
       'angle_deg',
       'position_fraction',
       'radius_mm',
       'supplied_loss_db',
-    ]) &&
+    ]) ||
+      hasExactKeys(value, [
+        'angle_deg',
+        'direction',
+        'position_fraction',
+        'radius_mm',
+        'supplied_loss_db',
+      ])) &&
+    (value.direction === undefined ||
+      value.direction === 'left' ||
+      value.direction === 'right') &&
     isFiniteNumber(value.position_fraction) &&
     value.position_fraction >= 0 &&
     value.position_fraction <= 1 &&
@@ -75,6 +85,7 @@ export function macrobendInputsMatch(
         bend.position_fraction === other.position_fraction &&
         bend.radius_mm === other.radius_mm &&
         bend.angle_deg === other.angle_deg &&
+        (bend.direction ?? 'left') === (other.direction ?? 'left') &&
         bend.supplied_loss_db === other.supplied_loss_db
       )
     })
@@ -92,6 +103,7 @@ function isMacrobendLossPoint(value: unknown): boolean {
     isFiniteNumber(value.angle_deg) &&
     value.angle_deg > 0 &&
     value.angle_deg <= 360 &&
+    (value.direction === 'left' || value.direction === 'right') &&
     isFiniteNumber(value.supplied_loss_db) &&
     value.supplied_loss_db >= 0 &&
     isFiniteNumber(value.cumulative_bend_loss_db) &&
@@ -115,7 +127,7 @@ export function isMacrobendLossResult(
     !value.bends.every(isMacrobendLossPoint) ||
     !isRecord(value.model_manifest) ||
     value.model_manifest.model_id !== 'user_supplied_macrobend_loss' ||
-    value.model_manifest.model_version !== '1.0.0' ||
+    value.model_manifest.model_version !== '1.1.0' ||
     value.model_manifest.loss_source !== 'user_supplied' ||
     value.model_manifest.aggregation !== 'additive_db'
   ) {

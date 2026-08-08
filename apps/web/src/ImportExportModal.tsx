@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 
-import type {
-  components,
-  operations,
-} from '../../../packages/shared_schemas/generated/api'
+import type { operations } from '../../../packages/shared_schemas/generated/api'
 import type { FormValues } from './Level1Form'
 import {
   downloadFile,
@@ -190,9 +187,7 @@ export function ImportExportModal({
   }
 
   const handleExportMacrobendCsv = () => {
-    const rawResult = previewResult as Record<string, unknown> | null
-    const macrobendLoss = rawResult?.macrobend_loss as
-      components['schemas']['MacrobendLossResult'] | null | undefined
+    const macrobendLoss = previewResult?.bend_loss
 
     if (macrobendLoss === undefined || macrobendLoss === null) {
       return

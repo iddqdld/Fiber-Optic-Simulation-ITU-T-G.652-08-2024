@@ -112,6 +112,7 @@ class Level1SimulationResult(BaseModel):
                 bend.position_fraction,
                 bend.radius_mm,
                 bend.angle_deg,
+                bend.direction,
                 bend.supplied_loss_db,
             )
             for bend in self.configuration.section.bends
@@ -121,6 +122,7 @@ class Level1SimulationResult(BaseModel):
                 bend.position_fraction,
                 bend.radius_mm,
                 bend.angle_deg,
+                bend.direction,
                 bend.supplied_loss_db,
             )
             for bend in self.bend_loss.bends

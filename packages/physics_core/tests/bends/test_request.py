@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 import fibre_sim.bends as bends
-from fibre_sim.bends import MAX_MACROBENDS, MacrobendInput, MacrobendLossRequest
+from fibre_sim.bends import MAX_MACROBENDS, BendDirection, MacrobendInput, MacrobendLossRequest
 
 
 def make_bend(**overrides: object) -> MacrobendInput:
@@ -32,6 +32,7 @@ def make_request(**overrides: object) -> MacrobendLossRequest:
 def test_public_exports_are_exact() -> None:
     expected_exports = [
         "MAX_MACROBENDS",
+        "BendDirection",
         "MacrobendInput",
         "MacrobendLossCalculationError",
         "MacrobendLossManifest",
@@ -47,6 +48,7 @@ def test_public_exports_are_exact() -> None:
     } == set(expected_exports) - {"MAX_MACROBENDS"}
     assert [getattr(bends, name) for name in expected_exports] == [
         MAX_MACROBENDS,
+        BendDirection,
         MacrobendInput,
         bends.MacrobendLossCalculationError,
         bends.MacrobendLossManifest,
@@ -69,12 +71,28 @@ def test_input_has_exact_fields_and_accepts_normal_values() -> None:
         "position_fraction",
         "radius_mm",
         "angle_deg",
+        "direction",
         "supplied_loss_db",
     ]
     assert bend.position_fraction == 0.25
     assert bend.radius_mm == 10.0
     assert bend.angle_deg == 90.0
+    assert bend.direction is BendDirection.LEFT
     assert bend.supplied_loss_db == 1.5
+
+
+def test_input_accepts_both_planar_directions_and_defaults_to_left() -> None:
+    assert make_bend(direction="left").direction is BendDirection.LEFT
+    assert make_bend(direction="right").direction is BendDirection.RIGHT
+    assert make_bend().direction is BendDirection.LEFT
+
+
+@pytest.mark.parametrize("value", ["up", "", 1, None, True])
+def test_input_rejects_invalid_planar_directions(value: object) -> None:
+    with pytest.raises(ValidationError) as exc_info:
+        make_bend(direction=value)
+
+    assert exc_info.value.errors()[0]["loc"] == ("direction",)
 
 
 @pytest.mark.parametrize(
@@ -155,6 +173,7 @@ def test_input_rejects_nonfinite_numeric_values(field: str, value: float) -> Non
         "position_fraction",
         "radius_mm",
         "angle_deg",
+        "direction",
         "supplied_loss_db",
     ],
 )
@@ -315,6 +334,7 @@ def test_input_and_request_json_schemas_are_explicit() -> None:
         "position_fraction",
         "radius_mm",
         "angle_deg",
+        "direction",
         "supplied_loss_db",
     ]
     assert input_schema["required"] == [
@@ -329,6 +349,8 @@ def test_input_and_request_json_schemas_are_explicit() -> None:
     assert input_schema["properties"]["radius_mm"]["exclusiveMinimum"] == 0
     assert input_schema["properties"]["angle_deg"]["exclusiveMinimum"] == 0
     assert input_schema["properties"]["angle_deg"]["maximum"] == 360
+    assert input_schema["properties"]["direction"]["default"] == "left"
+    assert input_schema["properties"]["direction"]["$ref"] == "#/$defs/BendDirection"
     assert input_schema["properties"]["supplied_loss_db"]["minimum"] == 0
 
     assert list(request_schema["properties"]) == ["input_power_dbm", "bends"]

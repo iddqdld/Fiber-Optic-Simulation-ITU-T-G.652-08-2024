@@ -427,6 +427,32 @@ describe('FibreGeometryScene', () => {
     ).toThrow()
   })
 
+  test('renders configured bend geometry when the selected preset is straight', () => {
+    const scene = FibreGeometryScene({
+      coreRadiusUm: 4,
+      visualLengthModelUnits: 8,
+      fibreRoute: 'straight',
+      rayViewEnabled: false,
+      modeViewEnabled: false,
+      pulseAnimationEnabled: false,
+      macrobends: [
+        {
+          position_fraction: 0.5,
+          radius_mm: 15,
+          angle_deg: 90,
+          direction: 'right',
+          supplied_loss_db: 0.2,
+        },
+      ],
+    })
+
+    expect(findSceneElement(scene, 'curved-fibre-body')).toBeTruthy()
+    expect(findSceneElement(scene, 'solid-core-geometry').type).toBe(
+      'tubeGeometry',
+    )
+    expect(findSceneElement(scene, 'spatial-bend-marker-layer')).toBeTruthy()
+  })
+
   test('keeps standalone power and pulse markers visible through the core', () => {
     const powerScene = FibreGeometryScene({
       coreRadiusUm: 4,

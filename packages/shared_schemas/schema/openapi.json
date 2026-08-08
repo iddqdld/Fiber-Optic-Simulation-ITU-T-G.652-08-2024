@@ -66,6 +66,14 @@
         "title": "Bend",
         "type": "object"
       },
+      "BendDirection": {
+        "enum": [
+          "left",
+          "right"
+        ],
+        "title": "BendDirection",
+        "type": "string"
+      },
       "CableSection": {
         "additionalProperties": false,
         "properties": {
@@ -2559,6 +2567,11 @@
             "title": "Angle Deg",
             "type": "number"
           },
+          "direction": {
+            "$ref": "#/components/schemas/BendDirection",
+            "default": "left",
+            "description": "Planar turn direction viewed from above the transverse y axis."
+          },
           "position_fraction": {
             "description": "Macrobend position as a dimensionless fraction of propagation distance.",
             "maximum": 1,
@@ -2611,7 +2624,7 @@
           },
           "limitations": {
             "default": [
-              "geometry and metadata do not affect or alter supplied loss; radius, angle, and position do not derive loss",
+              "geometry and metadata do not affect or alter supplied loss; radius, angle, direction, and position do not derive loss",
               "no wavelength/MFD/index/radiation model is included",
               "this is not the G.652 qualification test or conformance"
             ],
@@ -2634,8 +2647,8 @@
             "type": "string"
           },
           "model_version": {
-            "const": "1.0.0",
-            "default": "1.0.0",
+            "const": "1.1.0",
+            "default": "1.1.0",
             "title": "Model Version",
             "type": "string"
           }
@@ -2658,6 +2671,11 @@
             "minimum": 0,
             "title": "Cumulative Bend Loss Db",
             "type": "number"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/BendDirection",
+            "default": "left",
+            "description": "Planar turn direction viewed from above the transverse y axis."
           },
           "output_power_dbm": {
             "description": "Output optical power level at this point in decibels referenced to one milliwatt (dBm).",

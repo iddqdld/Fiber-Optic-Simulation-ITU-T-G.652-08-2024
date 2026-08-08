@@ -33,6 +33,7 @@ def calculate_macrobend_loss(request: MacrobendLossRequest) -> MacrobendLossResu
                 position_fraction=bend.position_fraction,
                 radius_mm=bend.radius_mm,
                 angle_deg=bend.angle_deg,
+                direction=bend.direction,
                 supplied_loss_db=bend.supplied_loss_db,
                 cumulative_bend_loss_db=cumulative_bend_loss_db,
                 output_power_dbm=output_power_dbm,

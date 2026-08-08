@@ -9,6 +9,7 @@ The units are:
 - `position_fraction`: dimensionless, inclusive from 0 to 1;
 - `radius_mm`: bend radius in millimetres (mm);
 - `angle_deg`: bend angle in degrees (deg), greater than 0 and at most 360;
+- `direction`: planar `left` or `right` turn, with `left` as the default;
 - `supplied_loss_db` and `cumulative_bend_loss_db`: loss in decibels (dB);
 - `input_power_dbm`, point `output_power_dbm`, and result `output_power_dbm`:
   optical power levels in decibels referenced to one milliwatt (dBm).
@@ -30,9 +31,9 @@ non-decreasing cumulative loss and non-increasing point power.
 
 The selected policy is explicit user-supplied additive loss: each supplied
 loss is treated as passive, bends are ordered, and losses are added in dB.
-Radius, angle, and position do not derive loss. There is no wavelength, MFD,
-index, or radiation model in this package. This is not the G.652 qualification
-test or a G.652 conformance model.
+Radius, angle, direction, and position do not derive loss. There is no
+wavelength, MFD, index, or radiation model in this package. This is not the
+G.652 qualification test or a G.652 conformance model.
 
 The model is valid for finite numeric inputs that satisfy the stated bounds
 and for aggregation results that remain finite. It intentionally defers

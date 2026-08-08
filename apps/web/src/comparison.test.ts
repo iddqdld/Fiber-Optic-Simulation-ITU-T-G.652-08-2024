@@ -84,7 +84,7 @@ const bendLoss = {
     limitations: [],
     loss_source: 'user_supplied',
     model_id: 'user_supplied_macrobend_loss',
-    model_version: '1.0.0',
+    model_version: '1.1.0',
   },
   output_power_dbm: -5,
   total_bend_loss_db: 0,

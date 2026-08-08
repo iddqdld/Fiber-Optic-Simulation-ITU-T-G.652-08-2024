@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -20,6 +21,11 @@ _NonNegativeFiniteFloat = Annotated[
 _StrictFiniteFloat = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 
 
+class BendDirection(StrEnum):
+    LEFT = "left"
+    RIGHT = "right"
+
+
 class MacrobendInput(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -33,6 +39,10 @@ class MacrobendInput(BaseModel):
         float,
         Field(strict=True, gt=0, le=360, allow_inf_nan=False),
     ] = Field(description="Macrobend angle in degrees (deg).")
+    direction: BendDirection = Field(
+        default=BendDirection.LEFT,
+        description="Planar turn direction viewed from above the transverse y axis.",
+    )
     supplied_loss_db: _NonNegativeFiniteFloat = Field(
         description="User-supplied macrobend loss in decibels (dB)."
     )

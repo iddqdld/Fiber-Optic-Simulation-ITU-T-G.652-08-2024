@@ -114,6 +114,35 @@ function openSection(sectionName: string): void {
 describe('Level1Form inspector accordion', () => {
   afterEach(cleanup)
 
+  test('adds a bend with the selected planar direction', () => {
+    const onAddMacrobend = vi.fn()
+    render(
+      <Level1Form
+        values={values}
+        error={null}
+        fieldIssues={{}}
+        fieldBoundaries={{}}
+        onNumericFieldChange={vi.fn()}
+        onPresetChange={vi.fn()}
+        onCableApplicationChange={vi.fn()}
+        onAddMacrobend={onAddMacrobend}
+      />,
+    )
+    openSection('Macrobends & Bend Loss')
+    fireEvent.change(screen.getByLabelText('Turn direction'), {
+      target: { value: 'right' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add Bend Hotspot' }))
+
+    expect(onAddMacrobend).toHaveBeenCalledWith({
+      position_fraction: 0.3,
+      radius_mm: 15,
+      angle_deg: 360,
+      direction: 'right',
+      supplied_loss_db: 0.15,
+    })
+  })
+
   test('uses the exact physical groups and keeps every field in its group', () => {
     renderForm()
 

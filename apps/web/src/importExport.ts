@@ -459,6 +459,7 @@ export function exportMacrobendLossCsv(
       'Position Fraction',
       'Radius (mm)',
       'Angle (deg)',
+      'Direction',
       'Supplied Loss (dB)',
       'Cumulative Loss (dB)',
       'Output Power (dBm)',
@@ -473,6 +474,7 @@ export function exportMacrobendLossCsv(
       String(bend.position_fraction),
       String(bend.radius_mm),
       String(bend.angle_deg),
+      bend.direction ?? 'left',
       String(bend.supplied_loss_db),
       String(bend.cumulative_bend_loss_db),
       String(bend.output_power_dbm),
@@ -481,6 +483,7 @@ export function exportMacrobendLossCsv(
 
   rows.push([
     'TOTAL SUMMARY',
+    '-',
     '-',
     '-',
     '-',

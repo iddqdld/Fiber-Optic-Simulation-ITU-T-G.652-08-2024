@@ -1,6 +1,9 @@
 import { useState, type ReactNode, type DragEvent } from 'react'
 
-import type { components, operations } from '../../../packages/shared_schemas/generated/api'
+import type {
+  components,
+  operations,
+} from '../../../packages/shared_schemas/generated/api'
 import type { FieldIssue, FieldIssues } from './fieldIssues'
 import { parseAndValidateConfiguration } from './importExport'
 import {
@@ -733,6 +736,7 @@ function MacrobendsInspectorSection({
   const [positionPct, setPositionPct] = useState('30')
   const [radiusMm, setRadiusMm] = useState('15')
   const [angleDeg, setAngleDeg] = useState('360')
+  const [direction, setDirection] = useState<'left' | 'right'>('left')
   const [lossDb, setLossDb] = useState('0.15')
 
   const handleAdd = () => {
@@ -746,6 +750,7 @@ function MacrobendsInspectorSection({
         position_fraction: pos,
         radius_mm: rad,
         angle_deg: ang,
+        direction,
         supplied_loss_db: loss,
       })
     }
@@ -808,6 +813,19 @@ function MacrobendsInspectorSection({
               />
             </div>
             <div className="form-field level1-inspector-field">
+              <label htmlFor="bend-direction">Turn direction</label>
+              <select
+                id="bend-direction"
+                value={direction}
+                onChange={(event) =>
+                  setDirection(event.currentTarget.value as 'left' | 'right')
+                }
+              >
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+            <div className="form-field level1-inspector-field">
               <label htmlFor="bend-loss">Loss (dB)</label>
               <input
                 id="bend-loss"
@@ -830,23 +848,31 @@ function MacrobendsInspectorSection({
         </div>
 
         <div className="macrobend-list">
-          <h4 className="macrobend-list-title">Configured Bends ({macrobends.length})</h4>
+          <h4 className="macrobend-list-title">
+            Configured Bends ({macrobends.length})
+          </h4>
           {macrobends.length === 0 ? (
-            <p className="macrobend-empty-hint">No macrobends added to this link.</p>
+            <p className="macrobend-empty-hint">
+              No macrobends added to this link.
+            </p>
           ) : (
             <ul className="macrobend-item-list">
               {macrobends.map((bend, itemIndex) => {
                 const distKm = (bend.position_fraction * length).toFixed(1)
                 const pct = (bend.position_fraction * 100).toFixed(0)
                 return (
-                  <li key={`${bend.position_fraction}-${itemIndex}`} className="macrobend-item">
+                  <li
+                    key={`${bend.position_fraction}-${itemIndex}`}
+                    className="macrobend-item"
+                  >
                     <div className="macrobend-item-details">
                       <strong>Hotspot #{itemIndex + 1}</strong>
                       <span>
                         Pos: {pct}% {length > 0 ? `(${distKm} km)` : ''}
                       </span>
                       <span>
-                        r={bend.radius_mm}mm, {bend.angle_deg}°
+                        r={bend.radius_mm}mm, {bend.angle_deg}°{' '}
+                        {(bend.direction ?? 'left').toUpperCase()}
                       </span>
                       <span className="macrobend-loss-badge">
                         -{bend.supplied_loss_db} dB

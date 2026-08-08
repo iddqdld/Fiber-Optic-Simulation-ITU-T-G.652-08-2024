@@ -52,8 +52,11 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
         "position_fraction",
         "radius_mm",
         "angle_deg",
+        "direction",
         "supplied_loss_db",
     }
+    assert schemas["BendDirection"]["enum"] == ["left", "right"]
+    assert schemas["MacrobendInput"]["properties"]["direction"]["default"] == "left"
     assert schemas["MacrobendLossRequest"]["properties"]["bends"]["items"] == {
         "$ref": "#/components/schemas/MacrobendInput"
     }
@@ -64,6 +67,7 @@ def test_public_bend_schemas_publish_nested_limits_and_references() -> None:
     assert schemas["MacrobendLossManifest"]["properties"]["model_id"]["const"] == (
         "user_supplied_macrobend_loss"
     )
+    assert schemas["MacrobendLossManifest"]["properties"]["model_version"]["const"] == ("1.1.0")
 
 
 def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
