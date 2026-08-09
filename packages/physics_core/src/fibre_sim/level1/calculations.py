@@ -7,7 +7,12 @@ from fibre_sim.dispersion import (
     calculate_group_delay,
 )
 from fibre_sim.guidance import GuidanceRequest, calculate_guidance
-from fibre_sim.modes import GaussianModeProfileRequest, calculate_gaussian_mode_profile
+from fibre_sim.modes import (
+    GaussianModeProfileRequest,
+    ScalarLPModeCatalogRequest,
+    calculate_gaussian_mode_profile,
+    calculate_scalar_lp_mode_catalog,
+)
 from fibre_sim.standards import (
     G652DAttenuationCheckRequest,
     G652DAttenuationCheckStatus,
@@ -48,6 +53,14 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
             mode_field_radius_um=fibre.mode_field_radius_um,
             grid_half_width_um=sampling.grid_half_width_um,
             grid_points=sampling.grid_points,
+        )
+    )
+    supported_modes = calculate_scalar_lp_mode_catalog(
+        ScalarLPModeCatalogRequest(
+            wavelength_m=source.wavelength_nm * 1e-9,
+            core_radius_m=fibre.core_radius_um * 1e-6,
+            n_core=fibre.n_core,
+            n_cladding=fibre.n_cladding,
         )
     )
     attenuation = calculate_constant_attenuation(
@@ -97,6 +110,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
     component_model_ids = [
         guidance.model_manifest.model_id,
         mode_profile.model_manifest.model_id,
+        supported_modes.model_manifest.model_id,
         attenuation.model_manifest.model_id,
         bend_loss.model_manifest.model_id,
         group_delay.model_manifest.model_id,
@@ -160,6 +174,7 @@ def calculate_level1_simulation(request: Level1SimulationRequest) -> Level1Simul
         configuration=request,
         guidance=guidance,
         mode_profile=mode_profile,
+        supported_modes=supported_modes,
         attenuation=attenuation,
         bend_loss=bend_loss,
         group_delay=group_delay,

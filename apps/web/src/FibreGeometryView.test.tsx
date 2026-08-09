@@ -10,6 +10,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -63,9 +64,13 @@ import {
   getTangentQuaternion,
 } from './fibreShowcase'
 import type { PowerDistanceData } from './powerDistancePlot'
+import type { ScalarModeFieldData } from './scalarMode'
 import { defaultVisualizationSettings } from './visualizationSettings'
 type MacrobendInput = components['schemas']['MacrobendInput']
 type MacrobendLossResult = components['schemas']['MacrobendLossResult']
+type ScalarLPModeCatalogResult =
+  components['schemas']['ScalarLPModeCatalogResult']
+type ScalarLPModeFieldResult = components['schemas']['ScalarLPModeFieldResult']
 
 type SceneElementProps = {
   args?: unknown[]
@@ -133,6 +138,7 @@ function sceneElements(
     incidenceAngleDeg?: number
     rayViewEnabled?: boolean
     modeProfile?: ModeProfileData | null
+    scalarModeProfile?: ScalarModeFieldData | null
     modeViewEnabled?: boolean
     pulseAnimation?: PulseAnimationData | null
     pulseAnimationEnabled?: boolean
@@ -178,6 +184,100 @@ const modeProfile = {
   normalizationConvention: 'unit_peak_field_and_intensity',
   radiusConvention: '1/e_field_radius',
 } satisfies ModeProfileData
+
+const scalarModeManifest = {
+  model_id: 'scalar_lp_step_index_modes',
+  model_version: '1.0.0',
+  catalog_label: 'Supported scalar LP modes — weak-guidance step-index model',
+  field_label: 'Scalar LP mode field — weak-guidance step-index model',
+  field_normalization: 'unit_peak_absolute_field',
+  angular_basis: 'cosine_representative',
+  excitation_status: 'not_calculated',
+  assumptions: ['scalar weak-guidance LP mode equation'],
+  limitations: ['supported modes are not necessarily excited by the source'],
+} satisfies components['schemas']['ScalarLPModeManifest']
+
+const multimodeSupportedModes = {
+  wavelength_m: 1.5500000000000002e-6,
+  core_radius_m: 4.1e-6,
+  n_core: 1.48,
+  n_cladding: 1.465,
+  v_number_dimensionless: 3.493174699692236,
+  mode_regime: 'multimode',
+  mode_families: [
+    {
+      label: 'LP01',
+      azimuthal_order: 0,
+      radial_order: 1,
+      spatial_degeneracy: 1,
+      cutoff_v_dimensionless: 0,
+      v_number_dimensionless: 3.493174699692236,
+      u_dimensionless: 1.846434856028573,
+      w_dimensionless: 2.9652905093789186,
+      normalized_propagation_constant: 0.7205993784658481,
+      effective_index_dimensionless: 1.4758243383085023,
+      beta_per_m: 5982501.805443881,
+    },
+    {
+      label: 'LP11',
+      azimuthal_order: 1,
+      radial_order: 1,
+      spatial_degeneracy: 2,
+      cutoff_v_dimensionless: 2.4048255576957724,
+      v_number_dimensionless: 3.493174699692236,
+      u_dimensionless: 2.875951497832512,
+      w_dimensionless: 1.982718453206323,
+      normalized_propagation_constant: 0.32216732062017384,
+      effective_index_dimensionless: 1.4698492240323142,
+      beta_per_m: 5958280.676263968,
+    },
+  ],
+  catalog_truncated: false,
+  warnings: [],
+  model_manifest: scalarModeManifest,
+} satisfies ScalarLPModeCatalogResult
+
+const lp11NormalizedField = [
+  [-0.5, 0, 0.5],
+  [-1, 0, 1],
+  [-0.5, 0, 0.5],
+]
+
+const scalarModeFieldResult = {
+  wavelength_m: multimodeSupportedModes.wavelength_m,
+  core_radius_m: multimodeSupportedModes.core_radius_m,
+  n_core: multimodeSupportedModes.n_core,
+  n_cladding: multimodeSupportedModes.n_cladding,
+  selected_mode: multimodeSupportedModes.mode_families[1],
+  grid_half_width_m: 4e-6,
+  grid_points: 3,
+  x_m: [-4e-6, 0, 4e-6],
+  y_m: [-4e-6, 0, 4e-6],
+  normalized_field: lp11NormalizedField,
+  normalized_intensity: lp11NormalizedField.map((row) =>
+    row.map((value) => value ** 2),
+  ),
+  model_manifest: scalarModeManifest,
+} satisfies ScalarLPModeFieldResult
+
+const scalarModeFieldData = {
+  coreRadiusUm: 4.1,
+  gridHalfWidthUm: 4,
+  gridPoints: 3,
+  xUm: [-4, 0, 4],
+  yUm: [-4, 0, 4],
+  normalizedField: lp11NormalizedField,
+  normalizedIntensity: lp11NormalizedField.map((row) =>
+    row.map((value) => value ** 2),
+  ),
+  selectedMode: multimodeSupportedModes.mode_families[1],
+  modelId: 'scalar_lp_step_index_modes',
+  modelVersion: '1.0.0',
+  fieldLabel: 'Scalar LP mode field — weak-guidance step-index model',
+  normalizationConvention: 'unit_peak_absolute_field',
+  angularBasis: 'cosine_representative',
+  excitationStatus: 'not_calculated',
+} satisfies ScalarModeFieldData
 
 const modeGuidance = {
   modeRegime: 'single_mode',
@@ -259,6 +359,7 @@ const bendLoss = {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
 })
 
 describe('FibreGeometryScene', () => {
@@ -437,6 +538,32 @@ describe('FibreGeometryScene', () => {
     expect(
       findSceneElement(scene, 'approximate-lp01-mode-field-radius-shell'),
     ).toBeTruthy()
+    expect(coreMaterial.props).toMatchObject({
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+    })
+  })
+
+  test('renders one selected signed scalar mode mesh instead of the Gaussian mesh', () => {
+    const { scene, coreMaterial } = sceneElements(4.1, 8, {
+      modeProfile,
+      scalarModeProfile: scalarModeFieldData,
+      rayViewEnabled: false,
+    })
+    const field = findSceneElement(scene, 'scalar-lp-mode-field')
+    const amplitude = findSceneElement(
+      scene,
+      'scalar-lp-mode-field-amplitude-attribute',
+    )
+    const material = findSceneElement(scene, 'scalar-lp-mode-field-material')
+
+    expect(field.props.name).toBe('scalar-lp-mode-field')
+    expect(Math.min(...(amplitude.props.array as Float32Array))).toBe(-1)
+    expect(Math.max(...(amplitude.props.array as Float32Array))).toBe(1)
+    expect(material.props.fragmentShader).toContain('signedFieldColor')
+    expect(material.props.fragmentShader).toContain('-1.0, 1.0')
+    expect(() => findSceneElement(scene, 'approximate-lp01-field')).toThrow()
     expect(coreMaterial.props).toMatchObject({
       transparent: true,
       opacity: 0.42,
@@ -1152,9 +1279,9 @@ describe('FibreGeometryView', () => {
         'Radial dimensions are normalized for visibility. The cladding shell is illustrative. Longitudinal scale is compressed and not to scale. The preset curve styles are display-only. Configured bend radii and angles drive the Marcuse estimate, while their displayed radii stay normalized.',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText('Approximate LP01 field')).toBeChecked()
+    expect(screen.getByLabelText('Scalar mode field')).toBeChecked()
     expect(
-      screen.getByText(/Approximate LP01 field unavailable/),
+      screen.getByText(/Gaussian LP01 field is unavailable/),
     ).toBeInTheDocument()
   })
 
@@ -1318,7 +1445,7 @@ describe('FibreGeometryView', () => {
       />,
     )
 
-    const toggle = screen.getByLabelText('Approximate LP01 field')
+    const toggle = screen.getByLabelText('Scalar mode field')
     expect(toggle).toBeChecked()
     expect(screen.getByText('Mode-field radius')).toBeInTheDocument()
     expect(screen.getByText('4.82 µm')).toBeInTheDocument()
@@ -1350,7 +1477,7 @@ describe('FibreGeometryView', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('1/e_field_radius')).toBeInTheDocument()
 
-    const explanation = document.querySelector('.mode-profile-explanation')
+    const explanation = document.querySelector('#mode-field-explanation')
     expect(explanation).toHaveTextContent('scalar weak-guidance approximation')
     expect(explanation).toHaveTextContent('shared path')
     expect(explanation).toHaveTextContent('normalized field amplitude')
@@ -1390,15 +1517,17 @@ describe('FibreGeometryView', () => {
       />,
     )
 
-    expect(container.querySelector('.mode-profile-status')).toHaveTextContent(
-      'Approximate LP01 field unavailable',
-    )
+    expect(
+      screen.getByText(
+        'The Gaussian LP01 field is unavailable for these samples.',
+      ),
+    ).toBeInTheDocument()
     expect(
       container.querySelector('.mode-profile-explanation'),
     ).toBeInTheDocument()
   })
 
-  test('labels the LP01 layer as one component at the multimode boundary', () => {
+  test('offers supported scalar modes in a multimode display', () => {
     const { container } = render(
       <FibreGeometryView
         coreRadiusUm={4}
@@ -1409,6 +1538,7 @@ describe('FibreGeometryView', () => {
           vNumberDimensionless: 2.405,
         }}
         modeProfile={modeProfile}
+        supportedModes={multimodeSupportedModes}
         pulseAnimation={null}
       />,
     )
@@ -1417,12 +1547,65 @@ describe('FibreGeometryView', () => {
     expect(modeRegime).toHaveAttribute('data-regime', 'multimode')
     expect(modeRegime).toHaveTextContent('Mode regimeMultimode')
     expect(modeRegime).toHaveTextContent('V-number2.405')
-    expect(screen.getByRole('note')).toHaveTextContent(
-      'This multimode case shows only the LP01 component',
+    expect(
+      screen.getByText(/Excited modes: not calculated/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/This Gaussian selection shows LP01 only/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('Supported scalar mode families'),
+    ).toHaveTextContent('LP11')
+  })
+
+  test('calculates and displays one selected higher-order field on demand', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue(scalarModeFieldResult),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <FibreGeometryView
+        coreRadiusUm={4.1}
+        sectionLengthKm={12.5}
+        rayGuidance={{
+          ...guidance,
+          modeRegime: 'multimode',
+          vNumberDimensionless: multimodeSupportedModes.v_number_dimensionless,
+        }}
+        modeProfile={modeProfile}
+        supportedModes={multimodeSupportedModes}
+        pulseAnimation={null}
+      />,
     )
-    expect(screen.getByRole('note')).toHaveTextContent(
-      'Higher-order modes and source coupling are not part of this phase',
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Displayed mode')).toHaveValue('gaussian-lp01')
+
+    fireEvent.change(screen.getByLabelText('Displayed mode'), {
+      target: { value: '1:1' },
+    })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    await screen.findByText('Signed normalized amplitude')
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      wavelength_m: multimodeSupportedModes.wavelength_m,
+      core_radius_m: multimodeSupportedModes.core_radius_m,
+      n_core: multimodeSupportedModes.n_core,
+      n_cladding: multimodeSupportedModes.n_cladding,
+      azimuthal_order: 1,
+      radial_order: 1,
+      grid_half_width_m: 4e-6,
+      grid_points: 3,
+    })
+    const modeFacts = within(
+      document.querySelector('.mode-facts') as HTMLElement,
     )
+    expect(modeFacts.getByText('LP11')).toBeInTheDocument()
+    expect(modeFacts.getByText('−1–1, blue to red')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Excited modes: not calculated/),
+    ).toBeInTheDocument()
   })
 
   test('provides the educational angle control, backend model facts, and explanation', () => {

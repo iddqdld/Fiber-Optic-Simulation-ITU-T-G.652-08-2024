@@ -1,4 +1,5 @@
 import json
+import math
 
 import pytest
 from pydantic import ValidationError
@@ -19,7 +20,13 @@ from fibre_sim.level1 import (
     Level1WarningCode,
     calculate_level1_simulation,
 )
-from fibre_sim.modes import GaussianModeProfileRequest, calculate_gaussian_mode_profile
+from fibre_sim.modes import (
+    GaussianModeProfileRequest,
+    ScalarLPModeCatalogRequest,
+    calculate_gaussian_mode_profile,
+    calculate_scalar_lp_mode_catalog,
+    scalar_lp_mode_cutoff_v,
+)
 from fibre_sim.standards import (
     G652DAttenuationApplication,
     G652DAttenuationCheckStatus,
@@ -61,6 +68,14 @@ def test_custom_path_reuses_existing_subcalculations_and_manifest_order() -> Non
             grid_points=request.sampling.grid_points,
         )
     )
+    assert result.supported_modes == calculate_scalar_lp_mode_catalog(
+        ScalarLPModeCatalogRequest(
+            wavelength_m=request.source.wavelength_nm * 1e-9,
+            core_radius_m=request.fibre.core_radius_um * 1e-6,
+            n_core=request.fibre.n_core,
+            n_cladding=request.fibre.n_cladding,
+        )
+    )
     assert result.attenuation == calculate_constant_attenuation(
         ConstantAttenuationRequest(
             length_km=request.section.length_km,
@@ -87,12 +102,16 @@ def test_custom_path_reuses_existing_subcalculations_and_manifest_order() -> Non
     assert result.model_manifest.component_model_ids == (
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
+        "scalar_lp_step_index_modes",
         "constant_fibre_attenuation",
         "marcuse_lp01_step_index_macrobend",
         "constant_group_index_delay",
         "first_order_chromatic_pulse_broadening",
     )
-    assert result.model_manifest.model_version == "1.2.0"
+    assert result.model_manifest.model_version == "1.3.0"
+    assert tuple(mode.label for mode in result.supported_modes.mode_families) == ("LP01",)
+    assert result.supported_modes.mode_regime == "single_mode"
+    assert result.supported_modes.model_manifest.excitation_status == "not_calculated"
     assert result.bend_loss == calculate_macrobend_loss(
         MacrobendLossRequest(
             wavelength_m=request.source.wavelength_nm * 1e-9,
@@ -146,7 +165,46 @@ def test_multiple_bends_start_after_straight_attenuation_and_conserve_power() ->
     assert result.bend_loss.input_power_dbm == -5.5
     assert result.bend_loss.total_bend_loss_db == expected_bend_loss.total_bend_loss_db
     assert result.bend_loss.output_power_dbm == expected_bend_loss.output_power_dbm
-    assert result.model_manifest.component_model_ids[3] == "marcuse_lp01_step_index_macrobend"
+    assert result.model_manifest.component_model_ids[4] == "marcuse_lp01_step_index_macrobend"
+
+
+def test_multimode_configuration_lists_supported_families_without_excitation_claims() -> None:
+    values = request_values()
+    values["fibre"] = {**fibre_values(), "core_radius_um": 10.0}
+
+    result = calculate_level1_simulation(Level1SimulationRequest.model_validate(values))
+
+    assert tuple(mode.label for mode in result.supported_modes.mode_families) == (
+        "LP01",
+        "LP11",
+        "LP02",
+        "LP21",
+    )
+    assert result.supported_modes.mode_regime == "multimode"
+    assert result.supported_modes.model_manifest.excitation_status == "not_calculated"
+
+
+def test_exact_lp11_cutoff_stays_separate_from_rounded_guidance_boundary() -> None:
+    values = request_values()
+    fibre = fibre_values()
+    source = source_values()
+    n_core = fibre["n_core"]
+    n_cladding = fibre["n_cladding"]
+    wavelength_nm = source["wavelength_nm"]
+    assert isinstance(n_core, float)
+    assert isinstance(n_cladding, float)
+    assert isinstance(wavelength_nm, float)
+    target_v = (scalar_lp_mode_cutoff_v(1, 1) + 2.405) / 2.0
+    core_radius_um = (
+        target_v * wavelength_nm * 1e-3 / (2.0 * math.pi * math.sqrt(n_core**2 - n_cladding**2))
+    )
+    values["fibre"] = {**fibre, "core_radius_um": core_radius_um}
+
+    result = calculate_level1_simulation(Level1SimulationRequest.model_validate(values))
+
+    assert result.guidance.mode_regime.value == "single_mode"
+    assert result.supported_modes.mode_regime == "multimode"
+    assert tuple(mode.label for mode in result.supported_modes.mode_families) == ("LP01", "LP11")
 
 
 def test_result_rejects_bend_power_handoff_and_configuration_mismatches() -> None:
@@ -194,21 +252,22 @@ def test_g652d_path_runs_standards_and_records_component_order() -> None:
     assert checks.attenuation.status is G652DAttenuationCheckStatus.PASS
     assert result.attenuation.section_loss_db == 2.5
     assert result.attenuation.output_power_dbm == -5.5
-    assert result.model_manifest.component_model_ids[:6] == (
+    assert result.model_manifest.component_model_ids[:7] == (
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
+        "scalar_lp_step_index_modes",
         "constant_fibre_attenuation",
         "marcuse_lp01_step_index_macrobend",
         "constant_group_index_delay",
         "first_order_chromatic_pulse_broadening",
     )
-    assert result.model_manifest.component_model_ids[6:] == (
+    assert result.model_manifest.component_model_ids[7:] == (
         checks.preset_definition.model_id,
         checks.dispersion.model_manifest.envelope_model_id,
         checks.dispersion.model_manifest.model_id,
         checks.attenuation.model_manifest.model_id,
     )
-    assert result.model_manifest.model_version == "1.2.0"
+    assert result.model_manifest.model_version == "1.3.0"
 
 
 def test_g652d_attenuation_not_applicable_warning_follows_guidance_warnings() -> None:

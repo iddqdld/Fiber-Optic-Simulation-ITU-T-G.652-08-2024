@@ -55,6 +55,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modes/scalar-lp/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Scalar Lp Mode Catalog */
+        post: operations["calculate_scalar_lp_mode_catalog"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modes/scalar-lp/field": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Scalar Lp Mode Field */
+        post: operations["calculate_scalar_lp_mode_field"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/photoelastic/panda/field-map": {
         parameters: {
             query?: never;
@@ -1283,7 +1317,8 @@ export interface components {
              *       "one uniform fibre section",
              *       "all calculations share one operating wavelength",
              *       "fibre composition is uniform over the section",
-             *       "Marcuse LP01 radiation loss is applied after straight-fibre attenuation"
+             *       "Marcuse LP01 radiation loss is applied after straight-fibre attenuation",
+             *       "supported scalar LP modes are listed without source-excitation claims"
              *     ]
              */
             assumptions: string[];
@@ -1309,10 +1344,10 @@ export interface components {
             model_id: "level1_single_section_simulation";
             /**
              * Model Version
-             * @default 1.2.0
+             * @default 1.3.0
              * @constant
              */
-            model_version: "1.2.0";
+            model_version: "1.3.0";
         };
         /** Level1SimulationRequest */
         Level1SimulationRequest: {
@@ -1335,6 +1370,7 @@ export interface components {
             parameter_boundaries: components["schemas"]["Level1ParameterBoundary"][];
             pulse_broadening: components["schemas"]["ChromaticPulseBroadeningResult"];
             standards_checks: components["schemas"]["Level1StandardsChecks"];
+            supported_modes: components["schemas"]["ScalarLPModeCatalogResult"];
             /** Warnings */
             warnings: components["schemas"]["Level1Warning"][];
         };
@@ -2957,6 +2993,192 @@ export interface components {
             /** Time Ps */
             time_ps?: number[];
         };
+        /** ScalarLPModeCatalogRequest */
+        ScalarLPModeCatalogRequest: {
+            /** Core Radius M */
+            core_radius_m: number;
+            /**
+             * Max Mode Families
+             * @default 16
+             */
+            max_mode_families: number;
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /** ScalarLPModeCatalogResult */
+        ScalarLPModeCatalogResult: {
+            /** Catalog Truncated */
+            catalog_truncated: boolean;
+            /** Core Radius M */
+            core_radius_m: number;
+            /** Mode Families */
+            mode_families: components["schemas"]["ScalarLPModeFamilyResult"][];
+            /**
+             * Mode Regime
+             * @enum {string}
+             */
+            mode_regime: "single_mode" | "multimode";
+            model_manifest: components["schemas"]["ScalarLPModeManifest"];
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** V Number Dimensionless */
+            v_number_dimensionless: number;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /** ScalarLPModeFamilyResult */
+        ScalarLPModeFamilyResult: {
+            /** Azimuthal Order */
+            azimuthal_order: number;
+            /** Beta Per M */
+            beta_per_m: number;
+            /** Cutoff V Dimensionless */
+            cutoff_v_dimensionless: number;
+            /** Effective Index Dimensionless */
+            effective_index_dimensionless: number;
+            /** Label */
+            label: string;
+            /** Normalized Propagation Constant */
+            normalized_propagation_constant: number;
+            /** Radial Order */
+            radial_order: number;
+            /**
+             * Spatial Degeneracy
+             * @enum {integer}
+             */
+            spatial_degeneracy: 1 | 2;
+            /** U Dimensionless */
+            u_dimensionless: number;
+            /** V Number Dimensionless */
+            v_number_dimensionless: number;
+            /** W Dimensionless */
+            w_dimensionless: number;
+        };
+        /** ScalarLPModeFieldRequest */
+        ScalarLPModeFieldRequest: {
+            /** Azimuthal Order */
+            azimuthal_order: number;
+            /** Core Radius M */
+            core_radius_m: number;
+            /** Grid Half Width M */
+            grid_half_width_m: number;
+            /**
+             * Grid Points
+             * @default 65
+             */
+            grid_points: number;
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Radial Order */
+            radial_order: number;
+            /** Wavelength M */
+            wavelength_m: number;
+        };
+        /** ScalarLPModeFieldResult */
+        ScalarLPModeFieldResult: {
+            /** Core Radius M */
+            core_radius_m: number;
+            /** Grid Half Width M */
+            grid_half_width_m: number;
+            /** Grid Points */
+            grid_points: number;
+            model_manifest: components["schemas"]["ScalarLPModeManifest"];
+            /** N Cladding */
+            n_cladding: number;
+            /** N Core */
+            n_core: number;
+            /** Normalized Field */
+            normalized_field: number[][];
+            /** Normalized Intensity */
+            normalized_intensity: number[][];
+            selected_mode: components["schemas"]["ScalarLPModeFamilyResult"];
+            /** Wavelength M */
+            wavelength_m: number;
+            /** X M */
+            x_m: number[];
+            /** Y M */
+            y_m: number[];
+        };
+        /** ScalarLPModeManifest */
+        ScalarLPModeManifest: {
+            /**
+             * Angular Basis
+             * @default cosine_representative
+             * @constant
+             */
+            angular_basis: "cosine_representative";
+            /**
+             * Assumptions
+             * @default [
+             *       "ideal circular step-index core and cladding",
+             *       "scalar weak-guidance LP mode equation",
+             *       "infinite cladding with a decaying modified-Bessel tail",
+             *       "one real cosine representative for each spatial mode family"
+             *     ]
+             */
+            assumptions: string[];
+            /**
+             * Catalog Label
+             * @default Supported scalar LP modes — weak-guidance step-index model
+             * @constant
+             */
+            catalog_label: "Supported scalar LP modes — weak-guidance step-index model";
+            /**
+             * Excitation Status
+             * @default not_calculated
+             * @constant
+             */
+            excitation_status: "not_calculated";
+            /**
+             * Field Label
+             * @default Scalar LP mode field — weak-guidance step-index model
+             * @constant
+             */
+            field_label: "Scalar LP mode field — weak-guidance step-index model";
+            /**
+             * Field Normalization
+             * @default unit_peak_absolute_field
+             * @constant
+             */
+            field_normalization: "unit_peak_absolute_field";
+            /**
+             * Limitations
+             * @default [
+             *       "supported modes are not necessarily excited by the source",
+             *       "no launch overlap, modal power, polarization, or mode coupling",
+             *       "no vector electromagnetic components or longitudinal field components",
+             *       "no bend-aware field displacement or radiation pattern",
+             *       "ideal modal cutoffs are not measured G.652.D cable cutoffs",
+             *       "exact Bessel cutoffs can differ slightly from the rounded V=2.405 boundary"
+             *     ]
+             */
+            limitations: string[];
+            /**
+             * Model Id
+             * @default scalar_lp_step_index_modes
+             * @constant
+             */
+            model_id: "scalar_lp_step_index_modes";
+            /**
+             * Model Version
+             * @default 1.0.0
+             * @constant
+             */
+            model_version: "1.0.0";
+        };
         /** SectionResult */
         SectionResult: {
             /**
@@ -3328,6 +3550,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    calculate_scalar_lp_mode_catalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScalarLPModeCatalogRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScalarLPModeCatalogResult"];
+                };
+            };
+            /** @description Request validation or scalar LP calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    calculate_scalar_lp_mode_field: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScalarLPModeFieldRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScalarLPModeFieldResult"];
+                };
+            };
+            /** @description Request validation or scalar LP calculation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

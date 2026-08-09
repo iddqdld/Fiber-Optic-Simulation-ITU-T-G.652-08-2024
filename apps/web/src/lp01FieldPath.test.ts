@@ -4,9 +4,11 @@ import { buildFibrePath, getFibrePathFrame } from './fibreShowcase'
 import type { ModeProfileData } from './FibreGeometryView'
 import {
   getLP01PathFieldGeometry,
+  getScalarLPPathFieldGeometry,
   LP01_MAX_VERTEX_COUNT,
   LP01_PATH_SAMPLE_COUNT,
 } from './lp01FieldPath'
+import type { ScalarModeFieldData } from './scalarMode'
 
 function buildProfile(gridPoints = 65): ModeProfileData {
   const half = (gridPoints - 1) / 2
@@ -44,6 +46,44 @@ function vertex(
 ): [number, number, number] {
   const offset = index * 3
   return [positions[offset], positions[offset + 1], positions[offset + 2]]
+}
+
+function buildSignedScalarProfile(): ScalarModeFieldData {
+  const normalizedField = [
+    [-0.5, 0, 0.5],
+    [-1, 0, 1],
+    [-0.5, 0, 0.5],
+  ]
+  return {
+    coreRadiusUm: 4.1,
+    gridHalfWidthUm: 4.1,
+    gridPoints: 3,
+    xUm: [-4.1, 0, 4.1],
+    yUm: [-4.1, 0, 4.1],
+    normalizedField,
+    normalizedIntensity: normalizedField.map((row) =>
+      row.map((field) => field ** 2),
+    ),
+    selectedMode: {
+      label: 'LP11',
+      azimuthal_order: 1,
+      radial_order: 1,
+      spatial_degeneracy: 2,
+      cutoff_v_dimensionless: 2.4048255577,
+      v_number_dimensionless: 3,
+      u_dimensionless: 2.5,
+      w_dimensionless: Math.sqrt(2.75),
+      normalized_propagation_constant: 2.75 / 9,
+      effective_index_dimensionless: 1.447,
+      beta_per_m: 5_865_000,
+    },
+    modelId: 'scalar_lp_step_index_modes',
+    modelVersion: '1.0.0',
+    fieldLabel: 'Scalar LP mode field — weak-guidance step-index model',
+    normalizationConvention: 'unit_peak_absolute_field',
+    angularBasis: 'cosine_representative',
+    excitationStatus: 'not_calculated',
+  }
 }
 
 describe('LP01 path field geometry', () => {
@@ -138,5 +178,20 @@ describe('LP01 path field geometry', () => {
     const path = buildFibrePath('straight', 8)
 
     expect(getLP01PathFieldGeometry(profile, path, 4.1, 0.41)).toBeNull()
+  })
+
+  test('keeps one bounded signed scalar field geometry on the shared path', () => {
+    const profile = buildSignedScalarProfile()
+    const path = buildFibrePath('s_bend', 8)
+    const geometry = getScalarLPPathFieldGeometry(profile, path, 4.1, 0.41)
+
+    expect(geometry).not.toBeNull()
+    expect(Math.min(...geometry!.normalizedField)).toBe(-1)
+    expect(Math.max(...geometry!.normalizedField)).toBe(1)
+    expect(geometry!.vertexCount).toBeLessThanOrEqual(LP01_MAX_VERTEX_COUNT)
+    expect(geometry!.estimatedBytes).toBeLessThan(1_000_000)
+    expect(getScalarLPPathFieldGeometry(profile, path, 4.1, 0.41)).toBe(
+      geometry,
+    )
   })
 })

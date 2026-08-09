@@ -1,3 +1,4 @@
+import math
 from enum import StrEnum
 from typing import Literal, Self
 
@@ -8,7 +9,7 @@ from fibre_sim.attenuation import ConstantAttenuationResult
 from fibre_sim.bends import MacrobendLossResult
 from fibre_sim.dispersion import ChromaticPulseBroadeningResult, GroupDelayResult
 from fibre_sim.guidance import GuidanceResult
-from fibre_sim.modes import GaussianModeProfileResult
+from fibre_sim.modes import GaussianModeProfileResult, ScalarLPModeCatalogResult
 from fibre_sim.standards import (
     G652DAttenuationCheckResult,
     G652DDispersionCheckResult,
@@ -66,13 +67,14 @@ class Level1SimulationManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model_id: Literal["level1_single_section_simulation"] = "level1_single_section_simulation"
-    model_version: Literal["1.2.0"] = "1.2.0"
+    model_version: Literal["1.3.0"] = "1.3.0"
     component_model_ids: tuple[str, ...]
     assumptions: tuple[str, ...] = (
         "one uniform fibre section",
         "all calculations share one operating wavelength",
         "fibre composition is uniform over the section",
         "Marcuse LP01 radiation loss is applied after straight-fibre attenuation",
+        "supported scalar LP modes are listed without source-excitation claims",
     )
     limitations: tuple[str, ...] = (
         "bend transitions and coating effects do not derive bend loss",
@@ -90,6 +92,7 @@ class Level1SimulationResult(BaseModel):
     configuration: Level1SimulationRequest
     guidance: GuidanceResult
     mode_profile: GaussianModeProfileResult
+    supported_modes: ScalarLPModeCatalogResult
     attenuation: ConstantAttenuationResult
     bend_loss: MacrobendLossResult
     group_delay: GroupDelayResult
@@ -98,6 +101,30 @@ class Level1SimulationResult(BaseModel):
     parameter_boundaries: tuple[Level1ParameterBoundary, ...]
     warnings: tuple[Level1Warning, ...]
     model_manifest: Level1SimulationManifest
+
+    @model_validator(mode="after")
+    def validate_supported_modes(self) -> Self:
+        if (
+            self.supported_modes.wavelength_m != self.configuration.source.wavelength_nm * 1e-9
+            or self.supported_modes.core_radius_m != self.configuration.fibre.core_radius_um * 1e-6
+            or self.supported_modes.n_core != self.configuration.fibre.n_core
+            or self.supported_modes.n_cladding != self.configuration.fibre.n_cladding
+        ):
+            raise PydanticCustomError(
+                "supported_modes_configuration_mismatch",
+                "Supported scalar LP modes must match the configured optical inputs.",
+            )
+        if not math.isclose(
+            self.supported_modes.v_number_dimensionless,
+            self.guidance.v_number_dimensionless,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ):
+            raise PydanticCustomError(
+                "supported_modes_guidance_mismatch",
+                "Supported scalar LP modes must match the guidance result.",
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_bend_loss_pipeline(self) -> Self:

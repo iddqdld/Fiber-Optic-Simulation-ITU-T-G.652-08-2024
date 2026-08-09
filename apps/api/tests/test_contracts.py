@@ -40,6 +40,14 @@ from fibre_sim.level1 import (
     Level1StandardsChecks,
     Level1Warning,
 )
+from fibre_sim.modes import (
+    ScalarLPModeCatalogRequest,
+    ScalarLPModeCatalogResult,
+    ScalarLPModeFamilyResult,
+    ScalarLPModeFieldRequest,
+    ScalarLPModeFieldResult,
+    ScalarLPModeManifest,
+)
 from fibre_sim.standards import get_g652d_preset
 from fibre_sim.sweeps import (
     Level1SweepManifest,
@@ -204,6 +212,15 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
         "Level1SweepRequest.start_value",
         "Level1SweepRequest.stop_value",
     }
+    scalar_lp_dimensionless_fields = {
+        "ScalarLPModeCatalogRequest.max_mode_families",
+        "ScalarLPModeFamilyResult.azimuthal_order",
+        "ScalarLPModeFamilyResult.radial_order",
+        "ScalarLPModeFamilyResult.normalized_propagation_constant",
+        "ScalarLPModeFieldRequest.azimuthal_order",
+        "ScalarLPModeFieldRequest.radial_order",
+        "ScalarLPModeFieldResult.grid_points",
+    }
     dimensionless_bend_fields = {
         "MacrobendInput.position_fraction",
         "MacrobendLossPoint.position_fraction",
@@ -260,6 +277,7 @@ def test_numeric_contract_fields_use_explicit_units_or_dimensionless_names() -> 
             has_unit_suffix = has_unit_suffix or field_key in thermal_fem_unit_fields
             is_dimensionless = is_dimensionless or field_key in dimensionless_bend_fields
             is_dimensionless = is_dimensionless or field_key in thermal_fem_dimensionless_fields
+            is_dimensionless = is_dimensionless or field_key in scalar_lp_dimensionless_fields
             if (
                 not has_unit_suffix
                 and not is_dimensionless
@@ -364,3 +382,20 @@ def test_level1_sweep_models_are_registered_and_parameter_enum_is_published() ->
     assert main.app.openapi()["components"]["schemas"]["Level1SweepParameter"]["enum"] == [
         parameter.value for parameter in Level1SweepParameter
     ]
+
+
+def test_scalar_lp_models_are_registered_with_exact_manifest_labels() -> None:
+    scalar_lp_models = (
+        ScalarLPModeCatalogRequest,
+        ScalarLPModeCatalogResult,
+        ScalarLPModeFamilyResult,
+        ScalarLPModeFieldRequest,
+        ScalarLPModeFieldResult,
+        ScalarLPModeManifest,
+    )
+
+    assert set(scalar_lp_models).issubset(set(main.CONTRACT_MODELS))
+    manifest = ScalarLPModeManifest()
+    assert manifest.catalog_label == "Supported scalar LP modes — weak-guidance step-index model"
+    assert manifest.field_label == "Scalar LP mode field — weak-guidance step-index model"
+    assert manifest.excitation_status == "not_calculated"

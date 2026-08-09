@@ -29,8 +29,10 @@ import {
 import type { MacrobendLossResult } from './macrobend'
 import {
   getLP01PathFieldGeometry,
+  getScalarLPPathFieldGeometry,
   LP01_PATH_SAMPLE_COUNT,
   type LP01PathFieldGeometry,
+  type ScalarLPPathFieldGeometry,
 } from './lp01FieldPath'
 import type { PowerDistanceData } from './powerDistancePlot'
 import { PulseAnimationLayer } from './PulseAnimationLayer'
@@ -42,6 +44,16 @@ import {
   type PulseAnimationData,
 } from './pulseAnimation'
 import type { VisualizationSettings } from './visualizationSettings'
+import {
+  isScalarLPModeCatalog,
+  type ScalarLPModeCatalog,
+  type ScalarLPModeFamily,
+  type ScalarModeFieldData,
+} from './scalarMode'
+import {
+  useScalarModeField,
+  type ScalarModeFieldState,
+} from './useScalarModeField'
 
 export type { PulseAnimationData } from './pulseAnimation'
 
@@ -68,6 +80,7 @@ const LEAKAGE_MARKER_COUNT = 7
 const LEAKAGE_MARKER_BASE_SIZE = 0.055
 const MODE_PROFILE_MODEL_ID = 'gaussian_lp01_mode_profile'
 const MODE_PROFILE_MODEL_VERSION = '1.0.0'
+const GAUSSIAN_LP01_SELECTION = 'gaussian-lp01'
 const IDEAL_MODE_REGIME_CUTOFF_V = 2.405
 const LP01_FIELD_VERTEX_SHADER = `
 attribute float normalizedField;
@@ -98,6 +111,27 @@ vec3 fieldColor(float amplitude) {
 void main() {
   if (fieldIntensity < 0.01) discard;
   vec3 color = fieldColor(clamp(fieldAmplitude, 0.0, 1.0));
+  float alpha = 0.12 + 0.76 * clamp(fieldIntensity, 0.0, 1.0);
+  gl_FragColor = vec4(color, alpha);
+}
+`
+const SCALAR_LP_FIELD_FRAGMENT_SHADER = `
+precision highp float;
+varying float fieldAmplitude;
+varying float fieldIntensity;
+
+vec3 signedFieldColor(float amplitude) {
+  vec3 negative = vec3(0.08, 0.32, 1.0);
+  vec3 zero = vec3(0.92, 0.95, 1.0);
+  vec3 positive = vec3(1.0, 0.18, 0.08);
+  return amplitude < 0.0
+    ? mix(zero, negative, -amplitude)
+    : mix(zero, positive, amplitude);
+}
+
+void main() {
+  if (fieldIntensity < 0.01) discard;
+  vec3 color = signedFieldColor(clamp(fieldAmplitude, -1.0, 1.0));
   float alpha = 0.12 + 0.76 * clamp(fieldIntensity, 0.0, 1.0);
   gl_FragColor = vec4(color, alpha);
 }
@@ -154,6 +188,7 @@ export type FibreGeometryViewProps = {
   sectionLengthKm: number | null
   rayGuidance: RayGuidance | null
   modeProfile: ModeProfileData | null
+  supportedModes?: ScalarLPModeCatalog | null
   pulseAnimation: PulseAnimationData | null
   attenuation?: PowerDistanceData | null
   macrobends?: readonly MacrobendInput[] | null
@@ -171,6 +206,7 @@ export type FibreGeometrySceneProps = {
   incidenceAngleDeg?: number
   rayViewEnabled?: boolean
   modeProfile?: ModeProfileData | null
+  scalarModeProfile?: ScalarModeFieldData | null
   modeViewEnabled?: boolean
   pulseAnimation?: PulseAnimationData | null
   pulseAnimationEnabled?: boolean
@@ -201,6 +237,10 @@ type RaySegmentProps = {
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
+}
+
+function scalarModeKey(mode: ScalarLPModeFamily): string {
+  return `${mode.azimuthal_order}:${mode.radial_order}`
 }
 
 function getNormalisedCoreRadius(coreRadiusUm: number | null): number {
@@ -720,10 +760,77 @@ function ApproximateLP01FieldLayer({
   )
 }
 
+function ScalarLPModeFieldLayer({
+  geometry,
+  profile,
+}: {
+  geometry: ScalarLPPathFieldGeometry
+  profile: ScalarModeFieldData
+}) {
+  return (
+    <group
+      name="scalar-lp-mode-field-layer"
+      userData={{ modeLabel: profile.selectedMode.label }}
+    >
+      <mesh name="scalar-lp-mode-field">
+        <bufferGeometry name="scalar-lp-mode-field-geometry">
+          <bufferAttribute
+            attach="attributes-position"
+            name="scalar-lp-mode-field-position-attribute"
+            args={[geometry.positions, 3]}
+            array={geometry.positions}
+            count={geometry.vertexCount}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-normalizedField"
+            name="scalar-lp-mode-field-amplitude-attribute"
+            args={[geometry.normalizedField, 1]}
+            array={geometry.normalizedField}
+            count={geometry.vertexCount}
+            itemSize={1}
+          />
+          <bufferAttribute
+            attach="attributes-normalizedIntensity"
+            name="scalar-lp-mode-field-intensity-attribute"
+            args={[geometry.normalizedIntensity, 1]}
+            array={geometry.normalizedIntensity}
+            count={geometry.vertexCount}
+            itemSize={1}
+          />
+          <bufferAttribute
+            attach="index"
+            name="scalar-lp-mode-field-index-attribute"
+            args={[geometry.indices, 1]}
+            array={geometry.indices}
+            count={geometry.indices.length}
+            itemSize={1}
+          />
+        </bufferGeometry>
+        <shaderMaterial
+          name="scalar-lp-mode-field-material"
+          vertexShader={LP01_FIELD_VERTEX_SHADER}
+          fragmentShader={SCALAR_LP_FIELD_FRAGMENT_SHADER}
+          transparent
+          depthWrite={false}
+          depthTest={false}
+          toneMapped={false}
+          blending={AdditiveBlending}
+          side={DoubleSide}
+        />
+      </mesh>
+    </group>
+  )
+}
+
 type ModeProfilePanelProps = {
   enabled: boolean
   onEnabledChange: (enabled: boolean) => void
   modeProfile: ModeProfileData | null
+  supportedModes: ScalarLPModeCatalog | null
+  selectedModeKey: string
+  onSelectedModeKeyChange: (key: string) => void
+  scalarModeField: ScalarModeFieldState
   guidance: RayGuidance | null
   coreRadiusUm: number | null
   showToggle: boolean
@@ -733,120 +840,249 @@ function ModeProfilePanel({
   enabled,
   onEnabledChange,
   modeProfile,
+  supportedModes,
+  selectedModeKey,
+  onSelectedModeKeyChange,
+  scalarModeField,
   guidance,
   coreRadiusUm,
   showToggle,
 }: ModeProfilePanelProps) {
   const validProfile = isValidModeProfile(modeProfile)
-  const available =
+  const gaussianAvailable =
     validProfile &&
     hasValidPhysicalCoreRadius(coreRadiusUm) &&
     hasDisplayableModeSample(modeProfile)
+  const validCatalog = isScalarLPModeCatalog(supportedModes)
+  const selectedFamily = validCatalog
+    ? (supportedModes.mode_families.find(
+        (mode) => scalarModeKey(mode) === selectedModeKey,
+      ) ?? null)
+    : null
+  const gaussianSelected = selectedModeKey === GAUSSIAN_LP01_SELECTION
+  const selectedField = scalarModeField.data
+  const selectedFieldAvailable =
+    selectedFamily !== null && selectedField !== null
 
   return (
     <>
       {showToggle && (
         <div className="geometry-layer-control">
-          <label htmlFor="approximate-lp01-field-view">
+          <label htmlFor="mode-field-view">
             <input
-              id="approximate-lp01-field-view"
+              id="mode-field-view"
               type="checkbox"
               checked={enabled}
-              aria-describedby={
-                enabled ? 'mode-profile-explanation' : undefined
-              }
+              aria-describedby={enabled ? 'mode-field-explanation' : undefined}
               onChange={(event) => onEnabledChange(event.currentTarget.checked)}
             />
-            Approximate LP01 field
+            Scalar mode field
           </label>
         </div>
       )}
 
       {enabled && (
         <>
-          {!available && (
+          {validCatalog ? (
+            <div className="scalar-mode-selection">
+              <label htmlFor="scalar-mode-family">Displayed mode</label>
+              <select
+                id="scalar-mode-family"
+                value={selectedModeKey}
+                onChange={(event) =>
+                  onSelectedModeKeyChange(event.currentTarget.value)
+                }
+              >
+                <option value={GAUSSIAN_LP01_SELECTION}>
+                  Gaussian LP01 approximation
+                </option>
+                {supportedModes.mode_families.map((mode) => (
+                  <option key={scalarModeKey(mode)} value={scalarModeKey(mode)}>
+                    {mode.label} scalar eigenmode
+                  </option>
+                ))}
+              </select>
+              <p className="mode-profile-explanation">
+                {supportedModes.model_manifest.catalog_label}. The catalog has{' '}
+                {supportedModes.mode_families.length} mode families
+                {supportedModes.catalog_truncated ? ' and is truncated' : ''}.
+              </p>
+              <p className="mode-profile-explanation">
+                The catalog uses exact Bessel cutoffs. The overlay keeps the
+                rounded V = 2.405 guidance boundary.
+              </p>
+              <ul aria-label="Supported scalar mode families">
+                {supportedModes.mode_families.map((mode) => (
+                  <li key={mode.label}>
+                    {mode.label}: ideal cutoff V ={' '}
+                    {formatModeValue(mode.cutoff_v_dimensionless)}, spatial
+                    degeneracy {mode.spatial_degeneracy}
+                  </li>
+                ))}
+              </ul>
+              {supportedModes.warnings.length > 0 && (
+                <ul className="macrobend-model-warnings">
+                  {supportedModes.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
             <p className="mode-profile-status" role="status">
-              Approximate LP01 field unavailable: valid backend normalized
-              intensity samples at or above the display threshold and a positive
-              entered core radius are required to place this transverse slice.
+              The supported scalar mode catalog is unavailable.
             </p>
           )}
 
-          {available && (
-            <dl className="mode-facts">
-              <div>
-                <dt>Mode-field radius</dt>
-                <dd>{modeProfile.modeFieldRadiusUm} µm</dd>
-              </div>
-              <div>
-                <dt>Grid half-width</dt>
-                <dd>±{modeProfile.gridHalfWidthUm} µm</dd>
-              </div>
-              <div>
-                <dt>Grid dimensions / backend samples</dt>
-                <dd>
-                  {modeProfile.gridPoints} × {modeProfile.gridPoints} (
-                  {modeProfile.gridPoints * modeProfile.gridPoints} samples)
-                </dd>
-              </div>
-              <div>
-                <dt>Normalized field amplitude</dt>
-                <dd>0–1, shown by color</dd>
-              </div>
-              <div>
-                <dt>Normalized intensity</dt>
-                <dd>0–1, shown by opacity</dd>
-              </div>
-              <div>
-                <dt>LP01 visibility floor</dt>
-                <dd>≥ {MODE_FIELD_DISPLAY_THRESHOLD} normalized intensity</dd>
-              </div>
-              <div>
-                <dt>Path stations</dt>
-                <dd>{LP01_PATH_SAMPLE_COUNT}</dd>
-              </div>
-              <div>
-                <dt>1/e field-radius shell</dt>
-                <dd>White wireframe at the supplied radius</dd>
-              </div>
-              <div>
-                <dt>Approximate model</dt>
-                <dd className="mode-profile-model">
-                  {modeProfile.modelId} ({modeProfile.modelVersion})
-                </dd>
-              </div>
-              <div>
-                <dt>Normalization</dt>
-                <dd className="mode-profile-model">
-                  {modeProfile.normalizationConvention}
-                </dd>
-              </div>
-              <div>
-                <dt>Radius convention</dt>
-                <dd className="mode-profile-model">
-                  {modeProfile.radiusConvention}
-                </dd>
-              </div>
-            </dl>
+          <p className="mode-profile-explanation" role="note">
+            Excited modes: not calculated. The source has no launch field or
+            coupling coefficients in this phase.
+          </p>
+
+          {gaussianSelected && (
+            <>
+              {!gaussianAvailable && (
+                <p className="mode-profile-status" role="status">
+                  The Gaussian LP01 field is unavailable for these samples.
+                </p>
+              )}
+              {gaussianAvailable && (
+                <dl className="mode-facts">
+                  <div>
+                    <dt>Mode-field radius</dt>
+                    <dd>{modeProfile.modeFieldRadiusUm} µm</dd>
+                  </div>
+                  <div>
+                    <dt>Grid half-width</dt>
+                    <dd>±{modeProfile.gridHalfWidthUm} µm</dd>
+                  </div>
+                  <div>
+                    <dt>Grid dimensions / backend samples</dt>
+                    <dd>
+                      {modeProfile.gridPoints} × {modeProfile.gridPoints} (
+                      {modeProfile.gridPoints * modeProfile.gridPoints} samples)
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Normalized field amplitude</dt>
+                    <dd>0–1, shown by color</dd>
+                  </div>
+                  <div>
+                    <dt>Normalized intensity</dt>
+                    <dd>0–1, shown by opacity</dd>
+                  </div>
+                  <div>
+                    <dt>LP01 visibility floor</dt>
+                    <dd>
+                      ≥ {MODE_FIELD_DISPLAY_THRESHOLD} normalized intensity
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Path stations</dt>
+                    <dd>{LP01_PATH_SAMPLE_COUNT}</dd>
+                  </div>
+                  <div>
+                    <dt>1/e field-radius shell</dt>
+                    <dd>White wireframe at the supplied radius</dd>
+                  </div>
+                  <div>
+                    <dt>Approximate model</dt>
+                    <dd className="mode-profile-model">
+                      {modeProfile.modelId} ({modeProfile.modelVersion})
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Normalization</dt>
+                    <dd className="mode-profile-model">
+                      {modeProfile.normalizationConvention}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Radius convention</dt>
+                    <dd className="mode-profile-model">
+                      {modeProfile.radiusConvention}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+              <p
+                id="mode-field-explanation"
+                className="mode-profile-explanation"
+              >
+                This scalar weak-guidance approximation transports the circular
+                Gaussian LP01 profile along the shared path. Two orthogonal
+                center planes show the circular profile. Color shows normalized
+                field amplitude. Opacity shows normalized intensity, which is
+                proportional to |E|². The white shell marks the supplied 1/e
+                field radius, which is also the 1/e² intensity radius. The
+                shader hides values below 0.01 without changing backend data.
+                This layer is not an exact step-index eigenmode or a full-wave
+                electromagnetic solution.
+              </p>
+              {isValidRayGuidance(guidance) &&
+                guidance.modeRegime === 'multimode' && (
+                  <p className="mode-profile-explanation" role="note">
+                    Select a supported scalar mode to display a higher-order
+                    field. This Gaussian selection shows LP01 only.
+                  </p>
+                )}
+            </>
           )}
 
-          <p id="mode-profile-explanation" className="mode-profile-explanation">
-            This scalar weak-guidance approximation transports the circular
-            Gaussian LP01 profile along the shared path. Two orthogonal center
-            planes show the circular profile. Color shows normalized field
-            amplitude. Opacity shows normalized intensity, which is proportional
-            to |E|². The white shell marks the supplied 1/e field radius, which
-            is also the 1/e² intensity radius. The shader hides values below
-            0.01 without changing backend data. This layer is not an exact
-            step-index eigenmode or a full-wave electromagnetic solution.
-          </p>
-          {isValidRayGuidance(guidance) &&
-            guidance.modeRegime === 'multimode' && (
-              <p className="mode-profile-explanation" role="note">
-                This multimode case shows only the LP01 component. Higher-order
-                modes and source coupling are not part of this phase.
+          {!gaussianSelected && scalarModeField.message !== null && (
+            <p className="mode-profile-status" role="status">
+              {scalarModeField.message}
+            </p>
+          )}
+
+          {!gaussianSelected && selectedFieldAvailable && (
+            <>
+              <dl className="mode-facts">
+                <div>
+                  <dt>Selected mode</dt>
+                  <dd>{selectedField.selectedMode.label}</dd>
+                </div>
+                <div>
+                  <dt>Effective index</dt>
+                  <dd>
+                    {formatModeValue(
+                      selectedField.selectedMode.effective_index_dimensionless,
+                    )}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Propagation constant</dt>
+                  <dd>
+                    {formatModeValue(selectedField.selectedMode.beta_per_m)} m⁻¹
+                  </dd>
+                </div>
+                <div>
+                  <dt>Signed normalized amplitude</dt>
+                  <dd>−1–1, blue to red</dd>
+                </div>
+                <div>
+                  <dt>Normalized intensity</dt>
+                  <dd>0–1, shown by opacity</dd>
+                </div>
+                <div>
+                  <dt>Angular basis</dt>
+                  <dd>{selectedField.angularBasis}</dd>
+                </div>
+                <div>
+                  <dt>Path stations</dt>
+                  <dd>{LP01_PATH_SAMPLE_COUNT}</dd>
+                </div>
+              </dl>
+              <p
+                id="mode-field-explanation"
+                className="mode-profile-explanation"
+              >
+                {selectedField.fieldLabel}. Blue and red show opposite signs of
+                one cosine representative. This scalar field follows the path on
+                two center planes. It is not a full vector field.
               </p>
-            )}
+            </>
+          )}
         </>
       )}
     </>
@@ -1660,6 +1896,7 @@ export function FibreGeometryScene({
   incidenceAngleDeg = DEFAULT_INCIDENCE_ANGLE_DEG,
   rayViewEnabled = false,
   modeProfile = null,
+  scalarModeProfile = null,
   modeViewEnabled = true,
   pulseAnimation = null,
   pulseAnimationEnabled = true,
@@ -1683,10 +1920,22 @@ export function FibreGeometryScene({
     suppliedFibrePath ?? buildFibrePath(fibreRoute, visualLength, macrobends)
   const modeFieldGeometry =
     modeViewEnabled &&
+    scalarModeProfile === null &&
     isValidModeProfile(modeProfile) &&
     hasValidPhysicalCoreRadius(coreRadiusUm)
       ? getLP01PathFieldGeometry(
           modeProfile,
+          fibrePath,
+          coreRadiusUm,
+          coreRadius,
+        )
+      : null
+  const scalarModeFieldGeometry =
+    modeViewEnabled &&
+    scalarModeProfile !== null &&
+    hasValidPhysicalCoreRadius(coreRadiusUm)
+      ? getScalarLPPathFieldGeometry(
+          scalarModeProfile,
           fibrePath,
           coreRadiusUm,
           coreRadius,
@@ -1728,6 +1977,7 @@ export function FibreGeometryScene({
   const hasOverlay =
     rayViewEnabled ||
     modeFieldGeometry !== null ||
+    scalarModeFieldGeometry !== null ||
     pulseAnimationData !== null ||
     powerMarkers.length > 0 ||
     pulseMarkers.length > 0 ||
@@ -1775,6 +2025,12 @@ export function FibreGeometryScene({
         <ApproximateLP01FieldLayer
           geometry={modeFieldGeometry}
           path={fibrePath}
+        />
+      )}
+      {scalarModeFieldGeometry !== null && scalarModeProfile !== null && (
+        <ScalarLPModeFieldLayer
+          geometry={scalarModeFieldGeometry}
+          profile={scalarModeProfile}
         />
       )}
       {pulseAnimationData !== null && (
@@ -2017,7 +2273,7 @@ function FibreShowcaseLegend({
           </li>
         )}
         <li>Educational ray and pulse animation follow the displayed path.</li>
-        <li>The scalar LP01 field follows the displayed path.</li>
+        <li>The selected scalar mode field follows the displayed path.</li>
       </ul>
     </aside>
   )
@@ -2049,6 +2305,7 @@ export function FibreGeometryView({
   sectionLengthKm,
   rayGuidance,
   modeProfile,
+  supportedModes = null,
   pulseAnimation,
   attenuation = null,
   macrobends = null,
@@ -2078,6 +2335,28 @@ export function FibreGeometryView({
     DEFAULT_INCIDENCE_ANGLE_DEG,
   )
   const [webglAvailable] = useState(canRenderWebGL)
+  const [selectedModeKey, setSelectedModeKey] = useState(
+    GAUSSIAN_LP01_SELECTION,
+  )
+  const validSupportedModes = isScalarLPModeCatalog(supportedModes)
+    ? supportedModes
+    : null
+  const selectedScalarMode =
+    selectedModeKey === GAUSSIAN_LP01_SELECTION || validSupportedModes === null
+      ? null
+      : (validSupportedModes.mode_families.find(
+          (mode) => scalarModeKey(mode) === selectedModeKey,
+        ) ?? null)
+  const effectiveSelectedModeKey =
+    selectedModeKey !== GAUSSIAN_LP01_SELECTION && selectedScalarMode === null
+      ? GAUSSIAN_LP01_SELECTION
+      : selectedModeKey
+  const scalarModeField = useScalarModeField(
+    validSupportedModes,
+    selectedScalarMode,
+    modeProfile?.gridHalfWidthUm ?? null,
+    modeProfile?.gridPoints ?? null,
+  )
   const visualLength = visualizationSettings?.visualLength ?? localVisualLength
   const rayViewEnabled =
     visualizationSettings?.rayViewEnabled ?? localRayViewEnabled
@@ -2242,7 +2521,11 @@ export function FibreGeometryView({
           rayGuidance,
           incidenceAngleDeg,
           rayViewEnabled,
-          modeProfile,
+          modeProfile:
+            effectiveSelectedModeKey === GAUSSIAN_LP01_SELECTION
+              ? modeProfile
+              : null,
+          scalarModeProfile: scalarModeField.data,
           modeViewEnabled,
           pulseAnimation: pulseAnimationForScene,
           pulseAnimationEnabled,
@@ -2331,6 +2614,10 @@ export function FibreGeometryView({
           updateVisualizationSetting('modeViewEnabled', enabled)
         }
         modeProfile={modeProfile}
+        supportedModes={validSupportedModes}
+        selectedModeKey={effectiveSelectedModeKey}
+        onSelectedModeKeyChange={setSelectedModeKey}
+        scalarModeField={scalarModeField}
         guidance={rayGuidance}
         coreRadiusUm={coreRadiusUm}
         showToggle={showConfigurationControls}

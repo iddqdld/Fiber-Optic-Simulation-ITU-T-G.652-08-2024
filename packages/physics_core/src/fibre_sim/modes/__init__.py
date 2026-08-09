@@ -17,6 +17,27 @@ from .request import (
     GaussianModeProfileRequest,
 )
 from .result import GaussianModeProfileManifest, GaussianModeProfileResult
+from .scalar_lp_calculations import (
+    ScalarLPModeCalculationError,
+    calculate_scalar_lp_mode_catalog,
+    calculate_scalar_lp_mode_field,
+)
+from .scalar_lp_request import ScalarLPModeCatalogRequest, ScalarLPModeFieldRequest
+from .scalar_lp_result import (
+    ScalarLPModeCatalogResult,
+    ScalarLPModeFamilyResult,
+    ScalarLPModeFieldResult,
+    ScalarLPModeManifest,
+)
+from .scalar_lp_step_index import (
+    MAX_SCALAR_LP_MODE_FAMILIES,
+    ScalarLPModeIndex,
+    ScalarLPModeSolution,
+    ScalarLPModeSolveError,
+    scalar_lp_mode_cutoff_v,
+    solve_scalar_step_index_lp_mode,
+    supported_scalar_lp_mode_indices,
+)
 
 __all__ = [
     "DEFAULT_GRID_POINTS",
@@ -28,9 +49,25 @@ __all__ = [
     "ModeFieldRadiusValidityError",
     "ScalarLP01ModeSolution",
     "ScalarLP01SolveError",
+    "ScalarLPModeCalculationError",
+    "ScalarLPModeCatalogRequest",
+    "ScalarLPModeCatalogResult",
+    "ScalarLPModeFamilyResult",
+    "ScalarLPModeFieldRequest",
+    "ScalarLPModeFieldResult",
+    "ScalarLPModeIndex",
+    "ScalarLPModeManifest",
+    "ScalarLPModeSolution",
+    "ScalarLPModeSolveError",
     "approximate_mode_field_radius_um",
     "calculate_gaussian_mode_profile",
+    "calculate_scalar_lp_mode_catalog",
+    "calculate_scalar_lp_mode_field",
+    "scalar_lp_mode_cutoff_v",
     "solve_scalar_step_index_lp01",
+    "solve_scalar_step_index_lp_mode",
+    "supported_scalar_lp_mode_indices",
+    "MAX_SCALAR_LP_MODE_FAMILIES",
     "MAX_GRID_POINTS",
     "MIN_GRID_POINTS",
 ]

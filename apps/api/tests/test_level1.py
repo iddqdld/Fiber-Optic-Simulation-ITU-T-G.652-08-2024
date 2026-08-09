@@ -22,6 +22,7 @@ from fibre_sim.level1 import (
 )
 from fibre_sim.modes import solve_scalar_step_index_lp01
 from fibre_sim.standards import G652DAttenuationApplication
+from fibre_sim.standards.constants import G652D_MIN_WAVELENGTH_NM
 
 pytestmark = pytest.mark.anyio
 
@@ -97,6 +98,26 @@ def request_from_payload(payload: dict[str, object]) -> Level1SimulationRequest:
     return Level1SimulationRequest.model_validate(payload)
 
 
+def scalar_lp_payload(
+    *,
+    wavelength_m: float = 1550e-9,
+    core_radius_m: float = 6e-6,
+    azimuthal_order: int | None = None,
+    radial_order: int | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "wavelength_m": wavelength_m,
+        "core_radius_m": core_radius_m,
+        "n_core": 1.47,
+        "n_cladding": 1.465,
+    }
+    if azimuthal_order is not None:
+        payload["azimuthal_order"] = azimuthal_order
+    if radial_order is not None:
+        payload["radial_order"] = radial_order
+    return payload
+
+
 async def test_custom_preview_returns_exact_physics_result_without_standards_details(
     client: httpx2.AsyncClient,
 ) -> None:
@@ -120,11 +141,12 @@ async def test_custom_preview_returns_exact_physics_result_without_standards_det
         == response.json()["attenuation"]["output_power_dbm"]
         == response.json()["bend_loss"]["output_power_dbm"]
     )
-    assert response.json()["model_manifest"]["model_version"] == "1.2.0"
+    assert response.json()["model_manifest"]["model_version"] == "1.3.0"
     assert (
         "marcuse_lp01_step_index_macrobend"
         in response.json()["model_manifest"]["component_model_ids"]
     )
+    assert "scalar_lp_step_index_modes" in response.json()["model_manifest"]["component_model_ids"]
     assert response.json()["bend_loss"]["model_manifest"]["scientific_label"] == (
         "Estimated LP01 macrobend radiation loss — Marcuse model"
     )
@@ -178,6 +200,112 @@ async def test_repeated_valid_preview_requests_are_deterministic(
     assert first.status_code == second.status_code == 200
     assert first.content == second.content
     assert first.json() == second.json()
+
+
+async def test_scalar_lp_catalog_returns_exact_labels_without_excitation_claims(
+    client: httpx2.AsyncClient,
+) -> None:
+    response = await client.post(
+        "/api/v1/modes/scalar-lp/catalog",
+        json=scalar_lp_payload(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [mode["label"] for mode in body["mode_families"]] == ["LP01", "LP11"]
+    assert [mode["spatial_degeneracy"] for mode in body["mode_families"]] == [1, 2]
+    assert body["mode_regime"] == "multimode"
+    assert body["catalog_truncated"] is False
+    manifest = body["model_manifest"]
+    assert manifest["catalog_label"] == (
+        "Supported scalar LP modes — weak-guidance step-index model"
+    )
+    assert manifest["field_label"] == "Scalar LP mode field — weak-guidance step-index model"
+    assert manifest["excitation_status"] == "not_calculated"
+    assert {
+        "supported modes are not necessarily excited by the source",
+        "no launch overlap, modal power, polarization, or mode coupling",
+        "no vector electromagnetic components or longitudinal field components",
+        "no bend-aware field displacement or radiation pattern",
+        "ideal modal cutoffs are not measured G.652.D cable cutoffs",
+    }.issubset(set(manifest["limitations"]))
+    assert "excited_modes" not in body
+    assert "launch_overlap" not in body
+    assert "modal_power" not in body
+
+
+async def test_scalar_lp_field_returns_signed_lp11_field(
+    client: httpx2.AsyncClient,
+) -> None:
+    payload = scalar_lp_payload(azimuthal_order=1, radial_order=1)
+    payload.update({"grid_half_width_m": 15e-6, "grid_points": 9})
+
+    response = await client.post(
+        "/api/v1/modes/scalar-lp/field",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["selected_mode"]["label"] == "LP11"
+    assert body["selected_mode"]["azimuthal_order"] == 1
+    assert body["selected_mode"]["radial_order"] == 1
+    assert body["selected_mode"]["spatial_degeneracy"] == 2
+    field = body["normalized_field"]
+    assert len(field) == len(body["x_m"]) == len(body["y_m"]) == 9
+    assert field[4][4] == pytest.approx(0.0, abs=1e-12)
+    assert field[4][3] < -0.9
+    assert field[4][5] > 0.9
+    assert min(value for row in field for value in row) < -0.9
+    assert max(value for row in field for value in row) > 0.9
+    assert body["model_manifest"]["excitation_status"] == "not_calculated"
+    assert body["model_manifest"]["field_normalization"] == "unit_peak_absolute_field"
+
+
+async def test_scalar_lp_field_rejects_mode_below_ideal_modal_cutoff(
+    client: httpx2.AsyncClient,
+) -> None:
+    payload = scalar_lp_payload(core_radius_m=4.1e-6, azimuthal_order=1, radial_order=1)
+    payload.update({"grid_half_width_m": 15e-6, "grid_points": 9})
+    trace_id = "scalar-lp-cutoff"
+
+    response = await client.post(
+        "/api/v1/modes/scalar-lp/field",
+        json=payload,
+        headers={"X-Trace-ID": trace_id},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "CALCULATION_ERROR",
+            "message": "The selected scalar LP mode field is unavailable for these inputs.",
+            "field": None,
+            "details": {"reason": "scalar_lp_mode_field_unavailable"},
+            "trace_id": trace_id,
+        }
+    }
+    assert response.headers["X-Trace-ID"] == trace_id
+
+
+async def test_scalar_lp_modal_cutoff_is_separate_from_g652_cable_cutoff(
+    client: httpx2.AsyncClient,
+) -> None:
+    wavelength_nm = G652D_MIN_WAVELENGTH_NM - 1.0
+    response = await client.post(
+        "/api/v1/modes/scalar-lp/catalog",
+        json=scalar_lp_payload(wavelength_m=wavelength_nm * 1e-9, core_radius_m=4.1e-6),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [mode["label"] for mode in body["mode_families"]] == ["LP01", "LP11"]
+    lp11 = body["mode_families"][1]
+    assert body["v_number_dimensionless"] > lp11["cutoff_v_dimensionless"]
+    assert (
+        "ideal modal cutoffs are not measured G.652.D cable cutoffs"
+        in body["model_manifest"]["limitations"]
+    )
 
 
 async def test_marcuse_endpoint_matches_the_approved_synthetic_fixture(

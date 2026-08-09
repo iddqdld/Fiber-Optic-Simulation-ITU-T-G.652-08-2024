@@ -17,6 +17,8 @@ type GroupDelayResult = components['schemas']['GroupDelayResult']
 type PulseBroadeningResult =
   components['schemas']['ChromaticPulseBroadeningResult']
 type ModeProfileResult = components['schemas']['GaussianModeProfileResult']
+type ScalarLPModeCatalogResult =
+  components['schemas']['ScalarLPModeCatalogResult']
 
 const configuration = {
   preset: 'custom',
@@ -173,6 +175,43 @@ const baseModeProfile = buildModeProfile(
   ],
 )
 
+const supportedModes = {
+  wavelength_m: 1.55e-6,
+  core_radius_m: 4.1e-6,
+  n_core: 1.47,
+  n_cladding: 1.465,
+  v_number_dimensionless: 2.0133583577641976,
+  mode_regime: 'single_mode',
+  mode_families: [
+    {
+      label: 'LP01',
+      azimuthal_order: 0,
+      radial_order: 1,
+      spatial_degeneracy: 1,
+      cutoff_v_dimensionless: 0,
+      v_number_dimensionless: 2.0133583577641976,
+      u_dimensionless: 1.5326932244200622,
+      w_dimensionless: 1.305550978168137,
+      normalized_propagation_constant: 0.42048015656352583,
+      effective_index_dimensionless: 1.4671044769536934,
+      beta_per_m: 5947154.383027637,
+    },
+  ],
+  catalog_truncated: false,
+  warnings: [],
+  model_manifest: {
+    model_id: 'scalar_lp_step_index_modes',
+    model_version: '1.0.0',
+    catalog_label: 'Supported scalar LP modes — weak-guidance step-index model',
+    field_label: 'Scalar LP mode field — weak-guidance step-index model',
+    field_normalization: 'unit_peak_absolute_field',
+    angular_basis: 'cosine_representative',
+    excitation_status: 'not_calculated',
+    assumptions: [],
+    limitations: [],
+  },
+} satisfies ScalarLPModeCatalogResult
+
 const baseResult = {
   configuration,
   guidance,
@@ -181,9 +220,10 @@ const baseResult = {
   group_delay: groupDelay,
   pulse_broadening: pulseBroadening,
   mode_profile: baseModeProfile,
+  supported_modes: supportedModes,
   model_manifest: {
     model_id: 'level1_single_section_simulation',
-    model_version: '1.2.0',
+    model_version: '1.3.0',
     component_model_ids: [],
     assumptions: [],
     limitations: [],

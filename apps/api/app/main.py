@@ -55,7 +55,19 @@ from fibre_sim.level1 import (
     Level1Warning,
     calculate_level1_simulation,
 )
-from fibre_sim.modes import GaussianModeProfileManifest, GaussianModeProfileResult
+from fibre_sim.modes import (
+    GaussianModeProfileManifest,
+    GaussianModeProfileResult,
+    ScalarLPModeCalculationError,
+    ScalarLPModeCatalogRequest,
+    ScalarLPModeCatalogResult,
+    ScalarLPModeFamilyResult,
+    ScalarLPModeFieldRequest,
+    ScalarLPModeFieldResult,
+    ScalarLPModeManifest,
+    calculate_scalar_lp_mode_catalog,
+    calculate_scalar_lp_mode_field,
+)
 from fibre_sim.panda_mesh import (
     PandaMeshGenerationError,
     PandaMeshManifest,
@@ -299,6 +311,58 @@ async def post_marcuse_bend_loss(request: MarcuseBendLossInput) -> MarcuseBendLo
 
 
 @app.post(
+    "/api/v1/modes/scalar-lp/catalog",
+    operation_id="calculate_scalar_lp_mode_catalog",
+    response_model=ScalarLPModeCatalogResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or scalar LP calculation failed",
+        }
+    },
+)
+async def post_scalar_lp_mode_catalog(
+    request: ScalarLPModeCatalogRequest,
+) -> ScalarLPModeCatalogResult:
+    try:
+        return calculate_scalar_lp_mode_catalog(request)
+    except (ScalarLPModeCalculationError, ValidationError, OverflowError) as exc:
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="The supported scalar LP mode catalog is unavailable for these inputs.",
+            field=None,
+            details={"reason": "scalar_lp_mode_catalog_unavailable"},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
+    "/api/v1/modes/scalar-lp/field",
+    operation_id="calculate_scalar_lp_mode_field",
+    response_model=ScalarLPModeFieldResult,
+    responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "Request validation or scalar LP calculation failed",
+        }
+    },
+)
+async def post_scalar_lp_mode_field(
+    request: ScalarLPModeFieldRequest,
+) -> ScalarLPModeFieldResult:
+    try:
+        return calculate_scalar_lp_mode_field(request)
+    except (ScalarLPModeCalculationError, ValidationError, OverflowError) as exc:
+        raise ApplicationError(
+            code="CALCULATION_ERROR",
+            message="The selected scalar LP mode field is unavailable for these inputs.",
+            field=None,
+            details={"reason": "scalar_lp_mode_field_unavailable"},
+            status_code=422,
+        ) from exc
+
+
+@app.post(
     "/api/v1/simulations/preview",
     operation_id="preview_level1_simulation",
     response_model=Level1SimulationResult,
@@ -315,6 +379,7 @@ async def post_simulation_preview(request: Level1SimulationRequest) -> Level1Sim
     except (
         ConstantAttenuationCalculationError,
         MacrobendLossCalculationError,
+        ScalarLPModeCalculationError,
         GroupDelayCalculationError,
         ChromaticPulseBroadeningCalculationError,
         ValidationError,
@@ -347,6 +412,7 @@ async def post_simulation_sweep(request: Level1SweepRequest) -> Level1SweepResul
         Level1SweepCalculationError,
         ConstantAttenuationCalculationError,
         MacrobendLossCalculationError,
+        ScalarLPModeCalculationError,
         GroupDelayCalculationError,
         ChromaticPulseBroadeningCalculationError,
         ValidationError,
@@ -416,6 +482,12 @@ CONTRACT_MODELS: tuple[type[BaseModel], ...] = (
     MacrobendLossResult,
     MarcuseBendLossInput,
     MarcuseBendLossResult,
+    ScalarLPModeCatalogRequest,
+    ScalarLPModeCatalogResult,
+    ScalarLPModeFamilyResult,
+    ScalarLPModeFieldRequest,
+    ScalarLPModeFieldResult,
+    ScalarLPModeManifest,
     MaterialSource,
     ModelManifest,
     ModelReference,

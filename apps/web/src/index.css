@@ -431,6 +431,29 @@ select:focus-visible {
   color: #526575;
 }
 
+.scalar-mode-selection {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.scalar-mode-selection select {
+  width: min(100%, 28rem);
+  min-height: 2.35rem;
+  padding: 0.4rem 0.55rem;
+  color: inherit;
+  font: inherit;
+  background: inherit;
+  border: 1px solid #9bb6c5;
+  border-radius: 0.4rem;
+}
+
+.scalar-mode-selection ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+  color: #526575;
+}
+
 .pulse-animation-status {
   margin: 1rem 0 0;
   padding: 0.7rem 0.8rem;
@@ -3113,6 +3136,16 @@ summary:focus-visible,
 .scene-workspace .pulse-animation-explanation {
   color: var(--editor-text-muted);
   font-size: 0.75rem;
+}
+
+.scene-workspace .scalar-mode-selection select {
+  color: var(--editor-text);
+  background: var(--editor-panel);
+  border-color: var(--editor-border-strong);
+}
+
+.scene-workspace .scalar-mode-selection ul {
+  color: var(--editor-text-muted);
 }
 
 .scene-workspace .pulse-animation-button {

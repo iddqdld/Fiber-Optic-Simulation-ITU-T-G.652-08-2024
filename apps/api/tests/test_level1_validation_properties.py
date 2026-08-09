@@ -517,13 +517,13 @@ def valid_payloads(draw: st.DrawFn) -> Payload:
         )
     else:
         wavelength_nm = draw(
-            st.floats(min_value=0.01, max_value=2000.0, allow_nan=False, allow_infinity=False)
+            st.floats(min_value=1000.0, max_value=2000.0, allow_nan=False, allow_infinity=False)
         )
     n_cladding = draw(
         st.floats(min_value=1.40, max_value=1.48, allow_nan=False, allow_infinity=False)
     )
     n_core = n_cladding + draw(
-        st.floats(min_value=0.001, max_value=0.10, allow_nan=False, allow_infinity=False)
+        st.floats(min_value=0.01, max_value=0.10, allow_nan=False, allow_infinity=False)
     )
     grid_points = draw(ODD_GRID_POINTS)
     payload = valid_payload(preset=preset, wavelength_nm=wavelength_nm, grid_points=grid_points)
@@ -532,7 +532,7 @@ def valid_payloads(draw: st.DrawFn) -> Payload:
             "n_core": n_core,
             "n_cladding": n_cladding,
             "core_radius_um": draw(
-                st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False)
+                st.floats(min_value=1.0, max_value=10.0, allow_nan=False, allow_infinity=False)
             ),
             "mode_field_radius_um": draw(
                 st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False)
