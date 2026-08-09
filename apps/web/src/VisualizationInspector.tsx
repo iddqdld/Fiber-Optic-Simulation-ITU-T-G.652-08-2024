@@ -178,7 +178,7 @@ export function VisualizationInspector({
               update('modeViewEnabled', event.currentTarget.checked)
             }
           />
-          Approximate LP01 field
+          Scalar mode field
         </label>
         <label className="inspector-toggle" htmlFor="inspector-pulse-view">
           <input

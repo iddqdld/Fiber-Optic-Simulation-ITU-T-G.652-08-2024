@@ -1,3 +1,5 @@
+I printed every file in the modes folder, but the command also printed binary `__pycache__` files. Repository inspections must exclude cache folders to keep the output readable.
+
 I started the Vite check server inside the restricted sandbox, but local port binding failed with `EPERM`. The live browser check requires the approved unsandboxed development-server command.
 
 I printed only the test exit code and tail, but the command returned a live session ID after its time slice. Printing and polling that session ID is required for long test suites.
@@ -77,3 +79,7 @@ I ran the first Phase D unit tests. One trend threshold exceeded the actual 80,8
 I added SciPy stubs for strict mypy checks. uv again resolved the full workspace and failed on sandbox DNS before it reached the requested package.
 I added a guided-mode check to the frontend bend validator. A repeated guard pattern placed it in the input-array function, so I moved it to the result function.
 I ran the full backend test suite with quiet output. The command showed four failures, but the captured output ended before every failure detail and final summary.
+- 2026-08-09 — Running `npm --prefix apps/web exec -- prettier` used the web package binary but kept the repository root as the working directory. File arguments need repository-relative paths or an explicit `apps/web` working directory.
+- 2026-08-09 — A combined `rg` check failed because its pattern mixed single and double shell quotes. Separate fixed-string searches avoid this easy-to-miss shell parsing error.
+- 2026-08-09 — The live browser check found port 8124 already occupied by an API process, so a second uvicorn instance could not start. Check or reuse the existing local service before launch.
+- 2026-08-09 — Vite failed to bind `127.0.0.1:5173` with `EPERM` inside the managed sandbox. The local browser check needs the approved development-server permission.

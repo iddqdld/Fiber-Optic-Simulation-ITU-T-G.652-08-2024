@@ -28,6 +28,12 @@ def test_shared_contracts_are_published_in_openapi_components() -> None:
         "MarcuseBendLossResult",
         "ModelManifest",
         "PulseSeries",
+        "ScalarLPModeCatalogRequest",
+        "ScalarLPModeCatalogResult",
+        "ScalarLPModeFamilyResult",
+        "ScalarLPModeFieldRequest",
+        "ScalarLPModeFieldResult",
+        "ScalarLPModeManifest",
         "SimulationConfig",
         "SimulationResult",
         "Splice",
@@ -208,6 +214,8 @@ def test_photoelastic_field_map_contracts_and_path_are_published() -> None:
         "/api/v1/photoelastic/panda/field-map",
         "/api/v1/photoelastic/panda/mesh",
         "/api/v1/photoelastic/panda/thermal-fem",
+        "/api/v1/modes/scalar-lp/catalog",
+        "/api/v1/modes/scalar-lp/field",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }
@@ -348,6 +356,8 @@ def test_guidance_path_has_exact_operation_and_response_contracts() -> None:
         "/api/v1/photoelastic/panda/field-map",
         "/api/v1/photoelastic/panda/mesh",
         "/api/v1/photoelastic/panda/thermal-fem",
+        "/api/v1/modes/scalar-lp/catalog",
+        "/api/v1/modes/scalar-lp/field",
         "/api/v1/simulations/preview",
         "/api/v1/simulations/sweep",
     }
@@ -390,6 +400,41 @@ def test_level1_preview_path_has_exact_operation_and_response_contracts() -> Non
         operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
         == "#/components/schemas/ErrorResponse"
     )
+
+
+def test_scalar_lp_paths_have_exact_operation_request_and_response_contracts() -> None:
+    paths = main.app.openapi()["paths"]
+    expected = {
+        "/api/v1/modes/scalar-lp/catalog": (
+            "calculate_scalar_lp_mode_catalog",
+            "ScalarLPModeCatalogRequest",
+            "ScalarLPModeCatalogResult",
+        ),
+        "/api/v1/modes/scalar-lp/field": (
+            "calculate_scalar_lp_mode_field",
+            "ScalarLPModeFieldRequest",
+            "ScalarLPModeFieldResult",
+        ),
+    }
+
+    for path, (operation_id, request_model, response_model) in expected.items():
+        operation = paths[path]["post"]
+        assert set(paths[path]) == {"post"}
+        assert operation["operationId"] == operation_id
+        assert operation["requestBody"]["required"] is True
+        assert (
+            operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+            == f"#/components/schemas/{request_model}"
+        )
+        assert set(operation["responses"]) == {"200", "422"}
+        assert (
+            operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+            == f"#/components/schemas/{response_model}"
+        )
+        assert (
+            operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/ErrorResponse"
+        )
 
 
 def test_marcuse_bend_path_has_exact_operation_and_response_contracts() -> None:
@@ -621,6 +666,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
             "configuration",
             "guidance",
             "mode_profile",
+            "supported_modes",
             "attenuation",
             "bend_loss",
             "group_delay",
@@ -633,6 +679,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
         "configuration": {"$ref": "#/components/schemas/Level1SimulationRequest"},
         "guidance": {"$ref": "#/components/schemas/GuidanceResult"},
         "mode_profile": {"$ref": "#/components/schemas/GaussianModeProfileResult"},
+        "supported_modes": {"$ref": "#/components/schemas/ScalarLPModeCatalogResult"},
         "attenuation": {"$ref": "#/components/schemas/ConstantAttenuationResult"},
         "bend_loss": {"$ref": "#/components/schemas/MacrobendLossResult"},
         "group_delay": {"$ref": "#/components/schemas/GroupDelayResult"},
@@ -713,7 +760,7 @@ def test_level1_component_schemas_are_closed_and_reference_nested_contracts() ->
     ]
 
     manifest = schemas["Level1SimulationManifest"]
-    assert manifest["properties"]["model_version"]["const"] == "1.2.0"
+    assert manifest["properties"]["model_version"]["const"] == "1.3.0"
     for field in ("component_model_ids", "assumptions", "limitations"):
         assert manifest["properties"][field]["type"] == "array"
         assert manifest["properties"][field]["items"] == {"type": "string"}

@@ -42,7 +42,7 @@ describe('VisualizationInspector', () => {
     render(<Harness />)
 
     expect(screen.getByLabelText('Educational ray')).toBeChecked()
-    expect(screen.getByLabelText('Approximate LP01 field')).toBeChecked()
+    expect(screen.getByLabelText('Scalar mode field')).toBeChecked()
     expect(screen.getByLabelText('Scaled pulse animation')).toBeChecked()
     expect(screen.getByLabelText('Cladding shell')).toBeChecked()
     expect(screen.getByLabelText('Scale markers')).toBeChecked()

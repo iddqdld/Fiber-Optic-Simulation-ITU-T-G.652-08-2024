@@ -38,6 +38,7 @@ type GeometryProps = {
   sectionLengthKm: number | null
   rayGuidance: RayGuidance | null
   modeProfile: ModeProfileData | null
+  supportedModes: components['schemas']['ScalarLPModeCatalogResult'] | null
   pulseAnimation: PulseAnimationData | null
   attenuation: PowerDistanceData | null
   macrobends: readonly components['schemas']['MacrobendInput'][]
@@ -50,6 +51,7 @@ vi.mock('./FibreGeometryView', () => ({
     sectionLengthKm,
     rayGuidance,
     modeProfile,
+    supportedModes,
     pulseAnimation,
     attenuation,
     macrobends,
@@ -67,6 +69,11 @@ vi.mock('./FibreGeometryView', () => ({
         {rayGuidance === null
           ? 'null'
           : `${rayGuidance.criticalAngleDeg}° · ${rayGuidance.modeRegime} · V ${rayGuidance.vNumberDimensionless} · ideal boundary ${rayGuidance.modeRegimeCutoffVDimensionless} · cable cutoff ${rayGuidance.cableCutoffWavelengthMaxNm ?? 'none'} · ${rayGuidance.modelId} · ${rayGuidance.modelVersion}`}
+      </p>
+      <p aria-label="Supported modes" data-testid="supported-modes">
+        {supportedModes === null
+          ? 'null'
+          : `${supportedModes.mode_regime} · V ${supportedModes.v_number_dimensionless} · ${supportedModes.mode_families.map((mode) => mode.label).join(',')} · ${supportedModes.model_manifest.model_id} · ${supportedModes.model_manifest.model_version}`}
       </p>
       <p aria-label="Mode profile" data-testid="mode-profile">
         {modeProfile === null
@@ -520,10 +527,11 @@ const customParameterBoundaries = [
 
 const simulationManifest = {
   model_id: 'level1_single_section_simulation',
-  model_version: '1.2.0',
+  model_version: '1.3.0',
   component_model_ids: [
     'ideal_circular_step_index_guidance',
     'gaussian_lp01_mode_profile',
+    'scalar_lp_step_index_modes',
     'constant_fibre_attenuation',
     'marcuse_lp01_step_index_macrobend',
     'constant_group_index_delay',
@@ -534,6 +542,7 @@ const simulationManifest = {
     'all calculations share one operating wavelength',
     'fibre composition is uniform over the section',
     'Marcuse LP01 radiation loss is applied after straight-fibre attenuation',
+    'supported scalar LP modes are listed without source-excitation claims',
   ],
   limitations: [
     'bend transitions and coating effects do not derive bend loss',
@@ -615,6 +624,97 @@ const modeProfileManifest = {
   limitations: ['not an exact step-index eigenmode solver'],
 } satisfies components['schemas']['GaussianModeProfileManifest']
 
+const scalarModeManifest = {
+  model_id: 'scalar_lp_step_index_modes',
+  model_version: '1.0.0',
+  catalog_label: 'Supported scalar LP modes — weak-guidance step-index model',
+  field_label: 'Scalar LP mode field — weak-guidance step-index model',
+  field_normalization: 'unit_peak_absolute_field',
+  angular_basis: 'cosine_representative',
+  excitation_status: 'not_calculated',
+  assumptions: [
+    'ideal circular step-index core and cladding',
+    'scalar weak-guidance LP mode equation',
+    'infinite cladding with a decaying modified-Bessel tail',
+    'one real cosine representative for each spatial mode family',
+  ],
+  limitations: [
+    'supported modes are not necessarily excited by the source',
+    'no launch overlap, modal power, polarization, or mode coupling',
+    'no vector electromagnetic components or longitudinal field components',
+    'no bend-aware field displacement or radiation pattern',
+    'ideal modal cutoffs are not measured G.652.D cable cutoffs',
+    'exact Bessel cutoffs can differ slightly from the rounded V=2.405 boundary',
+  ],
+} satisfies components['schemas']['ScalarLPModeManifest']
+
+const singleModeSupportedModes = {
+  wavelength_m: 1.5500000000000002e-6,
+  core_radius_m: 4.1e-6,
+  n_core: 1.47,
+  n_cladding: 1.465,
+  v_number_dimensionless: 2.013358357764197,
+  mode_regime: 'single_mode',
+  mode_families: [
+    {
+      label: 'LP01',
+      azimuthal_order: 0,
+      radial_order: 1,
+      spatial_degeneracy: 1,
+      cutoff_v_dimensionless: 0,
+      v_number_dimensionless: 2.013358357764197,
+      u_dimensionless: 1.5326932244200622,
+      w_dimensionless: 1.3055509781681363,
+      normalized_propagation_constant: 0.42048015656352555,
+      effective_index_dimensionless: 1.4671044769536932,
+      beta_per_m: 5947154.3830276355,
+    },
+  ],
+  catalog_truncated: false,
+  warnings: [],
+  model_manifest: scalarModeManifest,
+} satisfies components['schemas']['ScalarLPModeCatalogResult']
+
+const multimodeSupportedModesForNCore148 = {
+  wavelength_m: 1.5500000000000002e-6,
+  core_radius_m: 4.1e-6,
+  n_core: 1.48,
+  n_cladding: 1.465,
+  v_number_dimensionless: 3.493174699692236,
+  mode_regime: 'multimode',
+  mode_families: [
+    {
+      label: 'LP01',
+      azimuthal_order: 0,
+      radial_order: 1,
+      spatial_degeneracy: 1,
+      cutoff_v_dimensionless: 0,
+      v_number_dimensionless: 3.493174699692236,
+      u_dimensionless: 1.846434856028573,
+      w_dimensionless: 2.9652905093789186,
+      normalized_propagation_constant: 0.7205993784658481,
+      effective_index_dimensionless: 1.4758243383085023,
+      beta_per_m: 5982501.805443881,
+    },
+    {
+      label: 'LP11',
+      azimuthal_order: 1,
+      radial_order: 1,
+      spatial_degeneracy: 2,
+      cutoff_v_dimensionless: 2.4048255576957724,
+      v_number_dimensionless: 3.493174699692236,
+      u_dimensionless: 2.875951497832512,
+      w_dimensionless: 1.982718453206323,
+      normalized_propagation_constant: 0.32216732062017384,
+      effective_index_dimensionless: 1.4698492240323142,
+      beta_per_m: 5958280.676263968,
+    },
+  ],
+  catalog_truncated: false,
+  warnings: [],
+  model_manifest: scalarModeManifest,
+} satisfies components['schemas']['ScalarLPModeCatalogResult']
+
 function buildModeProfile({
   gridHalfWidthUm = 15,
   gridPoints = 65,
@@ -656,7 +756,7 @@ const customResult = {
     critical_angle_deg: 85.27298324998428,
     numerical_aperture_dimensionless: 0.12114041439585586,
     air_acceptance_angle_deg: 6.957923692892281,
-    relative_index_difference_dimensionless: 0.0034,
+    relative_index_difference_dimensionless: 0.0034013605442176145,
     v_number_dimensionless: 2.0133583577642065,
     mode_regime: 'single_mode',
     approximate_mode_count: null,
@@ -664,7 +764,7 @@ const customResult = {
       {
         code: 'mode_count_unavailable',
         message:
-          'Mode count estimate is unavailable below the validity threshold.',
+          'V^2/2 estimate requires V >= 10.0 under the project validity policy (clearly highly multimode regime).',
         output_field: 'approximate_mode_count',
       },
     ],
@@ -717,6 +817,7 @@ const customResult = {
     model_manifest: pulseManifest,
   },
   mode_profile: buildModeProfile(),
+  supported_modes: singleModeSupportedModes,
   model_manifest: simulationManifest,
   standards_checks: {
     preset: 'custom',
@@ -1198,6 +1299,7 @@ function pulseAnimationOutput() {
 
 function expectAllVisualizationConsumersToBeNull() {
   expect(screen.getByTestId('ray-guidance')).toHaveTextContent('null')
+  expect(screen.getByTestId('supported-modes')).toHaveTextContent('null')
   expect(modeProfileOutput()).toHaveTextContent('null')
   expect(radialIntensityPlotOutput()).toHaveTextContent('null')
   expect(pulseAnimationOutput()).toHaveTextContent('null')
@@ -2563,7 +2665,13 @@ describe('Level 1 preview state and results', () => {
           guidance: {
             ...customResult.guidance,
             critical_angle_deg: 81.83568244780919,
+            numerical_aperture_dimensionless: 0.21017849556983634,
+            air_acceptance_angle_deg: 12.132812742793906,
+            relative_index_difference_dimensionless: 0.01013513513513507,
+            v_number_dimensionless: 3.4931746996922395,
+            mode_regime: 'multimode',
           },
+          supported_modes: multimodeSupportedModesForNCore148,
         }),
       )
       await Promise.resolve()
@@ -3503,13 +3611,16 @@ describe('Level 1 preview state and results', () => {
     expect(preview).toHaveTextContent('25 ps')
     expect(preview).toHaveTextContent('49.30770730829005 ps')
     expect(preview).toHaveTextContent('level1_single_section_simulation')
-    expect(preview).toHaveTextContent('1.2.0')
+    expect(preview).toHaveTextContent('1.3.0')
     expect(preview).toHaveTextContent('Approximate')
     expect(preview).toHaveTextContent('one uniform fibre section')
     expect(preview).toHaveTextContent(
       'bend transitions and coating effects do not derive bend loss',
     )
     expect(preview).toHaveTextContent('excludes splices and connectors')
+    expect(screen.getByTestId('supported-modes')).toHaveTextContent(
+      'single_mode · V 2.013358357764197 · LP01 · scalar_lp_step_index_modes · 1.0.0',
+    )
     const warningsHeading = within(preview).getByRole('heading', {
       name: 'Warnings',
     })

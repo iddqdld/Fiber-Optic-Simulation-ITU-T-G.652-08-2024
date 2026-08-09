@@ -1,6 +1,7 @@
 import type { FibrePath } from './fibreShowcase'
 import { sampleFibrePathFrames } from './fibreShowcase'
 import type { ModeProfileData } from './FibreGeometryView'
+import type { ScalarModeFieldData } from './scalarMode'
 
 export const LP01_PATH_SAMPLE_COUNT = 129
 export const LP01_MAX_PROFILE_POINTS = 65
@@ -20,12 +21,30 @@ export type LP01PathFieldGeometry = {
   modeFieldRadius: number
 }
 
+export type ScalarLPPathFieldGeometry = LP01PathFieldGeometry
+
+type PathFieldProfileData = {
+  gridPoints: number
+  xUm: number[]
+  yUm: number[]
+  normalizedField: number[][]
+  normalizedIntensity: number[][]
+}
+
 const geometryCache = new WeakMap<
   ModeProfileData,
   WeakMap<FibrePath, Map<string, LP01PathFieldGeometry | null>>
 >()
+const scalarGeometryCache = new WeakMap<
+  ScalarModeFieldData,
+  WeakMap<FibrePath, Map<string, ScalarLPPathFieldGeometry | null>>
+>()
 
-function isNormalizedGrid(grid: number[][], size: number): boolean {
+function isNormalizedGrid(
+  grid: number[][],
+  size: number,
+  signed: boolean,
+): boolean {
   return (
     Array.isArray(grid) &&
     grid.length === size &&
@@ -34,13 +53,17 @@ function isNormalizedGrid(grid: number[][], size: number): boolean {
         Array.isArray(row) &&
         row.length === size &&
         row.every(
-          (value) => Number.isFinite(value) && value >= 0 && value <= 1,
+          (value) =>
+            Number.isFinite(value) && value >= (signed ? -1 : 0) && value <= 1,
         ),
     )
   )
 }
 
-function isUsableProfile(profile: ModeProfileData): boolean {
+function isUsableProfile(
+  profile: PathFieldProfileData,
+  signed: boolean,
+): boolean {
   return (
     Number.isSafeInteger(profile.gridPoints) &&
     profile.gridPoints >= 3 &&
@@ -52,8 +75,8 @@ function isUsableProfile(profile: ModeProfileData): boolean {
     profile.yUm.length === profile.gridPoints &&
     profile.xUm.every(Number.isFinite) &&
     profile.yUm.every(Number.isFinite) &&
-    isNormalizedGrid(profile.normalizedField, profile.gridPoints) &&
-    isNormalizedGrid(profile.normalizedIntensity, profile.gridPoints) &&
+    isNormalizedGrid(profile.normalizedField, profile.gridPoints, signed) &&
+    isNormalizedGrid(profile.normalizedIntensity, profile.gridPoints, false) &&
     profile.normalizedField.length === profile.normalizedIntensity.length &&
     profile.normalizedField.every(
       (row, rowIndex) =>
@@ -115,21 +138,25 @@ function addRibbonIndices(
 }
 
 function calculateGeometry(
-  profile: ModeProfileData,
+  profile: PathFieldProfileData,
   path: FibrePath,
   physicalCoreRadiusUm: number,
   visualCoreRadius: number,
   pathSampleCount: number,
+  displayRadiusUm: number,
+  signed: boolean,
 ): LP01PathFieldGeometry | null {
   if (
-    !isUsableProfile(profile) ||
+    !isUsableProfile(profile, signed) ||
     !Number.isFinite(physicalCoreRadiusUm) ||
     physicalCoreRadiusUm <= 0 ||
     !Number.isFinite(visualCoreRadius) ||
     visualCoreRadius <= 0 ||
     !Number.isSafeInteger(pathSampleCount) ||
     pathSampleCount < 2 ||
-    pathSampleCount > 256
+    pathSampleCount > 256 ||
+    !Number.isFinite(displayRadiusUm) ||
+    displayRadiusUm <= 0
   ) {
     return null
   }
@@ -163,7 +190,7 @@ function calculateGeometry(
       normalizedField.byteLength +
       normalizedIntensity.byteLength +
       indices.byteLength,
-    modeFieldRadius: profile.modeFieldRadiusUm * coordinateScale,
+    modeFieldRadius: displayRadiusUm * coordinateScale,
   }
 
   for (let pathIndex = 0; pathIndex < frames.length; pathIndex += 1) {
@@ -254,6 +281,46 @@ export function getLP01PathFieldGeometry(
     physicalCoreRadiusUm,
     visualCoreRadius,
     pathSampleCount,
+    profile.modeFieldRadiusUm,
+    false,
+  )
+  inputCache.set(key, geometry)
+  return geometry
+}
+
+export function getScalarLPPathFieldGeometry(
+  profile: ScalarModeFieldData,
+  path: FibrePath,
+  physicalCoreRadiusUm: number,
+  visualCoreRadius: number,
+  pathSampleCount = LP01_PATH_SAMPLE_COUNT,
+): ScalarLPPathFieldGeometry | null {
+  let pathCache = scalarGeometryCache.get(profile)
+  if (pathCache === undefined) {
+    pathCache = new WeakMap()
+    scalarGeometryCache.set(profile, pathCache)
+  }
+
+  let inputCache = pathCache.get(path)
+  if (inputCache === undefined) {
+    inputCache = new Map()
+    pathCache.set(path, inputCache)
+  }
+
+  const key = `${physicalCoreRadiusUm}:${visualCoreRadius}:${pathSampleCount}`
+  const cached = inputCache.get(key)
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const geometry = calculateGeometry(
+    profile,
+    path,
+    physicalCoreRadiusUm,
+    visualCoreRadius,
+    pathSampleCount,
+    profile.coreRadiusUm,
+    true,
   )
   inputCache.set(key, geometry)
   return geometry

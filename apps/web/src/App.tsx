@@ -51,6 +51,7 @@ import { usePandaThermalFem } from './m1/usePandaThermalFem'
 import { SimulationInspector } from './SimulationInspector'
 import { StandardsWorkspace } from './StandardsWorkspace'
 import { SweepWorkspace } from './SweepWorkspace'
+import { isScalarLPModeCatalog, type ScalarLPModeCatalog } from './scalarMode'
 import { defaultVisualizationSettings } from './visualizationSettings'
 import {
   isValidPowerDistanceData,
@@ -579,9 +580,15 @@ function isPreviewResult(value: unknown): value is PreviewResult {
         : 'multimode') &&
     isFiniteNumber(guidance.numerical_aperture_dimensionless) &&
     isModeProfileResult(value.mode_profile) &&
+    isScalarLPModeCatalog(value.supported_modes) &&
+    Math.abs(
+      value.supported_modes.v_number_dimensionless -
+        guidance.v_number_dimensionless,
+    ) <=
+      1e-12 * Math.max(1, guidance.v_number_dimensionless) &&
     isRecord(value.model_manifest) &&
     value.model_manifest.model_id === 'level1_single_section_simulation' &&
-    value.model_manifest.model_version === '1.2.0' &&
+    value.model_manifest.model_version === '1.3.0' &&
     Array.isArray(value.warnings) &&
     value.warnings.every(isPreviewWarning) &&
     isPreviewStandardsChecks(value.standards_checks) &&
@@ -657,6 +664,7 @@ function toPulseComparisonData(
 type VisualizationData = {
   rayGuidance: RayGuidance
   modeProfile: ModeProfileData
+  supportedModes: ScalarLPModeCatalog
   pulseAnimation: PulseAnimationData
   pulseComparison: PulseComparisonData
   attenuation: PowerDistanceData
@@ -942,6 +950,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
               modelVersion: body.guidance.model_manifest.model_version,
             },
             modeProfile: toModeProfileData(body.mode_profile),
+            supportedModes: body.supported_modes,
             pulseAnimation: toPulseAnimationData(body),
             pulseComparison: toPulseComparisonData(body.pulse_broadening),
             attenuation: toPowerDistanceData(body.attenuation),
@@ -1140,6 +1149,7 @@ function App({ initialWorkspace = 'scene' }: AppProps) {
             sectionLengthKm={geometryValues.sectionLengthKm}
             rayGuidance={visualizationData?.rayGuidance ?? null}
             modeProfile={visualizationData?.modeProfile ?? null}
+            supportedModes={visualizationData?.supportedModes ?? null}
             pulseAnimation={visualizationData?.pulseAnimation ?? null}
             attenuation={visualizationData?.attenuation ?? null}
             macrobends={macrobends}

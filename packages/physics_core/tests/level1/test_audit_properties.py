@@ -328,6 +328,7 @@ def test_warning_order_and_component_order_are_stable_for_all_level1_branches() 
     assert result.model_manifest.component_model_ids == (
         "ideal_circular_step_index_guidance",
         "gaussian_lp01_mode_profile",
+        "scalar_lp_step_index_modes",
         "constant_fibre_attenuation",
         "marcuse_lp01_step_index_macrobend",
         "constant_group_index_delay",
@@ -337,7 +338,7 @@ def test_warning_order_and_component_order_are_stable_for_all_level1_branches() 
         "itu_t_g652d_chromatic_dispersion_check",
         "itu_t_g652d_attenuation_check",
     )
-    assert result.model_manifest.model_version == "1.2.0"
+    assert result.model_manifest.model_version == "1.3.0"
 
 
 @pytest.mark.parametrize("preset", [Level1FibrePreset.CUSTOM, Level1FibrePreset.G652D])
