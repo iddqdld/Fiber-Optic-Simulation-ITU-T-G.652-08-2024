@@ -1,32 +1,57 @@
-# Fiber-Optic-Simulation-ITU-T-G.652-08-2024
+# Fiber-Optic Simulation (ITU-T G.652)
 
-An application for 3D simulation of G-652 standard fiber-optic cable parameters, with the ability to visualize changes in any parameters.
+A web application for 3D simulation and real-time visualization of ITU-T G.652 standard single-mode optical fiber parameters.
+
+## Overview
+
+- **Interactive 3D Visualization**: Real-time rendering of optical fiber geometry, mode fields, pulse propagation, and bending effects.
+- **Physical Parameter Modeling**: Calculates key optical parameters (cutoff wavelength, mode field diameter, chromatic dispersion, attenuation, and macrobending loss).
+- **Modern Architecture**: Fast Python calculation engine (FastAPI) paired with a responsive 3D web frontend (React + Three.js).
+
+## Quick Start
+
+### Option 1: Docker (Recommended)
+
+Start both the backend API and frontend in a single command:
 
 ```bash
-make dev  # Start at http://localhost:5173
-make down # Stop
+make dev
 ```
 
-mark with : feature/nickname in readme to show who works on what feature. 
+- **Frontend**: [http://localhost:5173](http://localhost:5173)
+- **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-as now more than 1 person works on the code, let's write features properly from the main/featurename branch frok. 
+To stop the application:
 
-pls test before push bla bla bla
+```bash
+make down
+```
 
-## Remaining features
+---
 
-- **Frontend architecture refactor** — extract preview handling, validation, and workspace composition from `App.tsx` into focused modules and hooks.
-- **Enhanced 3D showcase** — curved fibre routes, camera presets, clearer materials, scale markers, layer controls, and spatial power/pulse indicators.
-- ~~**Bends and loss visualization** — configurable macrobends with backend-calculated loss and clearly labelled leakage hotspots.~~
-- ~~**Configuration comparison** — baseline and variant inputs with result differences, overlaid plots, and visual comparison.~~ 
-- ~~**Parameter sweeps** — explore one changing parameter across a safe range and graph its effect on selected outputs.~~ 
-- **Multi-section links** — assemble ordered cable sections, splices, and connectors with per-component result breakdowns.
-- **Level 2 models** — wavelength-dependent loss and dispersion, splice coupling, PMD/DGD estimates, and statistical studies.
-- ~~**Import and export** — exchange portable simulation configurations and results as JSON or CSV without accounts or server-side projects.~~ : feature/import-export
-# Step 1 fixes
-- **3D mode-regime visibility** — show the calculated single-mode or multimode state, current V-number, and ideal `V = 2.405` boundary clearly beside the 3D viewport.
-- **Single-mode electromagnetic field view** — improve the 3D field representation and clearly distinguish the current scalar LP01 intensity approximation from a complete electromagnetic field solution.
-- **Multimode field visualization** — calculate and display supported higher-order mode fields when the parameters enter the multimode regime, while keeping supported modes separate from modes actually excited by a source.
-- **Bend physics and 3D integration** — complete geometry-based bend calculations and make the educational ray, scaled pulse animation, field layers, and leakage indicators follow the curved fibre route correctly.
+### Option 2: Local Development (Without Docker)
 
+#### Prerequisites
+- **Python 3.11+** with [`uv`](https://docs.astral.sh/uv/)
+- **Node.js 18+** & `npm`
 
+#### 1. Start the Backend API
+```bash
+uv run uvicorn apps.api.app.main:app --reload --port 8000
+```
+
+#### 2. Start the Frontend
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+---
+
+## Useful Commands
+
+```bash
+make test    # Run backend and frontend test suites
+make lint    # Run code formatting and linting checks
+```
